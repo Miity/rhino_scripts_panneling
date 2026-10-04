@@ -64,17 +64,34 @@
         </text>
         <left_macro_id>0bceef95-83f5-55b2-8533-8eb36aec6d8e</left_macro_id>
       </tool_bar_item>
-      <tool_bar_item guid="a6cdb250-2cbe-52ff-a26e-8862f339c745">
+    </tool_bar>
+    <tool_bar guid="41da82d7-d4fc-53db-bfd0-a3eb12604b00">
+      <text>
+        <locale_1033>Аналіз</locale_1033>
+      </text>
+      <tool_bar_item guid="12371977-42c1-518b-abe3-5056cbedf6bc">
         <text>
-          <locale_1033>DiamondGrid</locale_1033>
+          <locale_1033>SmallClosed</locale_1033>
         </text>
-        <left_macro_id>df39ccda-4d81-5fe9-8534-fe9a1234d94d</left_macro_id>
+        <left_macro_id>e029b682-1a03-5dfa-b65f-4a7d46adc533</left_macro_id>
       </tool_bar_item>
-      <tool_bar_item guid="6b5e0f29-0753-5e79-b79a-6935ae13a38a">
+      <tool_bar_item guid="64cbedf3-92c5-5481-9e8f-40dec0ebe345">
         <text>
-          <locale_1033>CurveOverlap</locale_1033>
+          <locale_1033>CutRisks</locale_1033>
         </text>
-        <left_macro_id>91ab705e-53a7-5a8d-8a30-dbb8fdeb476e</left_macro_id>
+        <left_macro_id>e43b6c53-d2c8-5668-9cc4-fba696581b6f</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="97950ca8-b276-5890-a232-a6b4c11a9bab">
+        <text>
+          <locale_1033>RecommendTabs</locale_1033>
+        </text>
+        <left_macro_id>33643099-363e-5541-9cc8-767468c40536</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="b07cb6d1-1125-50dd-9ea7-efc9dbdc7e65">
+        <text>
+          <locale_1033>CutTabs</locale_1033>
+        </text>
+        <left_macro_id>0f481530-a4dd-5e2e-9801-f4aa02b26c07</left_macro_id>
       </tool_bar_item>
     </tool_bar>
     <tool_bar guid="d29fbfbb-8c36-52da-adb4-a1c5738ad974">
@@ -93,29 +110,11 @@
         </text>
         <left_macro_id>45f78d31-6434-5318-8dd2-d51c485c2862</left_macro_id>
       </tool_bar_item>
-      <tool_bar_item guid="f92d5c56-fbe1-581b-b091-68fc63994fb8">
+      <tool_bar_item guid="bfcf3b7b-d70f-503a-9a98-b144f0ea9bca">
         <text>
-          <locale_1033>SmallClosed</locale_1033>
+          <locale_1033>CurveOverlap</locale_1033>
         </text>
-        <left_macro_id>e029b682-1a03-5dfa-b65f-4a7d46adc533</left_macro_id>
-      </tool_bar_item>
-      <tool_bar_item guid="14261dd9-bf29-52ca-9c71-a7013107daba">
-        <text>
-          <locale_1033>CutRisks</locale_1033>
-        </text>
-        <left_macro_id>e43b6c53-d2c8-5668-9cc4-fba696581b6f</left_macro_id>
-      </tool_bar_item>
-      <tool_bar_item guid="0c8e2b22-d49a-5015-bf6e-571ee029b190">
-        <text>
-          <locale_1033>RecommendTabs</locale_1033>
-        </text>
-        <left_macro_id>33643099-363e-5541-9cc8-767468c40536</left_macro_id>
-      </tool_bar_item>
-      <tool_bar_item guid="8057d1a0-a4e9-5717-9add-c4d19e8138a7">
-        <text>
-          <locale_1033>CutTabs</locale_1033>
-        </text>
-        <left_macro_id>0f481530-a4dd-5e2e-9801-f4aa02b26c07</left_macro_id>
+        <left_macro_id>91ab705e-53a7-5a8d-8a30-dbb8fdeb476e</left_macro_id>
       </tool_bar_item>
     </tool_bar>
     <tool_bar guid="3fc14db3-9c8c-5f72-bbbe-cff8e47ebdaf">
@@ -336,29 +335,53 @@
       </button_text>
     <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/find_exact_connection.py"</script>
     </macro_item>
-    <macro_item guid="df39ccda-4d81-5fe9-8534-fe9a1234d94d">
+    <macro_item guid="e029b682-1a03-5dfa-b65f-4a7d46adc533">
       <text>
-        <locale_1033>DiamondGrid</locale_1033>
+        <locale_1033>SmallClosed</locale_1033>
       </text>
       <tooltip>
-        <locale_1033>Ромбоподібна сітка по UV NURBS-поверхні (тканина)</locale_1033>
+        <locale_1033>Виділити замкнені криві, менші за мінімальну площу різу</locale_1033>
       </tooltip>
       <button_text>
-        <locale_1033>DiamondGrid</locale_1033>
+        <locale_1033>SmallClosed</locale_1033>
       </button_text>
-    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/diamond_grid.py"</script>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/SelectSmallClosedCurves.py"</script>
     </macro_item>
-    <macro_item guid="91ab705e-53a7-5a8d-8a30-dbb8fdeb476e">
+    <macro_item guid="e43b6c53-d2c8-5668-9cc4-fba696581b6f">
       <text>
-        <locale_1033>CurveOverlap</locale_1033>
+        <locale_1033>CutRisks</locale_1033>
       </text>
       <tooltip>
-        <locale_1033>Видалити точні дублікати (SelDup), виділити коротшу криву з кожної пари, що перекриваються (серед виділених, або всі криві)</locale_1033>
+        <locale_1033>Позначити ризиковані місця різу (геометрія не змінюється)</locale_1033>
       </tooltip>
       <button_text>
-        <locale_1033>CurveOverlap</locale_1033>
+        <locale_1033>CutRisks</locale_1033>
       </button_text>
-    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/sel_curve_overlap.py"</script>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/CheckTangentialCutRisks.py"</script>
+    </macro_item>
+    <macro_item guid="33643099-363e-5541-9cc8-767468c40536">
+      <text>
+        <locale_1033>RecommendTabs</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Виділити контури, яким потрібні перемички (малі або вузькі)</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>RecommendTabs</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/RecommendCutTabs.py"</script>
+    </macro_item>
+    <macro_item guid="0f481530-a4dd-5e2e-9801-f4aa02b26c07">
+      <text>
+        <locale_1033>CutTabs</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Інтерактивно додати перемички (tabs) на контури різу</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>CutTabs</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/AddCutTabs.py"</script>
     </macro_item>
     <macro_item guid="484638e7-36c1-589d-b2f6-78197a809fe0">
       <text>
@@ -384,53 +407,17 @@
       </button_text>
     <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/SplitPanelsToMaterial.py"</script>
     </macro_item>
-    <macro_item guid="e029b682-1a03-5dfa-b65f-4a7d46adc533">
+    <macro_item guid="91ab705e-53a7-5a8d-8a30-dbb8fdeb476e">
       <text>
-        <locale_1033>SmallClosed</locale_1033>
+        <locale_1033>CurveOverlap</locale_1033>
       </text>
       <tooltip>
-        <locale_1033>Виділити замкнені криві, менші за мінімальну площу різу</locale_1033>
+        <locale_1033>Видалити точні дублікати (SelDup), виділити коротшу криву з кожної пари, що перекриваються (серед виділених, або всі криві)</locale_1033>
       </tooltip>
       <button_text>
-        <locale_1033>SmallClosed</locale_1033>
+        <locale_1033>CurveOverlap</locale_1033>
       </button_text>
-    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/SelectSmallClosedCurves.py"</script>
-    </macro_item>
-    <macro_item guid="e43b6c53-d2c8-5668-9cc4-fba696581b6f">
-      <text>
-        <locale_1033>CutRisks</locale_1033>
-      </text>
-      <tooltip>
-        <locale_1033>Позначити ризиковані місця різу (геометрія не змінюється)</locale_1033>
-      </tooltip>
-      <button_text>
-        <locale_1033>CutRisks</locale_1033>
-      </button_text>
-    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/CheckTangentialCutRisks.py"</script>
-    </macro_item>
-    <macro_item guid="33643099-363e-5541-9cc8-767468c40536">
-      <text>
-        <locale_1033>RecommendTabs</locale_1033>
-      </text>
-      <tooltip>
-        <locale_1033>Виділити контури, яким потрібні перемички (малі або вузькі)</locale_1033>
-      </tooltip>
-      <button_text>
-        <locale_1033>RecommendTabs</locale_1033>
-      </button_text>
-    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/RecommendCutTabs.py"</script>
-    </macro_item>
-    <macro_item guid="0f481530-a4dd-5e2e-9801-f4aa02b26c07">
-      <text>
-        <locale_1033>CutTabs</locale_1033>
-      </text>
-      <tooltip>
-        <locale_1033>Інтерактивно додати перемички (tabs) на контури різу</locale_1033>
-      </tooltip>
-      <button_text>
-        <locale_1033>CutTabs</locale_1033>
-      </button_text>
-    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/AddCutTabs.py"</script>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/sel_curve_overlap.py"</script>
     </macro_item>
     <macro_item guid="334c0d95-649f-5efa-b59e-378d514e4990">
       <text>
