@@ -7,7 +7,7 @@
 Вставте в поле Macro:
 
 ```text
-! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/AddCutTabs.py"
+! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/AddCutTabs.py"
 ```
 
 ## Робота

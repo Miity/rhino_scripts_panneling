@@ -4,7 +4,7 @@ import os
 import random
 import sys
 import unittest
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cut"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "analysis"))
 from AddCutTabs import tab_intervals, arc_distance
 
 

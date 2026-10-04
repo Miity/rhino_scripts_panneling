@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Interactive holding tabs for closed, coplanar Rhino curves (6/7/8).
 
-Toolbar: ! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/AddCutTabs.py"
+Toolbar: ! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/AddCutTabs.py"
 Orange = existing no-cut intervals; green = candidate; red = invalid candidate.
 Click a marked interval to remove it. Move selects a tab then its new position.
 Enter commits; Esc cancels the preview. Width and Undo are command options.

@@ -2,7 +2,7 @@
 """Select whole closed contours that are candidates for holding tabs.
 
 Rhino 6/7/8, IronPython 2.7 / CPython 3. No external packages.
-Toolbar: ! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/RecommendCutTabs.py"
+Toolbar: ! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/RecommendCutTabs.py"
 
 Red: area below threshold or characteristic width 2*area/perimeter below
 threshold. Orange: approximate local interior neck below width threshold.

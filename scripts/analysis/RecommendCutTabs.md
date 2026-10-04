@@ -3,7 +3,7 @@
 Макрос для кнопки тулбара:
 
 ```text
-! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/RecommendCutTabs.py"
+! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/RecommendCutTabs.py"
 ```
 
 1. Виберіть контури деталей та запустіть скрипт.

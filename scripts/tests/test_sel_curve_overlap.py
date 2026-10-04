@@ -10,7 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 out = open(os.path.join(HERE, "test_sel_curve_overlap.txt"), "w")
 try:
     from Rhino.Geometry import LineCurve, Point3d, Polyline, PolylineCurve
-    sys.path.insert(0, os.path.join(os.path.dirname(HERE), "curves"))
+    sys.path.insert(0, os.path.join(os.path.dirname(HERE), "cut"))
     import sel_curve_overlap as M
 
     def pl(*pts):

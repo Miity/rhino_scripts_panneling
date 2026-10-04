@@ -3,7 +3,7 @@ import math
 import os
 import sys
 import unittest
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "cut"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "analysis"))
 from RecommendCutTabs import classify, local_neck, polygon_area
 
 SQUARE = [(0,0),(20,0),(20,20),(0,20)]

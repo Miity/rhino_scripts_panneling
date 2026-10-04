@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Будує Scripts.rui (корінь проєкту): 5 окремих тулбарів (Розміри / Криві / Різ / Parts / Розмітка),
+"""Будує Scripts.rui (корінь проєкту): 6 окремих тулбарів (Розміри / Криві / Аналіз / Різ / Parts / Розмітка),
 що стоять вкладками в одній панелі Rhino.
 Запуск звичайним python3 поза Rhino: python3 scripts/build_scripts_rui.py
 Збирати при закритому Rhino; Rhino підхоплює зміни після перезапуску. Як підключити вперше — README.md.
@@ -37,16 +37,17 @@ GROUPS = [
          (u"KeepEnds", u"Вирізати середину кривої, лишити кінці заданої довжини", py("curves/KeepCrvEnds.py"))),
         (u"TrimOutside", u"Обрізати все, що виходить за контур панелі", py("curves/TrimOutsidePanel.py"), None),
         (u"ExactConnection", u"Точка контакту на кривій із заданою довжиною", py("curves/find_exact_connection.py"), None),
-        (u"DiamondGrid", u"Ромбоподібна сітка по UV NURBS-поверхні (тканина)", py("curves/diamond_grid.py"), None),
-        (u"CurveOverlap", u"Видалити точні дублікати (SelDup), виділити коротшу криву з кожної пари, що перекриваються (серед виділених, або всі криві)", py("curves/sel_curve_overlap.py"), None),
+    ]),
+    (u"Аналіз", u"Аналіз панелі та різу", [
+        (u"SmallClosed", u"Виділити замкнені криві, менші за мінімальну площу різу", py("analysis/SelectSmallClosedCurves.py"), None),
+        (u"CutRisks", u"Позначити ризиковані місця різу (геометрія не змінюється)", py("analysis/CheckTangentialCutRisks.py"), None),
+        (u"RecommendTabs", u"Виділити контури, яким потрібні перемички (малі або вузькі)", py("analysis/RecommendCutTabs.py"), None),
+        (u"CutTabs", u"Інтерактивно додати перемички (tabs) на контури різу", py("analysis/AddCutTabs.py"), None),
     ]),
     (u"Різ", u"Підготовка до різу", [
         (u"PreparePanelCut", u"Панелі → один зовнішній контур на CUT, внутрішні лінії на INT/INK", py("cut/PreparePanelCut.py"), None),
         (u"SplitToMaterial", u"Обрізати панелі по ширині матеріалу: шов 1 см, шматки відсунути на 50", py("cut/SplitPanelsToMaterial.py"), None),
-        (u"SmallClosed", u"Виділити замкнені криві, менші за мінімальну площу різу", py("cut/SelectSmallClosedCurves.py"), None),
-        (u"CutRisks", u"Позначити ризиковані місця різу (геометрія не змінюється)", py("cut/CheckTangentialCutRisks.py"), None),
-        (u"RecommendTabs", u"Виділити контури, яким потрібні перемички (малі або вузькі)", py("cut/RecommendCutTabs.py"), None),
-        (u"CutTabs", u"Інтерактивно додати перемички (tabs) на контури різу", py("cut/AddCutTabs.py"), None),
+        (u"CurveOverlap", u"Видалити точні дублікати (SelDup), виділити коротшу криву з кожної пари, що перекриваються (серед виділених, або всі криві)", py("cut/sel_curve_overlap.py"), None),
     ]),
     (u"Parts", u"Створення частин (фаші, підсилення…) у шар Parts", [
         (u"Panels", u"Панелі → копія в Parts::Panels з номером P1, P2… (текст усередині + TextDot)", py("parts/Panels.py"), None),

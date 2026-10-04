@@ -24,11 +24,12 @@ bounding box, типами ліній та розбиттям кривих за 
 
 - **`scripts/`** — Python-скрипти для Rhino (`rhinoscriptsyntax` / `Rhino.Geometry`), розкладені по підпапках = вкладках тулбара:
   - **`sizes/`** (вкладка «Розміри»): `BoundingBoxWithSize_Rhino8_CPlane.py` (ghosted bbox з підписами XYZ; `BoundingBoxWithSize.py` — стара версія), `BoundingBoxCenterLines.py`, `LabelClosedCurveSizes.py`, `draw_centered_rectangle.py` (прямокутник заданого розміру по центру CPlane).
-  - **`curves/`** («Криві»): `SplitCrvByAngle.py`, `smooth_corners.py`, `GH_SplitCurveByAngle.py` (розбиття / заокруглення за кутом), `CrvToPolyline.py`, `TrimCrvEnds.py`, `KeepCrvEnds.py`, `TrimOutsidePanel.py`, `find_exact_connection.py` (точка контакту із фіксованою довжиною), `diamond_grid.py` (ромбоподібна сітка по UV NURBS), `sel_curve_overlap.py` (виділені криві або всі).
-  - **`cut/`** («Різ»): `PreparePanelCut.py`, `SplitPanelsToMaterial.py` (панелі за лініями матеріалу: обрізка, шов 1 см, шматок відсувається на 50 мм, пари A–A, B–B…), `SelectSmallClosedCurves.py`, `CheckTangentialCutRisks.py`, `RecommendCutTabs.py`, `AddCutTabs.py` (+ `.md` описи).
+  - **`curves/`** («Криві»): `SplitCrvByAngle.py`, `smooth_corners.py`, `GH_SplitCurveByAngle.py` (розбиття / заокруглення за кутом), `CrvToPolyline.py`, `TrimCrvEnds.py`, `KeepCrvEnds.py`, `TrimOutsidePanel.py`, `find_exact_connection.py` (точка контакту із фіксованою довжиною).
+  - **`cut/`** («Різ»): `PreparePanelCut.py`, `SplitPanelsToMaterial.py` (панелі за лініями матеріалу: обрізка, шов 1 см, шматок відсувається на 50 мм, пари A–A, B–B…), `sel_curve_overlap.py` (дублікати / перекриття: виділені криві або всі).
+  - **`analysis/`** («Аналіз»): аналіз панелі та різу — `SelectSmallClosedCurves.py`, `CheckTangentialCutRisks.py`, `RecommendCutTabs.py`, `AddCutTabs.py` (+ `.md` описи).
   - **`parts/`** («Parts», результат у шар `Parts::<Назва>`): `Panels.py` — панелі: копія замкненої кривої на місці в `Parts::Panels`, номер `P<n>` (текст усередині за кліком + TextDot вище-зліва, UserText `Part`), вкладені криві — вирізи панелі, нумерація продовжується. `StripsFromCurves.py` — фаші (bordatura / rinforzo): кожна вибрана крива → прямокутник висотою H і довжиною кривої (+ запас); стовпчиком впритул у шар `Parts::Strips`, підписи `F<n>  L=… × H` + TextDot `F<n>` на кривій; нумерація продовжується з найбільшого `F<n>` у шарі. `Seam.py` — припуск на шов: кожне ребро → замкнена смуга ширини W з боку кліку (гострі кути), підпис `SA W`, група; шар `Parts::Seam`; опція `Points=Yes` бере `sewing_lengths` з `markup/sewing_points.py` — точки шва на копії ребра в `Parts::Seam`, у групі зі смугою (оригінал не чіпається). `ZipStops.py` — блискавка: крива переноситься в `Parts::Zip`, номер `Z<n>` (UserText `Zip` + текст над серединою кривої, опція `Style`), стопи на кінцях, усе в групі. `ZipList.py` — таблиця для замовлення з позначених кривих: довжина вгору до 1 см, зведено «см × шт», CSV `<файл>_zips.csv` поруч із `.3dm` + буфер обміну. `ReinfCircle.py` — кутове підсилення-коло: клік біля кута → сектор радіуса R між сторонами, на місці, підпис `RC<n>  R=…`, шар `Parts::Reinforcements` (інші форми — свої префікси RS, RT…). `LayoutParts.py` — розкладка для розкрою: копія кожної вибраної деталі (група цілком) в ряд від точки кліку (Enter — продовжити ряд), у підшар `<шар>::Layout`; оригінал лишається розміткою, UserText `LayoutOf` на копії.
   - **`markup/`** («Розмітка»): `PointsToCrosses.py` (точки / хмари / TextDot → хрестик або коло), `sewing_points.py`, `line_type.py` + `linetype.gh` (тип лінії `400,2`), `PatternTextStyles.py` (+ `_check.py`), `TextToDot.py`, `DotToPanelText.py`.
-  - `build_scripts_rui.py` — збирач тулбара `Scripts.rui` (5 вкладок: Розміри / Криві / Різ / Parts / Розмітка).
+  - `build_scripts_rui.py` — збирач тулбара `Scripts.rui` (6 вкладок: Розміри / Криві / Аналіз / Різ / Parts / Розмітка).
   - `tests/` — перевірки (частина запускається в Rhino 8 через `rhinocode`).
   - Імпорт між папками — через `sys.path` від `__file__` (напр. `cut/SplitPanelsToMaterial.py` бере `markup/PatternTextStyles.py`).
 
@@ -41,7 +42,7 @@ bounding box, типами ліній та розбиттям кривих за 
 
 ## Робота з кодом
 
-- Нові скрипти класти в підпапку `scripts/<вкладка>/` (sizes / curves / cut / parts / markup) або `Grasshoper scripts/` (`.gh`); у `GROUPS` — `py("<папка>/<Script>.py")`.
+- Нові скрипти класти в підпапку `scripts/<вкладка>/` (sizes / curves / analysis / cut / parts / markup) або `Grasshoper scripts/` (`.gh`); у `GROUPS` — `py("<папка>/<Script>.py")`.
 - Тримати сумісність з IronPython 2.7 та CPython 3, якщо явно не сказано інше.
 - Одиниці та допуски брати з документа (`sc.doc.ModelAbsoluteTolerance`), не хардкодити.
 - Скрипти, що **створюють частини** (фаші, підсилення тощо), лежать у `scripts/parts/`, кладуть результат у шар `Parts::<Назва>` і йдуть у вкладку тулбара **Parts** (`py("parts/<Script>.py")`).
