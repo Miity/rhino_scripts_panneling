@@ -146,6 +146,12 @@
         </text>
         <left_macro_id>b4cc4165-b82f-5273-83e8-a425857e8052</left_macro_id>
       </tool_bar_item>
+      <tool_bar_item guid="1c7bc424-e954-5d0f-86a3-047a0c38cea2">
+        <text>
+          <locale_1033>ZipList</locale_1033>
+        </text>
+        <left_macro_id>4a772de7-eb0d-5589-9749-193a6b942d76</left_macro_id>
+      </tool_bar_item>
       <tool_bar_item guid="6a9b0b80-8608-52fe-aad8-33cca57567ee">
         <text>
           <locale_1033>Reinf Circle</locale_1033>
@@ -467,12 +473,24 @@
         <locale_1033>ZipStops</locale_1033>
       </text>
       <tooltip>
-        <locale_1033>Позначити криву як блискавку: стопи на кінцях</locale_1033>
+        <locale_1033>Позначити криву як блискавку: перенести в Parts::Zip, номер Z&lt;n&gt;, стопи на кінцях</locale_1033>
       </tooltip>
       <button_text>
         <locale_1033>ZipStops</locale_1033>
       </button_text>
     <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/parts/ZipStops.py"</script>
+    </macro_item>
+    <macro_item guid="4a772de7-eb0d-5589-9749-193a6b942d76">
+      <text>
+        <locale_1033>ZipList</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Таблиця довжин блискавок для замовлення: CSV поруч із .3dm + буфер обміну</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>ZipList</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/parts/ZipList.py"</script>
     </macro_item>
     <macro_item guid="4445926c-5a72-5a9a-9d4a-7d2b31504cf5">
       <text>
