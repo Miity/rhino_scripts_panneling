@@ -1,58 +1,107 @@
 # -*- coding: utf-8 -*-
 """Позначає криву як блискавку (zip): короткі поперечні стопи на початку і в кінці.
-Крива переноситься в шар Parts::Zip і отримує номер Z<n> (UserText Zip + TextDot посередині);
-стопи центровані на кривій, лежать у площині CPlane. Крива, стопи і TextDot — одна група.
+Крива переноситься в шар Parts::Zip і отримує номер Z<n>: UserText Zip + текст над серединою кривої,
+уздовж неї; стиль тексту — опція Style (запам'ятовується, за замовчуванням PAT 10 mm).
+Стопи центровані на кривій, лежать у площині CPlane. Крива, стопи і текст — одна група.
 Нумерація продовжується з найбільшого Z<n> у шарі; вже позначені криві пропускаються.
 Таблиця довжин для замовлення — parts/ZipList.py."""
+import os
 import re
+import sys
 
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
+from Rhino.DocObjects import TextHorizontalAlignment, TextVerticalAlignment
+from Rhino.Geometry import Plane, Vector3d
+
+# вибір стилю і PAT-стилі — з scripts/markup/DotToPanelText.py
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
+import DotToPanelText as D
 
 LAYER = "Parts::Zip"
 PREFIX = "Z"
 KEY = "Zip"  # ключ UserText з номером блискавки
+STYLE = "ZipStops.style"
 
 
 def stop_lines(crv, size, normal):
     lines = []
     for t in (crv.Domain.T0, crv.Domain.T1):
         pt = crv.PointAt(t)
-        side = Rhino.Geometry.Vector3d.CrossProduct(crv.TangentAt(t), normal)
+        side = Vector3d.CrossProduct(crv.TangentAt(t), normal)
         side.Unitize()
         side *= size / 2.0
         lines.append(Rhino.Geometry.Line(pt - side, pt + side))
     return lines
 
 
+def label_plane(crv, normal, gap):
+    """Площина тексту: над серединою кривої на gap, вісь X уздовж кривої (читається зліва направо)."""
+    ok, t = crv.LengthParameter(crv.GetLength() / 2.0)
+    t = t if ok else crv.Domain.Mid
+    u = crv.TangentAt(t)
+    if u.X < -1e-9 or (abs(u.X) < 1e-9 and u.Y < 0):
+        u = -u
+    v = Vector3d.CrossProduct(normal, u)
+    return Plane(crv.PointAt(t) + v * gap, u, v)
+
+
 def next_number():
-    """Наступний номер після найбільшого Z<n> у шарі (UserText кривої або TextDot)."""
+    """Наступний номер після найбільшого Z<n> у шарі (UserText кривої, текст або TextDot старих позначок)."""
     nums = [0]
     for o in rs.ObjectsByLayer(LAYER) or []:
-        m = re.match(PREFIX + r"(\d+)$", rs.GetUserText(o, KEY) or (rs.TextDotText(o) if rs.IsTextDot(o) else "") or "")
+        s = rs.GetUserText(o, KEY) or (rs.TextObjectText(o) if rs.IsText(o) else
+                                       rs.TextDotText(o) if rs.IsTextDot(o) else "")
+        m = re.match(PREFIX + r"(\d+)$", s or "")
         if m:
             nums.append(int(m.group(1)))
     return max(nums) + 1
 
 
+def ask_size(doc, size, style):
+    """Довжина стопа з опцією Style. Повертає (довжина або None, стиль)."""
+    while True:
+        gn = Rhino.Input.Custom.GetNumber()
+        gn.SetCommandPrompt(u"Довжина стопа (стиль тексту: %s)" % style)
+        gn.SetDefaultNumber(size)
+        gn.SetLowerLimit(0.0, True)
+        opt = gn.AddOption("Style")
+        res = gn.Get()
+        if res == Rhino.Input.GetResult.Option and gn.OptionIndex() == opt:
+            style = D.pick_style(doc, style)
+            continue
+        if res == Rhino.Input.GetResult.Number:
+            return gn.Number(), style
+        return None, style
+
+
 def main():
-    ids = rs.GetObjects("Виберіть криві блискавок", rs.filter.curve, preselect=True)
+    doc = sc.doc
+    ids = rs.GetObjects(u"Виберіть криві блискавок", rs.filter.curve, preselect=True)
     if not ids:
         return
+    D.pts.ensure_styles(doc)
+    style = sc.sticky.get(STYLE)
+    if not style or doc.DimStyles.FindName(style) is None:
+        style = D.pts.style_name(10)
     # 1 см у одиницях документа
-    cm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Centimeters, sc.doc.ModelUnitSystem)
-    size = rs.GetReal("Довжина стопа", sc.sticky.get("zip_stop_size", cm), 0.0)
+    cm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Centimeters, doc.ModelUnitSystem)
+    size, style = ask_size(doc, sc.sticky.get("zip_stop_size", cm), style)
+    sc.sticky[STYLE] = style
     if not size:
         return
     sc.sticky["zip_stop_size"] = size
+    ds = doc.DimStyles.FindName(style)
+    gap = 0.5 * ds.TextHeight * ds.DimensionScale
     normal = rs.ViewCPlane().ZAxis
 
     if not rs.IsLayer("Parts"):
         rs.AddLayer("Parts")
     if not rs.IsLayer(LAYER):
         rs.AddLayer("Zip", parent="Parts")
-    layer_index = sc.doc.Layers.FindByFullPath(LAYER, -1)
+    attrs = doc.CreateDefaultAttributes()
+    attrs.LayerIndex = doc.Layers.FindByFullPath(LAYER, -1)
 
     rs.EnableRedraw(False)
     n = next_number()
@@ -67,23 +116,19 @@ def main():
         name = PREFIX + str(n)
         n += 1
         # ModifyAttributes, а не rs.ObjectLayer + rs.SetUserText: так шар і мітку відкочує Undo
-        attrs = rs.coercerhinoobject(oid).Attributes.Duplicate()
-        attrs.LayerIndex = layer_index
-        attrs.SetUserString(KEY, name)
-        sc.doc.Objects.ModifyAttributes(oid, attrs, True)
-        group = rs.AddGroup()
-        rs.AddObjectToGroup(oid, group)
-        for ln in stop_lines(crv, size, normal):
-            lid = rs.AddLine(ln.From, ln.To)
-            rs.ObjectLayer(lid, LAYER)
-            rs.AddObjectToGroup(lid, group)
-        ok, t = crv.LengthParameter(crv.GetLength() / 2.0)
-        did = rs.AddTextDot(name, crv.PointAt(t) if ok else crv.PointAtStart)
-        rs.ObjectLayer(did, LAYER)
-        rs.AddObjectToGroup(did, group)
+        a = rs.coercerhinoobject(oid).Attributes.Duplicate()
+        a.LayerIndex = attrs.LayerIndex
+        a.SetUserString(KEY, name)
+        doc.Objects.ModifyAttributes(oid, a, True)
+        new = [doc.Objects.AddLine(ln, attrs) for ln in stop_lines(crv, size, normal)]
+        te = Rhino.Geometry.TextEntity.Create(name, label_plane(crv, normal, gap), ds, False, 0, 0)
+        te.TextHorizontalAlignment = TextHorizontalAlignment.Center
+        te.TextVerticalAlignment = TextVerticalAlignment.Bottom
+        new.append(doc.Objects.AddText(te, attrs))
+        rs.AddObjectsToGroup([oid] + new, rs.AddGroup())
     rs.EnableRedraw(True)
     if skipped:
-        print("Вже позначені, пропущено: %d" % skipped)
+        print(u"Вже позначені, пропущено: %d" % skipped)
 
 
 if __name__ == "__main__":
