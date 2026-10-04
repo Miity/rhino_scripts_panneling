@@ -1,0 +1,10 @@
+.DS_Store
+__pycache__/
+*.pyc
+*.3dmbak
+*.rhl
+*.pdfbak
+_backup_toolbar_*/
+# Сторонні викрійки і робочі файли — не в публічний репозиторій
+Patterns/
+*.3dm

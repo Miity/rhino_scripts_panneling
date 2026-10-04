@@ -1,0 +1,135 @@
+# -*- coding: utf-8 -*-
+"""Будує Scripts.rui (корінь проєкту): 5 окремих тулбарів (Розміри / Криві / Різ / Parts / Розмітка),
+що стоять вкладками в одній панелі Rhino.
+Запуск звичайним python3 поза Rhino: python3 scripts/build_scripts_rui.py
+Збирати при закритому Rhino; Rhino підхоплює зміни після перезапуску. Як підключити вперше — README.md.
+Щоб додати скрипт — допиши рядок у GROUPS і перезапусти цей файл.
+GUID-и детерміновані (uuid5 від назви), тож перегенерація не ламає розташування тулбарів.
+"""
+import os
+import uuid
+from xml.sax.saxutils import escape
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+S = ROOT + "/scripts/"
+NS = uuid.UUID("5c7a1f7e-2b1d-4a38-9a51-6d0b3f2e8c11")
+
+
+def py(name):
+    return '!_-RunPythonScript "%s%s"' % (S, name)
+
+
+GH_SEW = '! _-GrasshopperPlayer "%s/Grasshoper scripts/sew points.gh"\n\n\n\n' % ROOT
+
+# (група = назва вкладки, опис групи, [(кнопка, підказка, макрос, (права кнопка, підказка, макрос) | None)])
+GROUPS = [
+    (u"Розміри", u"Розміри та габарити", [
+        (u"BBoxSize", u"Габаритний бокс по CPlane з підписами розмірів XYZ", py("sizes/BoundingBoxWithSize_Rhino8_CPlane.py"),
+         (u"BBoxCenterLines", u"Плаский бокс по CPlane + дві центральні лінії", py("sizes/BoundingBoxCenterLines.py"))),
+        (u"LabelSizes", u"Підписати розмір усередині кожної замкненої кривої", py("sizes/LabelClosedCurveSizes.py"), None),
+        (u"Rect 1340", u"Прямокутник 1340 × 6658 по центру CPlane", py("sizes/draw_centered_rectangle.py"), None),
+    ]),
+    (u"Криві", u"Редагування кривих", [
+        (u"SplitByAngle", u"Розбити криві в кутах, гостріших за поріг", py("curves/SplitCrvByAngle.py"),
+         (u"SmoothCorners", u"Заокруглити кути полілайнів, гостріші за поріг", py("curves/smooth_corners.py"))),
+        (u"CrvToPolyline", u"Перетворити криві на полілайни (шар зберігається)", py("curves/CrvToPolyline.py"), None),
+        (u"TrimEnds", u"Обрізати кінці кривих на задану відстань", py("curves/TrimCrvEnds.py"),
+         (u"KeepEnds", u"Вирізати середину кривої, лишити кінці заданої довжини", py("curves/KeepCrvEnds.py"))),
+        (u"TrimOutside", u"Обрізати все, що виходить за контур панелі", py("curves/TrimOutsidePanel.py"), None),
+        (u"ExactConnection", u"Точка контакту на кривій із заданою довжиною", py("curves/find_exact_connection.py"), None),
+        (u"DiamondGrid", u"Ромбоподібна сітка по UV NURBS-поверхні (тканина)", py("curves/diamond_grid.py"), None),
+        (u"CurveOverlap", u"Видалити точні дублікати (SelDup), виділити коротшу криву з кожної пари, що перекриваються (серед виділених, або всі криві)", py("curves/sel_curve_overlap.py"), None),
+    ]),
+    (u"Різ", u"Підготовка до різу", [
+        (u"PreparePanelCut", u"Панелі → один зовнішній контур на CUT, внутрішні лінії на INT/INK", py("cut/PreparePanelCut.py"), None),
+        (u"SplitToMaterial", u"Обрізати панелі по ширині матеріалу: шов 1 см, шматки відсунути на 50", py("cut/SplitPanelsToMaterial.py"), None),
+        (u"SmallClosed", u"Виділити замкнені криві, менші за мінімальну площу різу", py("cut/SelectSmallClosedCurves.py"), None),
+        (u"CutRisks", u"Позначити ризиковані місця різу (геометрія не змінюється)", py("cut/CheckTangentialCutRisks.py"), None),
+        (u"RecommendTabs", u"Виділити контури, яким потрібні перемички (малі або вузькі)", py("cut/RecommendCutTabs.py"), None),
+        (u"CutTabs", u"Інтерактивно додати перемички (tabs) на контури різу", py("cut/AddCutTabs.py"), None),
+    ]),
+    (u"Parts", u"Створення частин (фаші, підсилення…) у шар Parts", [
+        (u"Panels", u"Панелі → копія в Parts::Panels з номером P1, P2… (текст усередині + TextDot)", py("parts/Panels.py"), None),
+        (u"Strips", u"Фаші під виділені лінії: висота H, довжина = довжина кожної кривої", py("parts/StripsFromCurves.py"), None),
+        (u"Seam", u"Припуск на шов: смуга ширини W з вибраного боку кожного ребра, підпис SA W; Points=Yes — ще й точки шва", py("parts/Seam.py"), None),
+        (u"ZipStops", u"Позначити криву як блискавку: стопи на кінцях", py("parts/ZipStops.py"), None),
+        (u"Reinf Circle", u"Кутове підсилення — коло радіуса R, обрізане сторонами кута (панеллю)", py("parts/ReinfCircle.py"), None),
+        (u"Layout", u"Розкласти деталі: копії в ряд від точки кліку, у <шар>::Layout; оригінали лишаються розміткою", py("parts/LayoutParts.py"), None),
+    ]),
+    (u"Розмітка", u"Розмітка на INK", [
+        (u"Crosses", u"Точки → хрестики або кружечки", py("markup/PointsToCrosses.py"), None),
+        (u"SewingPoints", u"Точки шва: центр кривої + рівний крок в обидва боки", py("markup/sewing_points.py"),
+         (u"SewPoints GH", u"Точки шва (Grasshopper Player, стара версія)", GH_SEW)),
+        (u"Linetype 400,2", u"Призначити тип лінії 400,2 вибраним кривим", py("markup/line_type.py"), None),
+        (u"TextStyles", u"Створити/оновити стилі тексту PAT 2.5–40 mm для лекал 1:1", py("markup/PatternTextStyles.py"), None),
+        (u"TextToDot", u"Текст → TextDot", py("markup/TextToDot.py"),
+         (u"DotToPanelText", u"TextDot → текст у правому верхньому куті панелі (INK)", py("markup/DotToPanelText.py"))),
+    ]),
+]
+
+
+def gid(*parts):
+    return str(uuid.uuid5(NS, "/".join(parts)))
+
+
+def loc(tag, value, pad):
+    return u"%s<%s>\n%s  <locale_1033>%s</locale_1033>\n%s</%s>\n" % (pad, tag, pad, escape(value), pad, tag)
+
+
+macros = []
+
+
+def macro(key, text, tip, script):
+    g = gid("macro", key)
+    macros.append(u'    <macro_item guid="%s">\n%s%s%s    <script>%s</script>\n    </macro_item>\n' % (
+        g, loc("text", text, "      "), loc("tooltip", tip, "      "), loc("button_text", text, "      "), escape(script)))
+    return g
+
+
+def item(key, text, left, right=None):
+    out = u'      <tool_bar_item guid="%s">\n%s        <left_macro_id>%s</left_macro_id>\n' % (gid("item", key), loc("text", text, "        "), left)
+    if right:
+        out += u"        <right_macro_id>%s</right_macro_id>\n" % right
+    return out + u"      </tool_bar_item>\n"
+
+
+def toolbar(key, name, items):
+    return u'    <tool_bar guid="%s">\n%s%s    </tool_bar>\n' % (gid("toolbar", key), loc("text", name, "      "), u"".join(items))
+
+
+bars = []
+for group, group_tip, buttons in GROUPS:
+    items = []
+    for text, tip, script, right in buttons:
+        l = macro(text, text, tip, script)
+        r = macro(right[0], right[0], right[1], right[2]) if right else None
+        items.append(item(group + "/" + text, text, l, r))
+    bars.append(toolbar(group, group, items))
+
+rui = u'''<?xml version="1.0" encoding="utf-8"?>
+<RhinoUI major_ver="3" minor_ver="0" guid="%s" localize="False" default_language_id="1033" dpi_scale="100">
+  <extend_rhino_menus />
+  <menus />
+  <tool_bar_groups />
+  <tool_bars>
+%s  </tool_bars>
+  <macros>
+%s  </macros>
+  <bitmaps>
+    <small_bitmap item_width="16" item_height="16" />
+    <normal_bitmap item_width="24" item_height="24" />
+    <large_bitmap item_width="32" item_height="32" />
+  </bitmaps>
+  <scripts />
+</RhinoUI>
+''' % (gid("file"), u"".join(bars), u"".join(macros))
+
+if __name__ == "__main__":
+    # Перевірка: кожен .py/.gh з макросів існує на диску.
+    import re
+    missing = [p for p in re.findall(r'"([^"]+\.(?:py|gh))"', rui) if not os.path.isfile(p)]
+    assert not missing, "Немає файлів: %s" % missing
+    out = os.path.join(ROOT, "Scripts.rui")
+    with open(out, "wb") as f:
+        f.write(rui.encode("utf-8"))
+    print("OK -> %s" % out)

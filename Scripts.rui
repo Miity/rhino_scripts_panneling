@@ -1,0 +1,596 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RhinoUI major_ver="3" minor_ver="0" guid="6644cf0d-9ea8-57b5-a326-d9a88d008bd4" localize="False" default_language_id="1033" dpi_scale="100">
+  <extend_rhino_menus />
+  <menus />
+  <tool_bar_groups />
+  <tool_bars>
+    <tool_bar guid="79fdb5d4-cc45-54a2-81e0-cff41f44e308">
+      <text>
+        <locale_1033>Розміри</locale_1033>
+      </text>
+      <tool_bar_item guid="cbf774ef-d665-5c74-b54b-bb67d580323b">
+        <text>
+          <locale_1033>BBoxSize</locale_1033>
+        </text>
+        <left_macro_id>3e0508d2-b4fe-5bfb-a74c-15be53e57130</left_macro_id>
+        <right_macro_id>6ddf5875-42c8-5fc3-96f3-0099893ef35b</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="eaa1baec-1aaa-55bd-9a77-5e07c1554612">
+        <text>
+          <locale_1033>LabelSizes</locale_1033>
+        </text>
+        <left_macro_id>7a958d5d-6d68-5499-8df8-afaebc6c746d</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="28cb14b5-554b-5db0-a784-c014919d195d">
+        <text>
+          <locale_1033>Rect 1340</locale_1033>
+        </text>
+        <left_macro_id>84f1fdb4-c81e-5826-bf73-6ba3b5689b92</left_macro_id>
+      </tool_bar_item>
+    </tool_bar>
+    <tool_bar guid="2f98992a-a751-5176-b9d9-bd0306b28cc1">
+      <text>
+        <locale_1033>Криві</locale_1033>
+      </text>
+      <tool_bar_item guid="467c1bed-8781-5f8b-80ba-a3273bfa890c">
+        <text>
+          <locale_1033>SplitByAngle</locale_1033>
+        </text>
+        <left_macro_id>328941f6-9459-58e1-82d1-1d5f069056e7</left_macro_id>
+        <right_macro_id>2555cddb-1518-5999-9b05-5555d3e4af12</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="e5c02a9f-72f3-5132-97fa-cb7fddf5e79e">
+        <text>
+          <locale_1033>CrvToPolyline</locale_1033>
+        </text>
+        <left_macro_id>c50430d2-1f6c-5be8-8f5e-6c133cf0384b</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="8520ef01-d497-5b4d-9ec5-1530a157d5b6">
+        <text>
+          <locale_1033>TrimEnds</locale_1033>
+        </text>
+        <left_macro_id>ae054d24-e0ef-578d-8dfb-d44cecb590f6</left_macro_id>
+        <right_macro_id>3b0a25b2-d22e-59fe-94d3-16eae401c723</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="fef3882e-6967-59d9-ba24-e39d43cffa76">
+        <text>
+          <locale_1033>TrimOutside</locale_1033>
+        </text>
+        <left_macro_id>6ce00ea0-5c41-58de-a1fb-3ed3155c3c3f</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="57c1e635-363f-5d1f-8161-63f1456c54a4">
+        <text>
+          <locale_1033>ExactConnection</locale_1033>
+        </text>
+        <left_macro_id>0bceef95-83f5-55b2-8533-8eb36aec6d8e</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="a6cdb250-2cbe-52ff-a26e-8862f339c745">
+        <text>
+          <locale_1033>DiamondGrid</locale_1033>
+        </text>
+        <left_macro_id>df39ccda-4d81-5fe9-8534-fe9a1234d94d</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="6b5e0f29-0753-5e79-b79a-6935ae13a38a">
+        <text>
+          <locale_1033>CurveOverlap</locale_1033>
+        </text>
+        <left_macro_id>91ab705e-53a7-5a8d-8a30-dbb8fdeb476e</left_macro_id>
+      </tool_bar_item>
+    </tool_bar>
+    <tool_bar guid="d29fbfbb-8c36-52da-adb4-a1c5738ad974">
+      <text>
+        <locale_1033>Різ</locale_1033>
+      </text>
+      <tool_bar_item guid="1355ec3a-a4ad-5868-94fb-a0574ef70fa8">
+        <text>
+          <locale_1033>PreparePanelCut</locale_1033>
+        </text>
+        <left_macro_id>484638e7-36c1-589d-b2f6-78197a809fe0</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="aa342e8f-55a1-5f94-9652-eaf4e22eaa00">
+        <text>
+          <locale_1033>SplitToMaterial</locale_1033>
+        </text>
+        <left_macro_id>45f78d31-6434-5318-8dd2-d51c485c2862</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="f92d5c56-fbe1-581b-b091-68fc63994fb8">
+        <text>
+          <locale_1033>SmallClosed</locale_1033>
+        </text>
+        <left_macro_id>e029b682-1a03-5dfa-b65f-4a7d46adc533</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="14261dd9-bf29-52ca-9c71-a7013107daba">
+        <text>
+          <locale_1033>CutRisks</locale_1033>
+        </text>
+        <left_macro_id>e43b6c53-d2c8-5668-9cc4-fba696581b6f</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="0c8e2b22-d49a-5015-bf6e-571ee029b190">
+        <text>
+          <locale_1033>RecommendTabs</locale_1033>
+        </text>
+        <left_macro_id>33643099-363e-5541-9cc8-767468c40536</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="8057d1a0-a4e9-5717-9add-c4d19e8138a7">
+        <text>
+          <locale_1033>CutTabs</locale_1033>
+        </text>
+        <left_macro_id>0f481530-a4dd-5e2e-9801-f4aa02b26c07</left_macro_id>
+      </tool_bar_item>
+    </tool_bar>
+    <tool_bar guid="3fc14db3-9c8c-5f72-bbbe-cff8e47ebdaf">
+      <text>
+        <locale_1033>Parts</locale_1033>
+      </text>
+      <tool_bar_item guid="d7a16542-6b99-597e-b0a2-19b1ef9c888f">
+        <text>
+          <locale_1033>Panels</locale_1033>
+        </text>
+        <left_macro_id>334c0d95-649f-5efa-b59e-378d514e4990</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="bd3911cf-12d1-5a6d-ad6e-e9162f189ef3">
+        <text>
+          <locale_1033>Strips</locale_1033>
+        </text>
+        <left_macro_id>c45524f9-dca8-5d82-9bf4-3b68dc2dc9e9</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="1c5d0d0e-bcf7-5e07-8b7a-7062895015d7">
+        <text>
+          <locale_1033>Seam</locale_1033>
+        </text>
+        <left_macro_id>cf75b031-7ce5-575e-9be2-d357f95794b3</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="d2d5510c-b8cd-5bbb-8e6d-442ed750e174">
+        <text>
+          <locale_1033>ZipStops</locale_1033>
+        </text>
+        <left_macro_id>b4cc4165-b82f-5273-83e8-a425857e8052</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="6a9b0b80-8608-52fe-aad8-33cca57567ee">
+        <text>
+          <locale_1033>Reinf Circle</locale_1033>
+        </text>
+        <left_macro_id>4445926c-5a72-5a9a-9d4a-7d2b31504cf5</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="c3fd1cfc-d542-582b-aa9c-aeadba89e0cb">
+        <text>
+          <locale_1033>Layout</locale_1033>
+        </text>
+        <left_macro_id>b760e20e-19fd-5339-83d5-2efd8247e1ad</left_macro_id>
+      </tool_bar_item>
+    </tool_bar>
+    <tool_bar guid="77b2406a-f3ff-5c28-9cbc-0a7cf7a2b7aa">
+      <text>
+        <locale_1033>Розмітка</locale_1033>
+      </text>
+      <tool_bar_item guid="44c08f02-d3f7-5fe1-906e-f19ac15a0329">
+        <text>
+          <locale_1033>Crosses</locale_1033>
+        </text>
+        <left_macro_id>f9279dce-3ee9-5530-8112-408198d76ab1</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="a0c645a1-0e97-50f0-968a-fd15069b6507">
+        <text>
+          <locale_1033>SewingPoints</locale_1033>
+        </text>
+        <left_macro_id>e27bd776-f02d-5d6d-9a81-cc021108127c</left_macro_id>
+        <right_macro_id>3c2b0c0e-9332-58c7-874b-663aaa4ff42b</right_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="99a3e0f1-7ab5-5ad4-8df5-90b08b12b66d">
+        <text>
+          <locale_1033>Linetype 400,2</locale_1033>
+        </text>
+        <left_macro_id>cc01aa98-f81d-5d30-b754-1eec6ddc0fd6</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="ffdcc34d-22ce-5964-8342-9a57bd54620a">
+        <text>
+          <locale_1033>TextStyles</locale_1033>
+        </text>
+        <left_macro_id>c701742e-294d-552d-84bd-3bbe82ccc067</left_macro_id>
+      </tool_bar_item>
+      <tool_bar_item guid="6124d1fe-96b0-541c-88b4-c9568e5d2f0a">
+        <text>
+          <locale_1033>TextToDot</locale_1033>
+        </text>
+        <left_macro_id>c0a25cc2-8cfb-5b78-8efa-679afa44be4c</left_macro_id>
+        <right_macro_id>de726f5b-b50a-5893-a614-7a5979792cd9</right_macro_id>
+      </tool_bar_item>
+    </tool_bar>
+  </tool_bars>
+  <macros>
+    <macro_item guid="3e0508d2-b4fe-5bfb-a74c-15be53e57130">
+      <text>
+        <locale_1033>BBoxSize</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Габаритний бокс по CPlane з підписами розмірів XYZ</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>BBoxSize</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/sizes/BoundingBoxWithSize_Rhino8_CPlane.py"</script>
+    </macro_item>
+    <macro_item guid="6ddf5875-42c8-5fc3-96f3-0099893ef35b">
+      <text>
+        <locale_1033>BBoxCenterLines</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Плаский бокс по CPlane + дві центральні лінії</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>BBoxCenterLines</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/sizes/BoundingBoxCenterLines.py"</script>
+    </macro_item>
+    <macro_item guid="7a958d5d-6d68-5499-8df8-afaebc6c746d">
+      <text>
+        <locale_1033>LabelSizes</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Підписати розмір усередині кожної замкненої кривої</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>LabelSizes</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/sizes/LabelClosedCurveSizes.py"</script>
+    </macro_item>
+    <macro_item guid="84f1fdb4-c81e-5826-bf73-6ba3b5689b92">
+      <text>
+        <locale_1033>Rect 1340</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Прямокутник 1340 × 6658 по центру CPlane</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>Rect 1340</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/sizes/draw_centered_rectangle.py"</script>
+    </macro_item>
+    <macro_item guid="328941f6-9459-58e1-82d1-1d5f069056e7">
+      <text>
+        <locale_1033>SplitByAngle</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Розбити криві в кутах, гостріших за поріг</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>SplitByAngle</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/SplitCrvByAngle.py"</script>
+    </macro_item>
+    <macro_item guid="2555cddb-1518-5999-9b05-5555d3e4af12">
+      <text>
+        <locale_1033>SmoothCorners</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Заокруглити кути полілайнів, гостріші за поріг</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>SmoothCorners</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/smooth_corners.py"</script>
+    </macro_item>
+    <macro_item guid="c50430d2-1f6c-5be8-8f5e-6c133cf0384b">
+      <text>
+        <locale_1033>CrvToPolyline</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Перетворити криві на полілайни (шар зберігається)</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>CrvToPolyline</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/CrvToPolyline.py"</script>
+    </macro_item>
+    <macro_item guid="ae054d24-e0ef-578d-8dfb-d44cecb590f6">
+      <text>
+        <locale_1033>TrimEnds</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Обрізати кінці кривих на задану відстань</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>TrimEnds</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/TrimCrvEnds.py"</script>
+    </macro_item>
+    <macro_item guid="3b0a25b2-d22e-59fe-94d3-16eae401c723">
+      <text>
+        <locale_1033>KeepEnds</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Вирізати середину кривої, лишити кінці заданої довжини</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>KeepEnds</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/KeepCrvEnds.py"</script>
+    </macro_item>
+    <macro_item guid="6ce00ea0-5c41-58de-a1fb-3ed3155c3c3f">
+      <text>
+        <locale_1033>TrimOutside</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Обрізати все, що виходить за контур панелі</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>TrimOutside</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/TrimOutsidePanel.py"</script>
+    </macro_item>
+    <macro_item guid="0bceef95-83f5-55b2-8533-8eb36aec6d8e">
+      <text>
+        <locale_1033>ExactConnection</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Точка контакту на кривій із заданою довжиною</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>ExactConnection</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/find_exact_connection.py"</script>
+    </macro_item>
+    <macro_item guid="df39ccda-4d81-5fe9-8534-fe9a1234d94d">
+      <text>
+        <locale_1033>DiamondGrid</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Ромбоподібна сітка по UV NURBS-поверхні (тканина)</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>DiamondGrid</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/diamond_grid.py"</script>
+    </macro_item>
+    <macro_item guid="91ab705e-53a7-5a8d-8a30-dbb8fdeb476e">
+      <text>
+        <locale_1033>CurveOverlap</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Видалити точні дублікати (SelDup), виділити коротшу криву з кожної пари, що перекриваються (серед виділених, або всі криві)</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>CurveOverlap</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/curves/sel_curve_overlap.py"</script>
+    </macro_item>
+    <macro_item guid="484638e7-36c1-589d-b2f6-78197a809fe0">
+      <text>
+        <locale_1033>PreparePanelCut</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Панелі → один зовнішній контур на CUT, внутрішні лінії на INT/INK</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>PreparePanelCut</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/PreparePanelCut.py"</script>
+    </macro_item>
+    <macro_item guid="45f78d31-6434-5318-8dd2-d51c485c2862">
+      <text>
+        <locale_1033>SplitToMaterial</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Обрізати панелі по ширині матеріалу: шов 1 см, шматки відсунути на 50</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>SplitToMaterial</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/SplitPanelsToMaterial.py"</script>
+    </macro_item>
+    <macro_item guid="e029b682-1a03-5dfa-b65f-4a7d46adc533">
+      <text>
+        <locale_1033>SmallClosed</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Виділити замкнені криві, менші за мінімальну площу різу</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>SmallClosed</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/SelectSmallClosedCurves.py"</script>
+    </macro_item>
+    <macro_item guid="e43b6c53-d2c8-5668-9cc4-fba696581b6f">
+      <text>
+        <locale_1033>CutRisks</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Позначити ризиковані місця різу (геометрія не змінюється)</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>CutRisks</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/CheckTangentialCutRisks.py"</script>
+    </macro_item>
+    <macro_item guid="33643099-363e-5541-9cc8-767468c40536">
+      <text>
+        <locale_1033>RecommendTabs</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Виділити контури, яким потрібні перемички (малі або вузькі)</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>RecommendTabs</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/RecommendCutTabs.py"</script>
+    </macro_item>
+    <macro_item guid="0f481530-a4dd-5e2e-9801-f4aa02b26c07">
+      <text>
+        <locale_1033>CutTabs</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Інтерактивно додати перемички (tabs) на контури різу</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>CutTabs</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/cut/AddCutTabs.py"</script>
+    </macro_item>
+    <macro_item guid="334c0d95-649f-5efa-b59e-378d514e4990">
+      <text>
+        <locale_1033>Panels</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Панелі → копія в Parts::Panels з номером P1, P2… (текст усередині + TextDot)</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>Panels</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/parts/Panels.py"</script>
+    </macro_item>
+    <macro_item guid="c45524f9-dca8-5d82-9bf4-3b68dc2dc9e9">
+      <text>
+        <locale_1033>Strips</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Фаші під виділені лінії: висота H, довжина = довжина кожної кривої</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>Strips</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/parts/StripsFromCurves.py"</script>
+    </macro_item>
+    <macro_item guid="cf75b031-7ce5-575e-9be2-d357f95794b3">
+      <text>
+        <locale_1033>Seam</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Припуск на шов: смуга ширини W з вибраного боку кожного ребра, підпис SA W; Points=Yes — ще й точки шва</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>Seam</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/parts/Seam.py"</script>
+    </macro_item>
+    <macro_item guid="b4cc4165-b82f-5273-83e8-a425857e8052">
+      <text>
+        <locale_1033>ZipStops</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Позначити криву як блискавку: стопи на кінцях</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>ZipStops</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/parts/ZipStops.py"</script>
+    </macro_item>
+    <macro_item guid="4445926c-5a72-5a9a-9d4a-7d2b31504cf5">
+      <text>
+        <locale_1033>Reinf Circle</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Кутове підсилення — коло радіуса R, обрізане сторонами кута (панеллю)</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>Reinf Circle</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/parts/ReinfCircle.py"</script>
+    </macro_item>
+    <macro_item guid="b760e20e-19fd-5339-83d5-2efd8247e1ad">
+      <text>
+        <locale_1033>Layout</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Розкласти деталі: копії в ряд від точки кліку, у &lt;шар&gt;::Layout; оригінали лишаються розміткою</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>Layout</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/parts/LayoutParts.py"</script>
+    </macro_item>
+    <macro_item guid="f9279dce-3ee9-5530-8112-408198d76ab1">
+      <text>
+        <locale_1033>Crosses</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Точки → хрестики або кружечки</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>Crosses</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/markup/PointsToCrosses.py"</script>
+    </macro_item>
+    <macro_item guid="e27bd776-f02d-5d6d-9a81-cc021108127c">
+      <text>
+        <locale_1033>SewingPoints</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Точки шва: центр кривої + рівний крок в обидва боки</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>SewingPoints</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/markup/sewing_points.py"</script>
+    </macro_item>
+    <macro_item guid="3c2b0c0e-9332-58c7-874b-663aaa4ff42b">
+      <text>
+        <locale_1033>SewPoints GH</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Точки шва (Grasshopper Player, стара версія)</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>SewPoints GH</locale_1033>
+      </button_text>
+    <script>! _-GrasshopperPlayer "/Users/dmytro/Documents/Rhino/Grasshoper scripts/sew points.gh"
+
+
+
+</script>
+    </macro_item>
+    <macro_item guid="cc01aa98-f81d-5d30-b754-1eec6ddc0fd6">
+      <text>
+        <locale_1033>Linetype 400,2</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Призначити тип лінії 400,2 вибраним кривим</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>Linetype 400,2</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/markup/line_type.py"</script>
+    </macro_item>
+    <macro_item guid="c701742e-294d-552d-84bd-3bbe82ccc067">
+      <text>
+        <locale_1033>TextStyles</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Створити/оновити стилі тексту PAT 2.5–40 mm для лекал 1:1</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>TextStyles</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/markup/PatternTextStyles.py"</script>
+    </macro_item>
+    <macro_item guid="c0a25cc2-8cfb-5b78-8efa-679afa44be4c">
+      <text>
+        <locale_1033>TextToDot</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Текст → TextDot</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>TextToDot</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/markup/TextToDot.py"</script>
+    </macro_item>
+    <macro_item guid="de726f5b-b50a-5893-a614-7a5979792cd9">
+      <text>
+        <locale_1033>DotToPanelText</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>TextDot → текст у правому верхньому куті панелі (INK)</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>DotToPanelText</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/markup/DotToPanelText.py"</script>
+    </macro_item>
+  </macros>
+  <bitmaps>
+    <small_bitmap item_width="16" item_height="16" />
+    <normal_bitmap item_width="24" item_height="24" />
+    <large_bitmap item_width="32" item_height="32" />
+  </bitmaps>
+  <scripts />
+</RhinoUI>
