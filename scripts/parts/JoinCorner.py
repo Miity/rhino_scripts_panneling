@@ -4,7 +4,7 @@
 виріз. Вибираєш деталі (можна разом із підписами й групами, рамкою), клікаєш у виріз біля кута
 (кілька кутів підряд, Enter — кінець); клік саме у виріз — він вказує, які сегменти торці. Торці обох деталей у цьому куті прибираються, зовнішні
 краї подовжуються по дотичній до перетину (як _Connect), і виходить одна замкнена крива.
-Останній кут рамки навколо панелі (обидва торці — одна деталь) → дві криві: зовнішня і внутрішня.
+Останній кут рамки навколо панелі (обидва торці — одна деталь) → лишається тільки зовнішній контур.
 Нова крива бере шар і групу першої деталі, група другої (підпис, точки шва) переходить у неї ж.
 """
 import math
@@ -64,7 +64,7 @@ def fill(sa, sb, ea, eb, c, tol):
 
 def join(a, b, click, tol):
     """[замкнені криві] — a і b, з'єднані в куті біля click; або рядок-помилка.
-    b None — обидва торці в куті належать a: замикається рамка → дві криві, зовнішня і внутрішня."""
+    b None — обидва торці в куті належать a: рамка замикається → лише зовнішній контур."""
     sa = list(a.DuplicateSegments())  # list: сталі обгортки для `is`
     sb = sa if b is None else list(b.DuplicateSegments())
     c = shared_corner(sa, sb, click, tol)
@@ -90,6 +90,8 @@ def join(a, b, click, tol):
     joined = Curve.JoinCurves(rest, tol)
     if len(joined) != (2 if sb is sa else 1) or not all(c.IsClosed for c in joined):
         return u"деталь не замкнулась"
+    if sb is sa:  # рамка замкнулась: внутрішній контур (= край панелі) не потрібен, лишається зовнішній
+        joined = [max(joined, key=lambda c: c.GetBoundingBox(True).Diagonal.Length)]
     out = []
     for crv in joined:
         ok, pl = crv.TryGetPolyline()  # як у CopriZip: чиста полілінія для PreparePanelCut
@@ -137,8 +139,6 @@ def main():
         new = [doc.Objects.AddCurve(crv, attrs) for crv in res]
         ga, gb = rs.ObjectGroups(ia), rs.ObjectGroups(ib) if ib != ia else None
         rs.DeleteObjects(list(set([ia, ib])))
-        if len(new) > 1 and not ga:  # рамка: зовнішня й внутрішня криві разом
-            rs.AddObjectsToGroup(new, rs.AddGroup())
         if gb:
             members = rs.ObjectsByGroup(gb[0]) or []
             if ga:

@@ -69,10 +69,8 @@ try:
     a, = M.join(a, fl[2], Point3d(-10, -3, 0), tol)
     a, = M.join(a, fl[3], Point3d(110, -3, 0), tol)
     assert isinstance(M.join(a, a, Point3d(110, 65, 0), tol), str)  # пари з самою собою немає
-    ring = M.join(a, None, Point3d(110, 65, 0), tol)
-    assert not isinstance(ring, str), ring
-    outer, inner = sorted(ring, key=area, reverse=True)
-    assert abs(area(outer) - 135 * 75) < 1e-3 and abs(area(inner) - 6000) < 1e-3, (area(outer), area(inner))
+    outer, = M.join(a, None, Point3d(110, 65, 0), tol)  # рамка замкнулась → лише зовнішній контур
+    assert outer.IsClosed and abs(area(outer) - 135 * 75) < 1e-3, area(outer)
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())
