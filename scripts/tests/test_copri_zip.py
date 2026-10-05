@@ -13,6 +13,7 @@ try:
     from Rhino.Geometry import AreaMassProperties, Point3d, Polyline, PolylineCurve, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
     import CopriZip as M
+    import importlib; importlib.reload(M)  # живий Rhino кешує модуль між запусками
 
     Z, tol = Vector3d.ZAxis, 0.001
     def poly(*p):
@@ -35,6 +36,16 @@ try:
     assert abs(edge.PointAtStart.X - 100) < 1e-9 and abs(edge.PointAtEnd.X) < 1e-9
     assert crv.IsClosed and crv.TryGetPolyline()[0] and sq == 0
     assert 900 < area(crv) < 1100, area(crv)  # ≈ довжина ребра × W
+
+    # панель — PolyCurve з дугою (як p1.3dm): ребро-лінія вгорі, сусід — дуга
+    from Rhino.Geometry import Arc, ArcCurve, Curve, LineCurve
+    pc = Curve.JoinCurves([LineCurve(Point3d(0, 0, 0), Point3d(100, 0, 0)),
+                           ArcCurve(Arc(Point3d(100, 0, 0), Point3d(110, 30, 0), Point3d(100, 60, 0))),
+                           LineCurve(Point3d(100, 60, 0), Point3d(0, 60, 0)),
+                           LineCurve(Point3d(0, 60, 0), Point3d(0, 0, 0))], tol)[0]
+    crv, edge, off, sq = M.flap(pc, Point3d(50, 61, 0), 10, 30, Z, tol)
+    assert crv.IsClosed and abs(edge.GetLength() - 100) < 1e-6, edge.GetLength()
+    assert crv.GetBoundingBox(True).Max.Y > 69.99 and 900 < area(crv) < 1200, area(crv)
 
     # гострий сусід (< 30° від ребра) → перпендикулярний кінець
     pan = poly((0, 0), (100, 0), (100, 50), (0, 50), (-80, 10))

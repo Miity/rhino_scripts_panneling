@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """Copri zip / copri canalina: клапан, що накриває блискавку на ребрі панелі.
-Вибираєш панель (замкнена полілінія) і клікаєш біля ребра (кілька підряд, Enter — кінець).
-Ребро — від кута до кута (кут — злам більший за Angle; дрібні зломи кривого краю не рахуються).
-Деталь — замкнена полілінія: копія ребра + офсет на W назовні від панелі, кінці по продовженню
-сусідніх ребер. Якщо сусід відходить гостріше ніж на 30° від ребра (продовження пішло б дуже
-далеко) — кінець перпендикулярний, з попередженням. Деталь + підпис "CZ W" у групі, шар
-Parts::CopriZip. Панель не змінюється: перед різом PreparePanelCut склеїть її з деталлю.
+Вибираєш панель (замкнена крива: полілінія, лінії, дуги — будь-які сегменти) і клікаєш біля ребра
+(кілька підряд, Enter — кінець). Ребро — від кута до кута (кут — злам дотичної більший за Angle;
+дрібні зломи кривого краю не рахуються). Деталь — замкнена крива: копія ребра + офсет на W
+назовні від панелі, кінці по продовженню сусідніх ребер. Якщо сусід відходить гостріше ніж на 30°
+від ребра (продовження пішло б дуже далеко) — кінець перпендикулярний, з попередженням.
+Деталь + підпис "CZ W" у групі, шар Parts::CopriZip. Панель не змінюється: перед різом
+PreparePanelCut склеїть її з деталлю (для нього ребро має бути полілінією / лініями).
 """
 import math
 import os
@@ -14,8 +15,8 @@ import sys
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import (Curve, CurveOffsetCornerStyle, CurveOrientation, LineCurve, Polyline,
-                            PolylineCurve, Vector3d)
+from Rhino.Geometry import (Curve, CurveEnd, CurveExtensionStyle, CurveOffsetCornerStyle, CurveOrientation,
+                            LineCurve, PolylineCurve, Vector3d)
 from Rhino.Geometry.Intersect import Intersection
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -26,69 +27,67 @@ LAYER = "Parts::CopriZip"
 MIN_SIN = 0.5  # sin 30°: гостріше — перпендикулярний кінець
 
 
-def unit(v):
-    v = Vector3d(v)
-    v.Unitize()
-    return v
-
-
 def flap(panel, click, w, angle, normal, tol):
-    """(полілінія деталі, ребро, офсет, к-сть перпендикулярних кінців) або рядок-помилка."""
-    ok, pl = panel.TryGetPolyline()
-    if not ok or not panel.IsClosed:
-        return u"панель не замкнена полілінія (спершу CrvToPolyline)"
-    pts = list(pl)[:-1]
-    n = len(pts)
-    corners = set(i for i in range(n) if Vector3d.VectorAngle(pts[i] - pts[i - 1], pts[(i + 1) % n] - pts[i])
-                  > math.radians(angle))
+    """(крива деталі, ребро, офсет, к-сть перпендикулярних кінців) або рядок-помилка."""
+    if not panel.IsClosed:
+        return u"панель не замкнена"
+    segs = [c for c in panel.DuplicateSegments() if c.GetLength() > tol] or [panel.DuplicateCurve()]
+    n = len(segs)
+    corners = set(i for i in range(n) if Vector3d.VectorAngle(segs[i - 1].TangentAtEnd, segs[i].TangentAtStart)
+                  > math.radians(angle))  # кут i — початок сегмента i
     if len(corners) < 2:
         return u"на панелі менше двох кутів більших за %g°" % angle
-    i = int(pl.ClosestParameter(click)) % n  # сегмент pts[i] → pts[i+1]
+    i = min(range(n), key=lambda k: segs[k].PointAt(segs[k].ClosestPoint(click)[1]).DistanceTo(click))
     s, e = i, (i + 1) % n
     while s not in corners:
         s = (s - 1) % n
     while e not in corners:
         e = (e + 1) % n
-    edge_pts = [pts[(s + k) % n] for k in range((e - s) % n + 1)]
-    edge = PolylineCurve(Polyline(edge_pts))
+    edge = Curve.JoinCurves([segs[(s + k) % n] for k in range((e - s) % n or n)], tol)[0]
 
     cw = panel.ClosedCurveOrientation(normal) == CurveOrientation.Clockwise
     def outward(t):  # назовні від панелі для напрямку обходу t
         return Vector3d.CrossProduct(normal, t) if cw else Vector3d.CrossProduct(t, normal)
 
-    t0 = unit(edge_pts[1] - edge_pts[0])
-    offs = edge.Offset(edge_pts[0] + t0 * (edge_pts[0].DistanceTo(edge_pts[1]) / 2) + outward(t0) * w,
-                       normal, w, tol, CurveOffsetCornerStyle.Sharp)
+    t0, tm = edge.TangentAtStart, edge.Domain.Mid
+    offs = edge.Offset(edge.PointAt(tm) + outward(edge.TangentAt(tm)) * w, normal, w, tol, CurveOffsetCornerStyle.Sharp)
     offs = Curve.JoinCurves(offs, tol) if offs else None
-    ok, opl = offs[0].TryGetPolyline() if offs else (False, None)
-    if not ok:
+    if not offs:
         return u"офсет ребра не вдався"
-    opl = list(opl)
-    if opl[0].DistanceTo(edge_pts[0]) > opl[-1].DistanceTo(edge_pts[0]):
-        opl.reverse()
-    off = PolylineCurve(Polyline(opl))
-    big = 10 * w + edge.GetLength()  # офсет, подовжений прямими на обох кінцях
-    ext = PolylineCurve(Polyline([opl[0] - unit(opl[1] - opl[0]) * big] + opl +
-                                 [opl[-1] + unit(opl[-1] - opl[-2]) * big]))
+    off = max(offs, key=lambda c: c.GetLength())
+    if off.PointAtStart.DistanceTo(edge.PointAtStart) > off.PointAtEnd.DistanceTo(edge.PointAtStart):
+        off.Reverse()
+    big = 10 * w + edge.GetLength()
+    ext = off.Extend(CurveEnd.Both, big, CurveExtensionStyle.Line)  # офсет, подовжений прямими
+    if ext is None:
+        return u"не вдалося подовжити офсет"
 
     ends, square = [], 0
-    for j, corner, d, t in ((0, edge_pts[0], unit(edge_pts[0] - pts[(s - 1) % n]), t0),
-                            (-1, edge_pts[-1], unit(edge_pts[-1] - pts[(e + 1) % n]), unit(edge_pts[-1] - edge_pts[-2]))):
-        k = d * outward(t)  # sin кута між сусідом і ребром (з боку деталі)
+    for corner, d, t, own in ((edge.PointAtStart, segs[(s - 1) % n].TangentAtEnd, t0, off.PointAtStart),
+                              (edge.PointAtEnd, -segs[e].TangentAtStart, edge.TangentAtEnd, off.PointAtEnd)):
+        k = d * outward(t)  # sin кута між продовженням сусіда і ребром (з боку деталі)
         p = None
         if k >= MIN_SIN:
             x = Intersection.CurveCurve(LineCurve(corner, corner + d * (w / k + big)), ext, tol, tol)
             p = min((ev.PointA for ev in x), key=corner.DistanceTo) if x and x.Count else None
         if p is None:
-            p = opl[j]
-            square += 1
-        ends.append(ext.ClosestPoint(p)[1])
-    if ends[0] >= ends[1] - tol:
+            p, square = own, square + 1
+        ends.append(p)
+    ta, tb = ext.ClosestPoint(ends[0])[1], ext.ClosestPoint(ends[1])[1]
+    if ta >= tb - tol:
         return u"ребро закоротке для клапана W=%g (продовження сусідів перетнулись)" % w
-    ok, mid = ext.Trim(ends[0], ends[1]).TryGetPolyline()
-    out = Polyline(edge_pts + list(reversed(list(mid))) + [edge_pts[0]])
-    out.DeleteShortSegments(tol)
-    return PolylineCurve(out), edge, off, square
+    top = ext.Trim(ta, tb)
+    top.Reverse()
+    joined = Curve.JoinCurves([edge, LineCurve(edge.PointAtEnd, top.PointAtStart), top,
+                               LineCurve(top.PointAtEnd, edge.PointAtStart)], tol)
+    if len(joined) != 1 or not joined[0].IsClosed:
+        return u"деталь не замкнулась"
+    out = joined[0]
+    ok, pl = out.TryGetPolyline()  # для PreparePanelCut — чиста полілінія, якщо все прямо
+    if ok:
+        pl.DeleteShortSegments(tol)
+        out = PolylineCurve(pl)
+    return out, edge, off, square
 
 
 def ask(gp):
@@ -108,7 +107,7 @@ def ask(gp):
 
 def main():
     doc = sc.doc
-    oid = rs.GetObject(u"Виберіть панель (замкнена полілінія)", rs.filter.curve, preselect=True)
+    oid = rs.GetObject(u"Виберіть панель (замкнена крива)", rs.filter.curve, preselect=True)
     if not oid:
         return
     panel = rs.coercecurve(oid)
