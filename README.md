@@ -80,6 +80,7 @@
 | TextStyles | створити/оновити стилі тексту PAT 2.5–40 mm | — |
 | TextToDot | текст → TextDot | DotToPanelText — TextDot → текст у куті панелі (INK) |
 | Legend | легенда підписів (P, F, CZ, SA, Z, Can, RC, TP, A–A) — тільки ті, що є в кресленні, текстом у точці кліку; опція Lang = UA / EN / IT | — |
+| PDF Cliente | PDF для замовника (`PrintLayout.py`): вибрані контури панелей → Layout-сторінки A4 «Schema» (усе разом, лише P<n>), «Legenda» (IT, лише наявні позначки), далі сторінка на панель у масштабі 1:N; підписи — Arial 4 мм на папері з білою маскою (оригінали 1:1 лише сховані в detail); чорно-білий `<файл>_cliente.pdf` поруч із .3dm, товщини CUT 0.35 / zip 0.25 / решта 0.13 лише на час запису; повторний запуск замінює свої сторінки | — |
 
 Поза тулбаром навмисно лишені: `BoundingBoxWithSize.py` (стара версія), `GH_SplitCurveByAngle.py` (код для GHPython-компонента), `PatternTextStyles_check.py` (перевірка), `build_scripts_rui.py` (збирач).
 
