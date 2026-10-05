@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Панелі → частини P1, P2, P3…
-Вибираєш замкнені криві (панелі). Кожна панель копіюється на те саме місце в шар Parts::Panels
-і отримує номер P<n>: текст усередині панелі в куті, біля якого клікнеш (Enter — правий верхній;
+Вибираєш замкнені криві (панелі). Кожна панель копіюється на те саме місце в шар Parts::Panels,
+вхідна крива (і її вирізи) видаляється. Копія отримує номер P<n>: текст усередині панелі в куті, біля якого клікнеш (Enter — правий верхній;
 розміщення як у markup/DotToPanelText.py), стиль — опція Style (запам'ятовується),
 і TextDot "P<n>" (підшар Parts::Panels::Dots) вище-зліва від краю панелі, щоб номер було видно при будь-якому зумі.
-Номер пишеться і в UserText (Part = P<n>) на оригінал і на копію: повторний запуск
-уже пронумеровані панелі пропускає. Нова панель отримує найменший вільний номер у шарі,
+Номер пишеться в UserText копії (Part = P<n>): повторний запуск
+пропускає криві, що вже лежать у Parts::Panels з номером. Нова панель отримує найменший вільний номер у шарі,
 тож номер видаленої панелі повертається.
 Крива, що лежить усередині іншої вибраної — виріз (отвір) цієї панелі: копіюється разом з нею
 під тим самим номером, свого номера не забирає. Копія, вирізи, текст і TextDot — одна група.
@@ -116,10 +116,8 @@ def main():
     tol = doc.ModelAbsoluteTolerance
     plane = rs.ViewCPlane()
 
-    live = set(rs.GetUserText(o, KEY) for o in rs.ObjectsByLayer(LAYER) or [] if rs.IsCurve(o)) if rs.IsLayer(LAYER) else set()
-    live.discard(None)  # непронумеровані криві в шарі не роблять «пронумерованими» всі криві без мітки
-    # пронумерована — лише якщо її копія з цим номером ще є (після Undo чи видалення копії мітка не заважає)
-    done = [i for i in ids if rs.GetUserText(i, KEY) in live]
+    # готова панель — крива в LAYER з номером; старі мітки на кривих в інших шарах не заважають
+    done = [i for i in ids if rs.ObjectLayer(i) == LAYER and rs.GetUserText(i, KEY)]
     bad = [i for i in ids if i not in done and not (rs.IsCurveClosed(i) and rs.IsCurvePlanar(i))]
     ids = [i for i in ids if i not in done and i not in bad]
     if done:
@@ -162,11 +160,8 @@ def main():
         tagged = attrs.Duplicate()
         tagged.SetUserString(KEY, name)
         new = [doc.Objects.AddCurve(curves[k], tagged) for k in [i] + hole_idx]
-        for k in [i] + hole_idx:  # ModifyAttributes, а не rs.SetUserText: так мітку відкочує Undo
-            obj = doc.Objects.FindId(ids[k])
-            a = obj.Attributes.Duplicate()
-            a.SetUserString(KEY, name)
-            doc.Objects.ModifyAttributes(obj, a, True)
+        for k in [i] + hole_idx:  # вхідні криві видаляються (Undo повертає)
+            doc.Objects.Delete(ids[k], True)
         tid = D.place_text(doc, name, crv, click, ds, attrs, tol)
         if not tid:
             print(u"%s: текст не влазить у панель (менший стиль — опція Style), лишився TextDot" % name)
@@ -176,7 +171,7 @@ def main():
         print(u"%s%s" % (name, u"  (вирізів: %d)" % len(hole_idx) if hole_idx else u""))
         made += 1
     rs.UnselectAllObjects()
-    rs.SelectObjects(picked)  # вибір як був
+    rs.SelectObjects([o for o in picked if rs.IsObject(o)])  # вибір як був (без видалених)
     print(u"Панелей: %d → %s" % (made, LAYER))
 
 
