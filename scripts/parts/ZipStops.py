@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Позначає криву як блискавку (zip): короткі поперечні стопи на початку і в кінці.
-Крива переноситься в шар Parts::Zip і отримує номер Z<n>: UserText Zip + текст над серединою кривої,
-уздовж неї; стиль тексту — опція Style (запам'ятовується, за замовчуванням PAT 10 mm).
-Стопи центровані на кривій, лежать у площині CPlane. Крива, стопи і текст — одна група.
-Нумерація продовжується з найбільшого Z<n> у шарі; вже позначені криві пропускаються.
+"""Позначає блискавки (zip): одна блискавка = усі її лінії на всіх панелях (обидві сторони тасьми,
+сторона може бути розбита на кілька панелей). Вибір ліній повторюється: Z1, Z2… — Enter завершує.
+Кожна лінія переноситься в шар Parts::Zip і отримує номер блискавки: UserText Zip + текст над серединою,
+уздовж лінії; стиль тексту — опція Style (запам'ятовується, за замовчуванням PAT 10 mm).
+На кінцях кожної лінії — поперечні стопи (центровані, у площині CPlane). Якщо ліній 3+, сторона розбита:
+клік біля кінця-стику (де блискавка переходить на іншу панель) міняє стоп на риску вдвічі коротшу; ще клік — назад.
+Лінія, її стопи і текст — одна група (на кожну лінію своя: лінії лежать на різних панелях).
+Нумерація продовжується з найбільшого Z<n> у шарі; вже позначені лінії пропускаються.
 Далі — етап переносу: клік по блискавці переносить її номер на інший бік кривої (зверху ↔ знизу),
 якщо налазить на інший текст; Enter — готово. Enter на виборі кривих — одразу до переносу.
 Таблиця довжин для замовлення — parts/ZipList.py."""
@@ -113,9 +116,40 @@ def ask_size(doc, size, style):
         return None, style
 
 
+def mark_line(doc, oid, crv, name, size, normal, ds, gap, attrs):
+    """Лінія → Parts::Zip з номером, стопи на кінцях, текст; одна група. Повертає id стопів [початок, кінець]."""
+    # ModifyAttributes, а не rs.ObjectLayer + rs.SetUserText: так шар і мітку відкочує Undo
+    a = rs.coercerhinoobject(oid).Attributes.Duplicate()
+    a.LayerIndex = attrs.LayerIndex
+    a.SetUserString(KEY, name)
+    doc.Objects.ModifyAttributes(oid, a, True)
+    stops = [doc.Objects.AddLine(ln, attrs) for ln in stop_lines(crv, size, normal)]
+    te = Rhino.Geometry.TextEntity.Create(name, label_plane(crv, normal, gap), ds, False, 0, 0)
+    te.TextHorizontalAlignment = TextHorizontalAlignment.Center
+    te.TextVerticalAlignment = TextVerticalAlignment.Bottom
+    rs.AddObjectsToGroup([oid] + stops + [doc.Objects.AddText(te, attrs)], rs.AddGroup())
+    return stops
+
+
+def junction_stage(doc, name, lines, size, normal):
+    """lines = [(крива, [id стопа на початку, на кінці])]. Клік біля кінця: стоп ↔ риска на стику."""
+    notch = set()
+    while True:
+        pt = rs.GetPoint(u"%s: клікни біля стику — кінця, де блискавка переходить на іншу панель (Enter — готово)" % name)
+        if pt is None:
+            return
+        d, i, e = min((pt.DistanceTo(c.PointAt((c.Domain.T0, c.Domain.T1)[e])), i, e)
+                      for i, (c, _) in enumerate(lines) for e in (0, 1))
+        crv, stops = lines[i]
+        notch ^= set([(i, e)])
+        ln = stop_lines(crv, size / 2.0 if (i, e) in notch else size, normal)[e]
+        doc.Objects.Replace(stops[e], ln)
+        doc.Views.Redraw()
+
+
 def main():
     doc = sc.doc
-    ids = rs.GetObjects(u"Виберіть криві блискавок (Enter — лише перенести номери на інший бік)",
+    ids = rs.GetObjects(u"Виберіть усі лінії однієї блискавки — обидві сторони (Enter — лише перенести номери)",
                         rs.filter.curve, preselect=True)
     if not ids:
         flip_stage(doc)
@@ -142,33 +176,27 @@ def main():
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(LAYER, -1)
 
-    rs.EnableRedraw(False)
     n = next_number()
-    skipped = 0
-    for oid in ids:
-        crv = rs.coercecurve(oid)
-        if crv.IsClosed:
-            continue  # у замкненої кривої немає кінців
-        if rs.GetUserText(oid, KEY) and rs.ObjectLayer(oid) == LAYER:
-            skipped += 1  # вже блискавка — не дублюємо стопи
-            continue
-        name = PREFIX + str(n)
-        n += 1
-        # ModifyAttributes, а не rs.ObjectLayer + rs.SetUserText: так шар і мітку відкочує Undo
-        a = rs.coercerhinoobject(oid).Attributes.Duplicate()
-        a.LayerIndex = attrs.LayerIndex
-        a.SetUserString(KEY, name)
-        doc.Objects.ModifyAttributes(oid, a, True)
-        new = [doc.Objects.AddLine(ln, attrs) for ln in stop_lines(crv, size, normal)]
-        te = Rhino.Geometry.TextEntity.Create(name, label_plane(crv, normal, gap), ds, False, 0, 0)
-        te.TextHorizontalAlignment = TextHorizontalAlignment.Center
-        te.TextVerticalAlignment = TextVerticalAlignment.Bottom
-        new.append(doc.Objects.AddText(te, attrs))
-        rs.AddObjectsToGroup([oid] + new, rs.AddGroup())
-    rs.EnableRedraw(True)
-    if skipped:
-        print(u"Вже позначені, пропущено: %d" % skipped)
-    rs.UnselectAllObjects()
+    while ids:
+        todo = [i for i in ids if not rs.IsCurveClosed(i)  # у замкненої кривої немає кінців
+                and not (rs.GetUserText(i, KEY) and rs.ObjectLayer(i) == LAYER)]  # вже блискавка
+        if len(todo) < len(ids):
+            print(u"Замкнені або вже позначені, пропущено: %d" % (len(ids) - len(todo)))
+        if todo:
+            name = PREFIX + str(n)
+            n += 1
+            lines = []
+            for oid in todo:
+                crv = rs.coercecurve(oid)
+                lines.append((crv, mark_line(doc, oid, crv, name, size, normal, ds, gap, attrs)))
+            rs.UnselectAllObjects()
+            doc.Views.Redraw()
+            if len(lines) >= 3:  # хоча б одна сторона розбита на кілька панелей
+                junction_stage(doc, name, lines, size, normal)
+            print(u"%s: ліній %d" % (name, len(lines)))
+        rs.UnselectAllObjects()
+        ids = rs.GetObjects(u"%s%d: виберіть усі лінії наступної блискавки (Enter — готово)" % (PREFIX, n),
+                            rs.filter.curve)
     flip_stage(doc)
 
 
