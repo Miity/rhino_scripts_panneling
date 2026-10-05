@@ -70,6 +70,7 @@ GROUPS = [
         (u"TextStyles", u"Створити/оновити стилі тексту PAT 2.5–40 mm для лекал 1:1", py("markup/PatternTextStyles.py"), None),
         (u"TextToDot", u"Текст → TextDot", py("markup/TextToDot.py"),
          (u"DotToPanelText", u"TextDot → текст у правому верхньому куті панелі (INK)", py("markup/DotToPanelText.py"))),
+        (u"Legend", u"Легенда підписів (P, F, CZ, SA, Z, Can, RC, TP, A–A): тільки ті, що є в кресленні, текстом у точці кліку", py("markup/Legend.py"), None),
     ]),
 ]
 
