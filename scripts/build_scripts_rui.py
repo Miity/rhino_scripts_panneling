@@ -57,7 +57,7 @@ GROUPS = [
         (u"ZipStops", u"Позначити криву як блискавку: перенести в Parts::Zip, номер Z<n>, стопи на кінцях", py("parts/ZipStops.py"), None),
         (u"ZipList", u"Таблиця довжин блискавок для замовлення: CSV поруч із .3dm + буфер обміну", py("parts/ZipList.py"), None),
         (u"Reinf Circle", u"Кутове підсилення — коло радіуса R, обрізане сторонами кута (панеллю)", py("parts/ReinfCircle.py"), None),
-        (u"Tube Pockets", u"Кармани для труб: W по центру лінії, висота H, звуження Trim, припуск SA, мітка центру", py("parts/TubePockets.py"), None),
+        (u"Tube Pockets", u"Кармани для труб: панель → клік біля ребра, W по центру ребра, висота H, звуження Trim, припуск SA, мітка центру", py("parts/TubePockets.py"), None),
         (u"Layout", u"Розкласти деталі: копії в ряд від точки кліку, у <шар>::Layout; оригінали лишаються розміткою", py("parts/LayoutParts.py"), None),
     ]),
     (u"Розмітка", u"Розмітка на INK", [

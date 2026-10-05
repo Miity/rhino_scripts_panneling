@@ -11,6 +11,8 @@ out = open(os.path.join(HERE, "test_tube_pockets.txt"), "w")
 try:
     from Rhino.Geometry import AreaMassProperties, LineCurve, Point3d, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
+    for m in ("CopriZip", "Seam", "TubePockets"):  # живий Rhino тримає старі версії модулів
+        sys.modules.pop(m, None)
     import TubePockets as M
 
     Z, tol = Vector3d.ZAxis, 0.001
@@ -30,6 +32,17 @@ try:
     assert outline.GetBoundingBox(True).Min.Y < -99
     # Trim завеликий → причина рядком
     assert not isinstance(M.pocket(line, Point3d(0, 40, 0), 80, 100, 50, 10, False, Z, tol), tuple)
+    # панель 1000×500: клік біля верхнього ребра → карман униз (всередину), SA вгору; обидва напрямки обходу
+    from Rhino.Geometry import Polyline, PolylineCurve
+    pts = [Point3d(0, 0, 0), Point3d(1000, 0, 0), Point3d(1000, 500, 0), Point3d(0, 500, 0), Point3d(0, 0, 0)]
+    for order in (pts, pts[::-1]):
+        panel = PolylineCurve(Polyline(order))
+        edge = M.pick_edge(panel, Point3d(400, 520, 0), 30, tol)[3]
+        assert abs(edge.GetLength() - 1000) < 1e-6 and abs(edge.PointAtStart.Y - 500) < 1e-6
+        outline, seg, mark = M.pocket(edge, M.inward(panel, edge, Z), 600, 100, 50, 10, True, Z, tol)
+        bb = outline.GetBoundingBox(True)
+        assert abs(bb.Min.Y - 400) < 1e-6 and abs(bb.Max.Y - 510) < 1e-6, bb
+        assert abs(AreaMassProperties.Compute(outline).Area - 61000) < 1e-3
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())

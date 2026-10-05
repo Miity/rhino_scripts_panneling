@@ -27,8 +27,9 @@ LAYER = "Parts::CopriZip"
 MIN_SIN = 0.5  # sin 30°: гостріше — перпендикулярний кінець
 
 
-def flap(panel, click, w, angle, normal, tol):
-    """(крива деталі, ребро, офсет, к-сть перпендикулярних кінців) або рядок-помилка."""
+def pick_edge(panel, click, angle, tol):
+    """(сегменти, індекс першого сегмента ребра, індекс сегмента після ребра, ребро) або рядок-помилка.
+    Ребро — від кута до кута біля click; кут — злам дотичної більший за angle."""
     if not panel.IsClosed:
         return u"панель не замкнена"
     segs = [c for c in panel.DuplicateSegments() if c.GetLength() > tol] or [panel.DuplicateCurve()]
@@ -44,6 +45,16 @@ def flap(panel, click, w, angle, normal, tol):
     while e not in corners:
         e = (e + 1) % n
     edge = Curve.JoinCurves([segs[(s + k) % n] for k in range((e - s) % n or n)], tol)[0]
+    return segs, s, e, edge
+
+
+def flap(panel, click, w, angle, normal, tol):
+    """(крива деталі, ребро, офсет, к-сть перпендикулярних кінців) або рядок-помилка."""
+    res = pick_edge(panel, click, angle, tol)
+    if not isinstance(res, tuple):
+        return res
+    segs, s, e, edge = res
+    n = len(segs)
 
     cw = panel.ClosedCurveOrientation(normal) == CurveOrientation.Clockwise
     def outward(t):  # назовні від панелі для напрямку обходу t

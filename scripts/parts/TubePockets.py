@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 """Кармани для труб у тенті (tasca per tubo).
-Цикл: вибираєш лінію (край тента), задаєш ширину кармана W (0 — уся лінія), клікаєш, з якого боку
-карман (всередину тента). Карман — відрізок лінії ширини W по центру (середина за довжиною),
-зсунутий на висоту H; зсунута лінія коротша на T з кожного кінця (карман звужується).
-Припуск на шов SA іде від лінії в протилежний від кармана бік. Лінія шва — копія відрізка в групі.
+Вибираєш панель (замкнена крива), потім клікаєш біля ребра (кілька підряд, Enter — кінець).
+Ребро — від кута до кута (кут — злам дотичної більший за Angle, як у CopriZip). Карман — відрізок
+ребра ширини W по центру (середина за довжиною; 0 — усе ребро), зсунутий на висоту H всередину панелі;
+зсунута лінія коротша на Trim з кожного кінця (карман звужується).
+Припуск на шов SA іде від ребра назовні панелі. Лінія шва — копія відрізка в групі.
 Опція Notch — мітка центру (риска через лінію шва по середині). Деталь лежить на місці, у шарі
-Parts::Pockets, з підписом "TP<n>  H=…" у групі; нумерація TP продовжується. Вихідні лінії не змінюються.
-Опції H / Trim / SA / Notch — у запиті ширини, запам'ятовуються між запусками.
+Parts::Pockets, з підписом "TP<n>  H=…" у групі; нумерація TP продовжується. Панель не змінюється.
+Опції W / H / Trim / SA / Notch / Angle — у запиті кліку, запам'ятовуються між запусками.
 """
 import os
 import re
@@ -15,9 +16,10 @@ import sys
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import Curve, CurveOffsetCornerStyle, LineCurve
+from Rhino.Geometry import Curve, CurveOffsetCornerStyle, CurveOrientation, LineCurve, Vector3d
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from CopriZip import pick_edge  # ребро панелі від кута до кута біля кліку
 from Seam import label_frame, text_style  # той самий підпис уздовж смуги і стиль PAT
 
 STICKY = "TubePockets"
@@ -98,63 +100,72 @@ def next_number(lay):
     return max(nums) + 1
 
 
-def ask_width():
-    """W + опції H, Trim, SA, Notch. None — скасовано."""
+def inward(panel, edge, normal):
+    """Точка всередині панелі біля середини ребра (ребро йде за обходом панелі)."""
+    tm = edge.Domain.Mid
+    t = edge.TangentAt(tm)
+    cw = panel.ClosedCurveOrientation(normal) == CurveOrientation.Clockwise
+    out = Vector3d.CrossProduct(normal, t) if cw else Vector3d.CrossProduct(t, normal)
+    out.Unitize()
+    return edge.PointAt(tm) - out
+
+
+def ask(gp):
+    """Клік біля ребра з опціями W, H, Trim, SA, Notch, Angle. (точка, значення) або None."""
     get = sc.sticky.get
-    gn = Rhino.Input.Custom.GetNumber()
-    gn.SetCommandPrompt(u"Ширина кармана W від центру лінії (0 — уся лінія)")
-    gn.SetDefaultNumber(get(STICKY + "_w", 2000.0))
-    gn.SetLowerLimit(0.0, False)
+    w = Rhino.Input.Custom.OptionDouble(get(STICKY + "_w", 2000.0), 0.0, 1e7)
     h = Rhino.Input.Custom.OptionDouble(get(STICKY + "_h", 130.0), 0.001, 1e6)
     trim = Rhino.Input.Custom.OptionDouble(get(STICKY + "_trim", 50.0), 0.0, 1e6)
     sa = Rhino.Input.Custom.OptionDouble(get(STICKY + "_sa", 10.0), 0.0, 1e6)
     notch = Rhino.Input.Custom.OptionToggle(get(STICKY + "_notch", True), "No", "Yes")
-    gn.AddOptionDouble("H", h)
-    gn.AddOptionDouble("Trim", trim)
-    gn.AddOptionDouble("SA", sa)
-    gn.AddOptionToggle("Notch", notch)
+    angle = Rhino.Input.Custom.OptionDouble(get("CopriZip_angle", 30.0), 1.0, 179.0)  # спільний із CopriZip
+    gp.AddOptionDouble("W", w)
+    gp.AddOptionDouble("H", h)
+    gp.AddOptionDouble("Trim", trim)
+    gp.AddOptionDouble("SA", sa)
+    gp.AddOptionToggle("Notch", notch)
+    gp.AddOptionDouble("Angle", angle)
     while True:
-        r = gn.Get()
-        if r == Rhino.Input.GetResult.Option:
-            continue
-        if r != Rhino.Input.GetResult.Number:
-            return None
-        vals = gn.Number(), h.CurrentValue, trim.CurrentValue, sa.CurrentValue, notch.CurrentValue
+        r = gp.Get()
+        vals = (w.CurrentValue, h.CurrentValue, trim.CurrentValue, sa.CurrentValue, notch.CurrentValue)
         for k, v in zip(("_w", "_h", "_trim", "_sa", "_notch"), vals):
             sc.sticky[STICKY + k] = v
-        return vals
+        sc.sticky["CopriZip_angle"] = angle.CurrentValue
+        if r == Rhino.Input.GetResult.Option:
+            continue
+        return (gp.Point(), vals + (angle.CurrentValue,)) if r == Rhino.Input.GetResult.Point else None
 
 
 def main():
     doc = sc.doc
+    oid = rs.GetObject(u"Виберіть панель (замкнена крива)", rs.filter.curve, preselect=True)
+    if not oid:
+        return
+    panel = rs.coercecurve(oid)
     tol = doc.ModelAbsoluteTolerance
-    cplane_z = rs.ViewCPlane().ZAxis
+    ok, plane = panel.TryGetPlane(tol)
+    normal = plane.ZAxis if ok else rs.ViewCPlane().ZAxis
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
     n = next_number(LAYER)
     made = 0
     while True:
-        oid = rs.GetObject(u"Виберіть лінію кармана (Enter — кінець)", rs.filter.curve, preselect=(made == 0))
-        if oid is None:
+        gp = Rhino.Input.Custom.GetPoint()
+        gp.SetCommandPrompt(u"Клікни біля ребра під карман (W=0 — усе ребро; Enter — кінець)")
+        gp.AcceptNothing(True)
+        got = ask(gp)
+        if got is None:
             break
-        crv = rs.coercecurve(oid)
-        if crv.IsClosed:
-            print(u"Замкнена крива — вибери окрему лінію краю")
+        click, (w, h, trim, sa, notch, angle) = got
+        res = pick_edge(panel, click, angle, tol)
+        if not isinstance(res, tuple):
+            print(u"Пропущено: " + res)
             continue
-        rs.SelectObject(oid)
-        vals = ask_width()
-        if vals is None:
-            break
-        w, h, trim, sa, notch = vals
-        click = rs.GetPoint(u"Клікни, з якого боку карман (всередину тента)")
-        rs.UnselectAllObjects()
-        if click is None:
-            break
-        ok, pl = crv.TryGetPlane(tol)
-        normal = pl.ZAxis if ok and not crv.IsLinear(tol) else cplane_z
-        if 0 < crv.GetLength() <= w:
-            print(u"W %g ≥ довжини лінії %.1f — карман на всю лінію" % (w, crv.GetLength()))
-        res = pocket(crv, click, w, h, trim, sa, notch, normal, tol)
+        edge = res[3]
+        if 0 < edge.GetLength() <= w:
+            print(u"W %g ≥ довжини ребра %.1f — карман на все ребро" % (w, edge.GetLength()))
+        toward = inward(panel, edge, normal)
+        res = pocket(edge, toward, w, h, trim, sa, notch, normal, tol)
         if not isinstance(res, tuple):
             print(u"Пропущено: " + res)
             continue
@@ -165,9 +176,8 @@ def main():
         if mark:
             new.append(doc.Objects.AddCurve(mark, attrs))
         label = u"%s%d  H=%g" % (PREFIX, n, h)
-        inner = offset(seg, click, h, normal, tol)
-        te = Rhino.Geometry.TextEntity.Create(label, label_frame(seg, inner, normal), text_style(doc, h / 4.0),
-                                              False, 0, 0)
+        te = Rhino.Geometry.TextEntity.Create(label, label_frame(seg, offset(seg, toward, h, normal, tol), normal),
+                                              text_style(doc, h / 4.0), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
         new.append(doc.Objects.AddText(te, attrs))
