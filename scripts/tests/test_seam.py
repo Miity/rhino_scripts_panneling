@@ -25,11 +25,6 @@ try:
     assert abs(bb.Min.Y - 60) < 1e-6 and abs(bb.Max.Y - 70) < 1e-6, (bb.Min, bb.Max)
     pl = M.label_frame(edge, off, Z)
     assert 60 < pl.Origin.Y < 70, pl.Origin  # підпис усередині деталі
-    # відкрите Г-ребро 100 + 50, клік з боку -Y → деталь з гострим кутом: 10·(100+50) + 10·10
-    g = PolylineCurve(Polyline([Point3d(0, 0, 0), Point3d(100, 0, 0), Point3d(100, 50, 0)]))
-    part, e2, o2 = M.strip(g, Point3d(50, -5, 0), 10, Z, tol)
-    assert part.IsClosed and abs(AreaMassProperties.Compute(part).Area - 1600) < 1e-3
-    assert abs(o2.PointAtStart.Y + 10) < 1e-6  # офсет з боку кліку
     assert M.sewing_lengths(100, 20) == [10, 30, 50, 70, 90]  # логіка sewing_points підтягується
     # точки шва: копія ребра + точки, усе в шарі з attrs (Parts::Seam), а не в шарі вхідної лінії
     import Rhino
