@@ -157,6 +157,12 @@
         </text>
         <left_macro_id>4445926c-5a72-5a9a-9d4a-7d2b31504cf5</left_macro_id>
       </tool_bar_item>
+      <tool_bar_item guid="8b4f8f86-3f27-5e26-8973-bf6598b606f3">
+        <text>
+          <locale_1033>Tube Pockets</locale_1033>
+        </text>
+        <left_macro_id>b660171c-475d-5834-bede-8e1b1b170863</left_macro_id>
+      </tool_bar_item>
       <tool_bar_item guid="c3fd1cfc-d542-582b-aa9c-aeadba89e0cb">
         <text>
           <locale_1033>Layout</locale_1033>
@@ -490,6 +496,18 @@
         <locale_1033>Reinf Circle</locale_1033>
       </button_text>
     <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/parts/ReinfCircle.py"</script>
+    </macro_item>
+    <macro_item guid="b660171c-475d-5834-bede-8e1b1b170863">
+      <text>
+        <locale_1033>Tube Pockets</locale_1033>
+      </text>
+      <tooltip>
+        <locale_1033>Кармани для труб: W по центру лінії, висота H, звуження Trim, припуск SA, мітка центру</locale_1033>
+      </tooltip>
+      <button_text>
+        <locale_1033>Tube Pockets</locale_1033>
+      </button_text>
+    <script>!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/parts/TubePockets.py"</script>
     </macro_item>
     <macro_item guid="b760e20e-19fd-5339-83d5-2efd8247e1ad">
       <text>
