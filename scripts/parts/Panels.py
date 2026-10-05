@@ -108,6 +108,7 @@ def main():
     plane = rs.ViewCPlane()
 
     live = set(rs.GetUserText(o, KEY) for o in rs.ObjectsByLayer(LAYER) or [] if rs.IsCurve(o)) if rs.IsLayer(LAYER) else set()
+    live.discard(None)  # непронумеровані криві в шарі не роблять «пронумерованими» всі криві без мітки
     # пронумерована — лише якщо її копія з цим номером ще є (після Undo чи видалення копії мітка не заважає)
     done = [i for i in ids if rs.GetUserText(i, KEY) in live]
     bad = [i for i in ids if i not in done and not (rs.IsCurveClosed(i) and rs.IsCurvePlanar(i))]
