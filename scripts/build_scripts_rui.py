@@ -38,6 +38,7 @@ GROUPS = [
         (u"TrimOutside", u"Обрізати все, що виходить за контур панелі", py("curves/TrimOutsidePanel.py"), None),
         (u"ExactConnection", u"Точка контакту на кривій із заданою довжиною", py("curves/find_exact_connection.py"), None),
         (u"MidLine", u"Лінія від середини однієї кривої до середини іншої", py("curves/MidLine.py"), None),
+        (u"OffsetRigid", u"Копія кривої без зміни форми, зсунута по нормалі в точці кліку", py("curves/OffsetRigid.py"), None),
     ]),
     (u"Аналіз", u"Аналіз панелі та різу", [
         (u"SmallClosed", u"Виділити замкнені криві, менші за мінімальну площу різу", py("analysis/SelectSmallClosedCurves.py"), None),
