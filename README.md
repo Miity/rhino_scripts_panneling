@@ -79,7 +79,7 @@
 | Linetype 400,2 | призначити тип лінії `400,2` | — |
 | TextStyles | створити/оновити стилі тексту PAT 2.5–40 mm | — |
 | TextToDot | текст → TextDot | DotToPanelText — TextDot → текст у куті панелі (INK) |
-| Legend | легенда підписів (P, F, CZ, SA, Z, Can, RC, TP, A–A) — тільки ті, що є в кресленні, текстом у точці кліку | — |
+| Legend | легенда підписів (P, F, CZ, SA, Z, Can, RC, TP, A–A) — тільки ті, що є в кресленні, текстом у точці кліку; опція Lang = UA / EN / IT | — |
 
 Поза тулбаром навмисно лишені: `BoundingBoxWithSize.py` (стара версія), `GH_SplitCurveByAngle.py` (код для GHPython-компонента), `PatternTextStyles_check.py` (перевірка), `build_scripts_rui.py` (збирач).
 

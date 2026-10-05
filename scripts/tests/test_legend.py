@@ -11,4 +11,7 @@ codes = [l.split()[0] for l in got]
 assert codes == ["P<n>", "F<n>", "Z<n>", "TP<n>", "A–A,"], codes
 assert M.legend_lines([u"Can1", u"CZ 20", u"SA 10", u"RC2  R=40"])[0].startswith("CZ")
 assert M.legend_lines([u"Panel", u"PP1", u"Zip"]) == []
+
+assert M.legend_lines([u"P1", u"A"], "IT") == [M.ENTRIES[0][1][2], M.ENTRIES[-1][1][2]]
+assert M.legend_lines([u"SA 10"], "EN") == [u"SA W — seam allowance, width W"]
 print("ok")
