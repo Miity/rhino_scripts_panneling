@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Припуск на шов (seam allowance / margine di cucitura) під виділені ребра.
-Кожна вибрана крива — окреме ребро: клікаєш, з якого боку припуск, і отримуєш замкнену смугу
-між ребром і його офсетом на ширину W (кути гострі). Смуга + підпис "SA <W>" ідуть у шар
-Parts::Seam і групуються. Оригінальна крива (лінія шва) не змінюється.
-Замкнена крива дає кільце: копія контуру + офсет у групі (одною кривою кільце не замкнути).
+"""Припуск на шов (seam allowance / margine di cucitura) — окрема деталь зовні панелі.
+Як CopriZip: вибираєш панель (замкнена крива) і клікаєш біля ребра (кілька підряд, Enter — кінець).
+Ребро — від кута до кута (кут — злам більший за Angle); деталь — ребро + офсет на W назовні,
+кінці по продовженню сусідніх ребер (геометрія — CopriZip.flap). Деталь + підпис "SA <W>" у групі,
+шар Parts::Seam. Панель не змінюється.
 Опція Points=Yes: ще й точки шва (логіка markup/sewing_points.py: центр ± k·Step) на копії ребра
-в Parts::Seam — копія + точки в тій самій групі, що смуга. Оригінал і його шар не чіпаються.
+в Parts::Seam — копія + точки в тій самій групі, що деталь.
 """
 import os
 import sys
@@ -13,7 +13,7 @@ import sys
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import Curve, CurveOffsetCornerStyle, LineCurve, Plane, Vector3d
+from Rhino.Geometry import Plane, Vector3d
 
 try:  # стилі тексту PAT для лекал 1:1 (scripts/markup/PatternTextStyles.py)
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
@@ -24,23 +24,6 @@ from sewing_points import sewing_lengths  # той самий markup/ у sys.pat
 
 STICKY = "Seam"
 LAYER = "Parts::Seam"
-
-
-def strip(crv, side, w, normal, tol):
-    """(криві смуги, офсет): [замкнена крива] для відкритого ребра, [копія, офсет] для замкненого; None — офсет не вдався."""
-    offs = crv.Offset(side, normal, w, tol, CurveOffsetCornerStyle.Sharp)
-    offs = Curve.JoinCurves(offs, tol) if offs else None
-    if not offs:
-        return None
-    o = max(offs, key=lambda c: c.GetLength())
-    if crv.IsClosed:
-        return [crv.DuplicateCurve(), o], o
-    if o.PointAtStart.DistanceTo(crv.PointAtStart) > o.PointAtEnd.DistanceTo(crv.PointAtStart):
-        o.Reverse()
-    parts = [crv.DuplicateCurve(), o,
-             LineCurve(crv.PointAtStart, o.PointAtStart), LineCurve(crv.PointAtEnd, o.PointAtEnd)]
-    joined = Curve.JoinCurves(parts, tol)
-    return ([joined[0]], o) if len(joined) == 1 and joined[0].IsClosed else None
 
 
 def label_frame(crv, offset, normal):
@@ -64,27 +47,25 @@ def text_style(doc, w):
     return styles[fit[-1] if fit else PatternTextStyles.SERIES[0]]
 
 
-def ask_settings():
-    """Ширина + опції Points (точки шва) і Step (крок, спільний із sewing_points). None — скасовано."""
-    gn = Rhino.Input.Custom.GetNumber()
-    gn.SetCommandPrompt(u"Ширина припуску на шов")
-    gn.SetDefaultNumber(sc.sticky.get(STICKY, 10.0))
-    gn.SetLowerLimit(0.0, True)
+def ask(gp):
+    """Клік біля ребра з опціями W / Angle / Points / Step. Точка або None (Enter / Esc)."""
+    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 10.0), 0.001, 1e6)
+    a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     pts = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_points", False), "No", "Yes")
-    step = Rhino.Input.Custom.OptionDouble(sc.sticky.get("sew_step", 20.0), 0.001, 1e6)
-    gn.AddOptionToggle("Points", pts)
-    gn.AddOptionDouble("Step", step)
+    step = Rhino.Input.Custom.OptionDouble(sc.sticky.get("sew_step", 20.0), 0.001, 1e6)  # спільний із sewing_points
+    gp.AddOptionDouble("W", w)
+    gp.AddOptionDouble("Angle", a)
+    gp.AddOptionToggle("Points", pts)
+    gp.AddOptionDouble("Step", step)
     while True:
-        r = gn.Get()
-        if r == Rhino.Input.GetResult.Option:
-            continue
-        if r != Rhino.Input.GetResult.Number:
-            return None
-        w = gn.Number()
-        sc.sticky[STICKY] = w
+        r = gp.Get()
+        sc.sticky[STICKY] = w.CurrentValue
+        sc.sticky[STICKY + "_angle"] = a.CurrentValue
         sc.sticky[STICKY + "_points"] = pts.CurrentValue
         sc.sticky["sew_step"] = step.CurrentValue
-        return w, pts.CurrentValue, step.CurrentValue
+        if r == Rhino.Input.GetResult.Option:
+            continue
+        return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
 
 def add_sewing_points(doc, crv, step, attrs):
@@ -98,54 +79,52 @@ def add_sewing_points(doc, crv, step, attrs):
 
 
 def main():
+    from CopriZip import flap  # тут, а не вгорі: CopriZip сам імпортує label_frame / text_style з Seam
     doc = sc.doc
-    ids = rs.GetObjects(u"Виберіть ребра для припуску на шов", rs.filter.curve, preselect=True)
-    if not ids:
+    oid = rs.GetObject(u"Виберіть панель (замкнена крива)", rs.filter.curve, preselect=True)
+    if not oid:
         return
-    settings = ask_settings()
-    if settings is None:
-        return
-    w, with_points, step = settings
-
+    panel = rs.coercecurve(oid)
+    tol = doc.ModelAbsoluteTolerance
+    ok, plane = panel.TryGetPlane(tol)
+    normal = plane.ZAxis if ok else rs.ViewCPlane().ZAxis
     if not rs.IsLayer("Parts"):
         rs.AddLayer("Parts")
     if not rs.IsLayer(LAYER):
         rs.AddLayer("Seam", parent="Parts")
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(LAYER, -1)
-    tol = doc.ModelAbsoluteTolerance
-    style = text_style(doc, w)
-    cplane_z = rs.ViewCPlane().ZAxis
     made = n_pts = 0
-    for i, oid in enumerate(ids, 1):
-        crv = rs.coercecurve(oid)
-        rs.UnselectAllObjects()
-        rs.SelectObject(oid)
-        side = rs.GetPoint(u"Ребро %d/%d: клікни, з якого боку припуск (Esc — стоп)" % (i, len(ids)))
-        if side is None:
+    while True:
+        gp = Rhino.Input.Custom.GetPoint()
+        gp.SetCommandPrompt(u"Клікни біля ребра під припуск на шов (Enter — кінець)")
+        gp.AcceptNothing(True)
+        click = ask(gp)
+        if click is None:
             break
-        ok, pl = crv.TryGetPlane(tol)
-        normal = pl.ZAxis if ok else cplane_z
-        res = strip(crv, side, w, normal, tol)
-        if not res:
-            print(u"Ребро %d: офсет не вдався (крива неплоска чи самоперетин?) — пропущено" % i)
+        w, angle = sc.sticky[STICKY], sc.sticky[STICKY + "_angle"]
+        res = flap(panel, click, w, angle, normal, tol)
+        if not isinstance(res, tuple):
+            print(u"Пропущено: %s" % res)
             continue
-        new = [doc.Objects.AddCurve(c, attrs) for c in res[0]]
-        te = Rhino.Geometry.TextEntity.Create(u"SA %g" % w, label_frame(crv, res[1], normal), style, False, 0, 0)
+        crv, edge, off, square = res
+        te = Rhino.Geometry.TextEntity.Create(u"SA %g" % w, label_frame(edge, off, normal),
+                                              text_style(doc, w), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
-        new.append(doc.Objects.AddText(te, attrs))
-        if with_points:
-            pts = add_sewing_points(doc, crv, step, attrs)
+        new = [doc.Objects.AddCurve(crv, attrs), doc.Objects.AddText(te, attrs)]
+        if sc.sticky[STICKY + "_points"]:
+            pts = add_sewing_points(doc, edge, sc.sticky["sew_step"], attrs)
             new += pts
             n_pts += len(pts) - 1
         rs.AddObjectsToGroup(new, rs.AddGroup())
         made += 1
-    rs.UnselectAllObjects()
-    doc.Views.Redraw()
-    print(u"Припуск %g: смуг %d з %d ребер → %s" % (w, made, len(ids), LAYER))
-    if with_points:
-        print(u"Точок шва: %d (крок %g) на копіях ребер у %s" % (n_pts, step, LAYER))
+        if square:
+            print(u"Увага: %d кін. сусід гостріше 30° — кінець перпендикулярний" % square)
+        doc.Views.Redraw()
+    print(u"Припуск на шов: %d деталей → %s" % (made, LAYER))
+    if n_pts:
+        print(u"Точок шва: %d на копіях ребер у %s" % (n_pts, LAYER))
 
 
 if __name__ == "__main__":
