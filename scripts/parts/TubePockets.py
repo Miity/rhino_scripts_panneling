@@ -19,6 +19,8 @@ import scriptcontext as sc
 from Rhino.Geometry import Curve, CurveOffsetCornerStyle, CurveOrientation, LineCurve, Vector3d
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+for _m in ("CopriZip", "Seam"):  # Rhino тримає модулі з першого запуску за сесію — беремо свіжі
+    sys.modules.pop(_m, None)
 from CopriZip import pick_edge  # ребро панелі від кута до кута біля кліку
 from Seam import label_frame, text_style  # той самий підпис уздовж смуги і стиль PAT
 
