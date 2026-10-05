@@ -25,13 +25,17 @@ from Seam import label_frame, text_style  # підпис посередині с
 STICKY = "CopriZip"
 LAYER = "Parts::CopriZip"
 MIN_SIN = 0.5  # sin 30°: гостріше — перпендикулярний кінець
+GAP_MM = 1.0  # розрив між кінцями «майже замкненої» панелі (DXF), який замикаємо самі
 
 
 def pick_edge(panel, click, angle, tol):
     """(сегменти, індекс першого сегмента ребра, індекс сегмента після ребра, ребро) або рядок-помилка.
     Ребро — від кута до кута біля click; кут — злам дотичної більший за angle."""
     if not panel.IsClosed:
-        return u"панель не замкнена"
+        gap = GAP_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
+        panel = panel.DuplicateCurve()
+        if not panel.MakeClosed(gap):
+            return u"панель не замкнена (розрив між кінцями більший за %g мм)" % GAP_MM
     segs = [c for c in panel.DuplicateSegments() if c.GetLength() > tol] or [panel.DuplicateCurve()]
     n = len(segs)
     corners = set(i for i in range(n) if Vector3d.VectorAngle(segs[i - 1].TangentAtEnd, segs[i].TangentAtStart)

@@ -47,6 +47,12 @@ try:
     assert crv.IsClosed and abs(edge.GetLength() - 100) < 1e-6, edge.GetLength()
     assert crv.GetBoundingBox(True).Max.Y > 69.99 and 900 < area(crv) < 1200, area(crv)
 
+    # «майже замкнена» полілінія з DXF (розрив 0.1 між кінцями) — замикається сама
+    gap = PolylineCurve(Polyline([Point3d(0, 0, 0), Point3d(100, 0, 0), Point3d(120, 60, 0),
+                                  Point3d(-20, 60, 0), Point3d(0, 0.1, 0)]))
+    crv, edge, off, sq = M.flap(gap, Point3d(50, 61, 0), 10, 30, Z, tol)
+    assert crv.IsClosed and abs(edge.GetLength() - 140) < 1e-6
+
     # гострий сусід (< 30° від ребра) → перпендикулярний кінець
     pan = poly((0, 0), (100, 0), (100, 50), (0, 50), (-80, 10))
     crv, edge, off, sq = M.flap(pan, Point3d(50, 51, 0), 10, 20, Z, tol)
