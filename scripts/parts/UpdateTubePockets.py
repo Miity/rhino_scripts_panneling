@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Оновити готові кармани TubePockets з новими параметрами (H / Trim / SA / Notch).
+"""Оновити готові кармани TubePockets з новими параметрами (H / Trim / SA / Notch / Rigid).
 Вибираєш будь-яку частину кармана (або вікном кілька) — карман перебудовується від своєї лінії шва
 на місці, з тим самим номером TP<n>, шаром і боком. Змінюються тільки ті параметри, які ти змінив
 в опціях; решта — свої в кожного кармана. Параметри читаються з UserText (TP_H…); у старих карманах
@@ -17,7 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("TubePockets", None)
 import TubePockets as TP
 
-KEYS = ("H", "Trim", "SA", "Notch")
+KEYS = ("H", "Trim", "SA", "Notch", "Rigid")
+TOGGLES = ("Notch", "Rigid")
 
 
 def read_pocket(ids, tol):
@@ -44,7 +45,7 @@ def read_pocket(ids, tol):
     h = float(m.group(2))
     inner = [p for p in pts if side(p) * s_in > 0 and abs(abs(side(p)) - h) < 0.01 * h]
     trim = min([seg.GetLength(Rhino.Geometry.Interval(seg.Domain.Min, seg.ClosestPoint(p)[1])) for p in inner] or [0.0])
-    vals = {"H": h, "Trim": trim, "SA": sa, "Notch": float(len(opened) > 1)}
+    vals = {"H": h, "Trim": trim, "SA": sa, "Notch": float(len(opened) > 1), "Rigid": 0.0}
     for k in KEYS:
         v = rs.GetUserText(ids[0], "TP_" + k)
         if v:
@@ -74,14 +75,15 @@ def main():
     if not pockets:
         return
     first = pockets[0]
-    print(u"TP%d зараз: H=%g Trim=%g SA=%g Notch=%d" % ((first["n"],) + tuple(first[k] for k in KEYS)))
+    print(u"TP%d зараз: H=%g Trim=%g SA=%g Notch=%d Rigid=%d" % ((first["n"],) + tuple(first[k] for k in KEYS)))
     go = Rhino.Input.Custom.GetOption()
     go.SetCommandPrompt(u"Нові параметри (Enter — застосувати до %d карманів)" % len(pockets))
     go.AcceptNothing(True)
     opts = dict((k, Rhino.Input.Custom.OptionDouble(first[k], 0.0, 1e6)) for k in ("H", "Trim", "SA"))
-    opts["Notch"] = Rhino.Input.Custom.OptionToggle(bool(first["Notch"]), "No", "Yes")
+    for k in TOGGLES:
+        opts[k] = Rhino.Input.Custom.OptionToggle(bool(first[k]), "No", "Yes")
     for k in KEYS:
-        (go.AddOptionToggle if k == "Notch" else go.AddOptionDouble)(k, opts[k])
+        (go.AddOptionToggle if k in TOGGLES else go.AddOptionDouble)(k, opts[k])
     while True:
         r = go.Get()
         if r == Rhino.Input.GetResult.Option:
@@ -95,14 +97,14 @@ def main():
         return
     for p in pockets:
         p.update(changed)
-        h, trim, sa, notch = p["H"], p["Trim"], p["SA"], bool(p["Notch"])
-        res = TP.pocket(p["seg"], p["toward"], 0, h, trim, sa, notch, p["normal"], tol)
+        h, trim, sa, notch, rigid = p["H"], p["Trim"], p["SA"], bool(p["Notch"]), bool(p["Rigid"])
+        res = TP.pocket(p["seg"], p["toward"], 0, h, trim, sa, notch, p["normal"], tol, rigid)
         if not isinstance(res, tuple):
             print(u"TP%d пропущено: %s" % (p["n"], res))
             continue
         p["attrs"].RemoveFromAllGroups()
         rs.DeleteObjects(p["ids"])
-        print(u"Оновлено: " + TP.add_pocket(doc, res + (p["toward"],), h, trim, sa, notch, p["n"], p["attrs"], p["normal"], tol))
+        print(u"Оновлено: " + TP.add_pocket(doc, res + (p["toward"],), h, trim, sa, notch, p["n"], p["attrs"], p["normal"], tol, rigid))
     print(u"Змінено: " + ", ".join(u"%s=%g" % kv for kv in sorted(changed.items())))
 
 

@@ -11,7 +11,7 @@ out = open(os.path.join(HERE, "test_tube_pockets.txt"), "w")
 try:
     from Rhino.Geometry import AreaMassProperties, LineCurve, Point3d, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
-    for m in ("CopriZip", "Seam", "TubePockets"):  # живий Rhino тримає старі версії модулів
+    for m in ("CopriZip", "Seam", "OffsetRigid", "TubePockets"):  # живий Rhino тримає старі версії модулів
         sys.modules.pop(m, None)
     import TubePockets as M
 
@@ -67,6 +67,18 @@ try:
             assert abs(AreaMassProperties.Compute(r[0]).Area - 63000) < 1e-3
     finally:
         rs.DeleteObjects(ids)
+    # Rigid: дуга R1000 (45°..135°), карман до центру H 100: жорсткий — та сама довжина, центр зсунутий рівно на H;
+    # стандартний — дуга R900 (коротша в 0.9)
+    from Rhino.Geometry import Arc, ArcCurve
+    import math
+    arc = ArcCurve(Arc(Point3d(707.1068, 707.1068, 0), Point3d(0, 1000, 0), Point3d(-707.1068, 707.1068, 0)))
+    rig = M.pocket_side(arc, Point3d(0, 0, 0), 100, Z, tol, True)
+    std = M.pocket_side(arc, Point3d(0, 0, 0), 100, Z, tol, False)
+    assert abs(rig.GetLength() - arc.GetLength()) < 1e-3
+    assert abs(rig.PointAt(rig.Domain.Mid).Y - 900) < 1e-3, rig.PointAt(rig.Domain.Mid)
+    assert abs(std.GetLength() - 0.9 * arc.GetLength()) < 1e-2
+    res = M.pocket(arc, Point3d(0, 0, 0), 0, 100, 50, 10, True, Z, tol, True)
+    assert isinstance(res, tuple) and res[0].IsClosed, res
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())
