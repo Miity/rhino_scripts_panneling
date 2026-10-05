@@ -52,6 +52,7 @@ GROUPS = [
     (u"Parts", u"Створення частин (фаші, підсилення…) у шар Parts", [
         (u"Panels", u"Панелі → копія в Parts::Panels з номером P1, P2… (текст усередині + TextDot)", py("parts/Panels.py"), None),
         (u"Strips", u"Фаші під виділені лінії: висота H, довжина = довжина кожної кривої", py("parts/StripsFromCurves.py"), None),
+        (u"CopriZip", u"Клапан над блискавкою: ребро панелі (кут–кут) + офсет W назовні, кінці по сусідніх ребрах; підпис CZ W", py("parts/CopriZip.py"), None),
         (u"Seam", u"Припуск на шов: смуга ширини W з вибраного боку кожного ребра, підпис SA W; Points=Yes — ще й точки шва", py("parts/Seam.py"), None),
         (u"ZipStops", u"Позначити криву як блискавку: перенести в Parts::Zip, номер Z<n>, стопи на кінцях", py("parts/ZipStops.py"), None),
         (u"ZipList", u"Таблиця довжин блискавок для замовлення: CSV поруч із .3dm + буфер обміну", py("parts/ZipList.py"), None),
