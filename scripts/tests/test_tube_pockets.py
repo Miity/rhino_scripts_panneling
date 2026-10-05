@@ -43,6 +43,30 @@ try:
         bb = outline.GetBoundingBox(True)
         assert abs(bb.Min.Y - 400) < 1e-6 and abs(bb.Max.Y - 510) < 1e-6, bb
         assert abs(AreaMassProperties.Compute(outline).Area - 61000) < 1e-3
+    # UpdateTubePockets.read_pocket: карман у документі → параметри; без UserText — з геометрії
+    import rhinoscriptsyntax as rs
+    import scriptcontext as sc
+    sys.modules.pop("UpdateTubePockets", None)
+    import UpdateTubePockets as U
+    line = LineCurve(Point3d(0, 0, 0), Point3d(1000, 0, 0))
+    toward = Point3d(300, 40, 0)
+    res = M.pocket(line, toward, 600, 100, 50, 10, True, Z, tol) + (toward,)
+    before = set(rs.AllObjects() or [])
+    M.add_pocket(sc.doc, res, 100, 50, 10, True, 7, sc.doc.CreateDefaultAttributes(), Z, tol)
+    ids = [o for o in rs.AllObjects() if o not in before]
+    try:
+        for legacy in (False, True):
+            if legacy:
+                for o in ids:
+                    for k in U.KEYS:
+                        rs.SetUserText(o, "TP_" + k, None)
+            p = U.read_pocket(ids, tol)
+            assert p["n"] == 7 and p["H"] == 100 and abs(p["Trim"] - 50) < 1e-6 and abs(p["SA"] - 10) < 1e-6, p
+            assert p["Notch"] == 1 and abs(p["seg"].GetLength() - 600) < 1e-6
+            r = M.pocket(p["seg"], p["toward"], 0, 100, 30, 10, True, Z, tol)  # Trim 50 → 30
+            assert abs(AreaMassProperties.Compute(r[0]).Area - 63000) < 1e-3
+    finally:
+        rs.DeleteObjects(ids)
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())

@@ -84,6 +84,28 @@ def pocket(crv, click, w, h, trim, sa, notch, normal, tol):
     return joined[0], seg, mark
 
 
+def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol):
+    """Додає карман (контур, лінія шва, мітка, підпис) у групу; параметри — UserText для UpdateTubePockets."""
+    outline, seg, mark, toward = res
+    new = [doc.Objects.AddCurve(outline, attrs)]
+    if sa > 0:
+        new.append(doc.Objects.AddCurve(seg, attrs))  # лінія шва
+    if mark:
+        new.append(doc.Objects.AddCurve(mark, attrs))
+    label = u"%s%d  H=%g" % (PREFIX, n, h)
+    te = Rhino.Geometry.TextEntity.Create(label, label_frame(seg, offset(seg, toward, h, normal, tol), normal),
+                                          text_style(doc, h / 4.0), False, 0, 0)
+    te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
+    te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
+    new.append(doc.Objects.AddText(te, attrs))
+    for o in new:
+        for k, v in (("H", h), ("Trim", trim), ("SA", sa), ("Notch", int(notch))):
+            rs.SetUserText(o, "TP_" + k, "%g" % v)
+    rs.AddObjectsToGroup(new, rs.AddGroup())
+    doc.Views.Redraw()
+    return label
+
+
 def layer():
     if not rs.IsLayer("Parts"):
         rs.AddLayer("Parts")
@@ -171,20 +193,8 @@ def main():
         if not isinstance(res, tuple):
             print(u"Пропущено: " + res)
             continue
-        outline, seg, mark = res
-        new = [doc.Objects.AddCurve(outline, attrs)]
-        if sa > 0:
-            new.append(doc.Objects.AddCurve(seg, attrs))  # лінія шва
-        if mark:
-            new.append(doc.Objects.AddCurve(mark, attrs))
-        label = u"%s%d  H=%g" % (PREFIX, n, h)
-        te = Rhino.Geometry.TextEntity.Create(label, label_frame(seg, offset(seg, toward, h, normal, tol), normal),
-                                              text_style(doc, h / 4.0), False, 0, 0)
-        te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
-        te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
-        new.append(doc.Objects.AddText(te, attrs))
-        rs.AddObjectsToGroup(new, rs.AddGroup())
-        doc.Views.Redraw()
+        res = res + (toward,)
+        label = add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol)
         print(label)
         n += 1
         made += 1

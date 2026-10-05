@@ -59,6 +59,7 @@ GROUPS = [
         (u"ZipList", u"Таблиця для замовлення: блискавки (довша сторона, см × шт) і каналіна (повна довжина); CSV поруч із .3dm + буфер обміну", py("parts/ZipList.py"), None),
         (u"Reinf Circle", u"Кутове підсилення — коло радіуса R, обрізане сторонами кута (панеллю)", py("parts/ReinfCircle.py"), None),
         (u"Tube Pockets", u"Кармани для труб: панель → клік біля ребра, W по центру ребра, висота H, звуження Trim, припуск SA, мітка центру", py("parts/TubePockets.py"), None),
+        (u"Update Pockets", u"Оновити готові кармани TP: нові H / Trim / SA / Notch на місці, той самий номер (змінюється лише те, що змінив)", py("parts/UpdateTubePockets.py"), None),
         (u"Layout", u"Розкласти деталі: копії в ряд від точки кліку, у <шар>::Layout; оригінали лишаються розміткою", py("parts/LayoutParts.py"), None),
     ]),
     (u"Розмітка", u"Розмітка на INK", [
