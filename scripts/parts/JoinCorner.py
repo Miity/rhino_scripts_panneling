@@ -4,6 +4,7 @@
 виріз. Вибираєш деталі (можна разом із підписами й групами, рамкою), клікаєш у виріз біля кута
 (кілька кутів підряд, Enter — кінець); клік саме у виріз — він вказує, які сегменти торці. Торці обох деталей у цьому куті прибираються, зовнішні
 краї подовжуються по дотичній до перетину (як _Connect), і виходить одна замкнена крива.
+Останній кут рамки навколо панелі (обидва торці — одна деталь) → дві криві: зовнішня і внутрішня.
 Нова крива бере шар і групу першої деталі, група другої (підпис, точки шва) переходить у неї ж.
 """
 import math
@@ -37,8 +38,10 @@ def in_sector(v, u, w):
 
 
 def shared_corner(sa, sb, click, tol):
-    """Спільна вершина сегментів sa і sb, найближча до click, або None."""
-    common = [s.PointAtStart for s in sa if at(sb, s.PointAtStart, tol)]
+    """Спільна вершина сегментів sa і sb, найближча до click, або None.
+    sb is sa — кут, де деталь торкається сама себе (останній кут рамки навколо панелі)."""
+    common = [s.PointAtStart for s in sa
+              if (len(at(sa, s.PointAtStart, tol)) >= 4 if sb is sa else at(sb, s.PointAtStart, tol))]
     return min(common, key=click.DistanceTo) if common else None
 
 
@@ -60,8 +63,10 @@ def fill(sa, sb, ea, eb, c, tol):
 
 
 def join(a, b, click, tol):
-    """Замкнена крива — a і b, з'єднані в куті біля click; або рядок-помилка."""
-    sa, sb = list(a.DuplicateSegments()), list(b.DuplicateSegments())  # list: сталі обгортки для `is`
+    """[замкнені криві] — a і b, з'єднані в куті біля click; або рядок-помилка.
+    b None — обидва торці в куті належать a: замикається рамка → дві криві, зовнішня і внутрішня."""
+    sa = list(a.DuplicateSegments())  # list: сталі обгортки для `is`
+    sb = sa if b is None else list(b.DuplicateSegments())
     c = shared_corner(sa, sb, click, tol)
     if c is None:
         return u"деталі не мають спільного кута"
@@ -71,25 +76,29 @@ def join(a, b, click, tol):
     best = None
     for ea, da in at(sa, c, tol):
         for eb, db in at(sb, c, tol):
-            if Vector3d.VectorAngle(da, db) > math.radians(175):  # торець однієї по ребру другої
+            if ea is eb or Vector3d.VectorAngle(da, db) > math.radians(175):  # торець однієї по ребру другої
                 continue
             if in_sector(v, da, db):
                 best = fill(sa, sb, ea, eb, c, tol)
     if best is None:
         return u"клікни у виріз між деталями біля кута (або зовнішні краї не сходяться — увігнутий кут)"
     _, ea, eb, xa, xb, o = best
-    rest = [s for s in sa if s is not ea] + [s for s in sb if s is not eb]
+    rest = [s for s in sa if s is not ea and s is not eb]
+    if sb is not sa:
+        rest += [s for s in sb if s is not eb]
     rest += [LineCurve(p, o) for p in (xa, xb) if p.DistanceTo(o) > tol]
     joined = Curve.JoinCurves(rest, tol)
-    if len(joined) != 1 or not joined[0].IsClosed:
+    if len(joined) != (2 if sb is sa else 1) or not all(c.IsClosed for c in joined):
         return u"деталь не замкнулась"
-    out = joined[0]
-    ok, pl = out.TryGetPolyline()  # як у CopriZip: чиста полілінія для PreparePanelCut
-    if ok:
-        pl.DeleteShortSegments(tol)
-        if hasattr(pl, "MergeColinearSegments"):
-            pl.MergeColinearSegments(1e-6, True)
-        out = PolylineCurve(pl)
+    out = []
+    for crv in joined:
+        ok, pl = crv.TryGetPolyline()  # як у CopriZip: чиста полілінія для PreparePanelCut
+        if ok:
+            pl.DeleteShortSegments(tol)
+            if hasattr(pl, "MergeColinearSegments"):
+                pl.MergeColinearSegments(1e-6, True)
+            crv = PolylineCurve(pl)
+        out.append(crv)
     return out
 
 
@@ -98,8 +107,8 @@ def main():
     tol = doc.ModelAbsoluteTolerance
     ids = rs.GetObjects(u"Виберіть деталі для з'єднання в кутах", rs.filter.curve, preselect=True) or []
     ids = [i for i in ids if rs.IsCurveClosed(i)]
-    if len(ids) < 2:
-        print(u"Потрібно щонайменше дві замкнені деталі.")
+    if not ids:
+        print(u"Не вибрано жодної замкненої деталі.")
         return
     rs.UnselectAllObjects()
     made = []
@@ -107,27 +116,29 @@ def main():
         p = rs.GetPoint(u"Клікни у виріз між деталями біля кута (Enter — кінець)")
         if p is None:
             break
-        # пара деталей зі спільною вершиною, найближчою до кліку
+        # пара деталей (або деталь сама з собою, j == i) зі спільною вершиною, найближчою до кліку
         best = None
+        segs = [list(rs.coercecurve(k).DuplicateSegments()) for k in ids]
         for i in range(len(ids)):
-            for j in range(i + 1, len(ids)):
-                a, b = rs.coercecurve(ids[i]), rs.coercecurve(ids[j])
-                c = shared_corner(a.DuplicateSegments(), b.DuplicateSegments(), p, tol)
+            for j in range(i, len(ids)):
+                c = shared_corner(segs[i], segs[j], p, tol)
                 if c is not None and (best is None or c.DistanceTo(p) < best[0]):
                     best = (c.DistanceTo(p), i, j)
         if best is None:
-            print(u"Серед вибраних немає двох деталей зі спільним кутом.")
+            print(u"Біля кліку немає кута, де сходяться торці деталей.")
             continue
         _, i, j = best
-        res = join(rs.coercecurve(ids[i]), rs.coercecurve(ids[j]), p, tol)
-        if not isinstance(res, Curve):
+        res = join(rs.coercecurve(ids[i]), None if i == j else rs.coercecurve(ids[j]), p, tol)
+        if isinstance(res, str):
             print(u"Пропущено: %s" % res)
             continue
         ia, ib = ids[i], ids[j]
         attrs = doc.Objects.FindId(ia).Attributes.Duplicate()  # шар і групи першої деталі
-        new = doc.Objects.AddCurve(res, attrs)
-        ga, gb = rs.ObjectGroups(ia), rs.ObjectGroups(ib)
-        rs.DeleteObjects([ia, ib])
+        new = [doc.Objects.AddCurve(crv, attrs) for crv in res]
+        ga, gb = rs.ObjectGroups(ia), rs.ObjectGroups(ib) if ib != ia else None
+        rs.DeleteObjects(list(set([ia, ib])))
+        if len(new) > 1 and not ga:  # рамка: зовнішня й внутрішня криві разом
+            rs.AddObjectsToGroup(new, rs.AddGroup())
         if gb:
             members = rs.ObjectsByGroup(gb[0]) or []
             if ga:
@@ -135,9 +146,9 @@ def main():
                     rs.RemoveObjectFromGroup(m, gb[0])
                 rs.AddObjectsToGroup(members, ga[0])
             else:
-                rs.AddObjectToGroup(new, gb[0])
-        ids = [k for k in ids if k not in (ia, ib)] + [new]
-        made = [k for k in made if k not in (ia, ib)] + [new]
+                rs.AddObjectsToGroup(new, gb[0])
+        ids = [k for k in ids if k not in (ia, ib)] + new
+        made = [k for k in made if k not in (ia, ib)] + new
         doc.Views.Redraw()
     if made:
         rs.SelectObjects(made)
