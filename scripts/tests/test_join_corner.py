@@ -31,8 +31,8 @@ try:
     ok, pl = j.TryGetPolyline()
     assert ok and pl.Count - 1 == 6, pl.Count  # L: 6 вершин, без зайвих на прямих
     assert M.join(left, top, Point3d(-10, 65, 0), tol).IsClosed  # порядок не важливий
-    # клік з боку панелі — той самий кут, той самий результат
-    assert abs(area(M.join(top, left, Point3d(10, 50, 0), tol)) - 2400) < 1e-3
+    # клік на самій деталі (не між торцями і не між ребрами) — помилка
+    assert isinstance(M.join(top, left, Point3d(50, 65, 0), tol), str)
 
     # скошений кут (трапеція) з різними W: площа = сума + виріз, зовнішній кут — перетин офсетів
     pan = poly((0, 0), (100, 0), (120, 60), (-20, 60))
@@ -45,8 +45,20 @@ try:
     assert abs(j.GetBoundingBox(True).Max.Y - 70) < 1e-6
     ok, pl = j.TryGetPolyline()
     assert ok and pl.Count - 1 == 6, pl.Count
-    # повтор, клік з боку панелі — та сама деталь
-    assert abs(area(M.join(top, right, Point3d(100, 50, 0), tol)) - area(j)) < 1e-6
+
+    # як p1.3dm: кривий бік полілінією з дрібних сегментів, W 30 зверху і 20 збоку.
+    # Пара «ребро + ребро» тут дає крихітне заповнення — без кліку легко взяти не ту.
+    import math
+    side = [(-5 * math.sin(math.pi * k / 20), 60 - 3 * k) for k in range(21)]
+    pan = poly(*([(100, 60), (100, 0)] + side[::-1][:-1] + [(0, 60)]))
+    top = CopriZip.flap(pan, Point3d(50, 61, 0), 30, 30, Z, tol)[0]
+    left = CopriZip.flap(pan, Point3d(-6, 30, 0), 20, 30, Z, tol)[0]
+    j = M.join(top, left, Point3d(-5, 75, 0), tol)
+    # мінімум заповнення тут вибрав би пару ребер — тож перевіряємо, що взято саме виріз
+    assert not isinstance(j, str), j
+    gap = area(j) - area(top) - area(left)
+    assert j.IsClosed and 300 < gap < 900, gap  # виріз ≈ 20 × 30
+    assert abs(j.GetBoundingBox(True).Max.Y - 90) < 1e-6
 
     # деталі без спільного кута
     bottom = CopriZip.flap(poly((0, 0), (100, 0), (100, 60), (0, 60)), Point3d(50, -1, 0), 10, 30, Z, tol)[0]

@@ -2,10 +2,12 @@
 """З'єднати дві деталі в куті панелі (CopriZip / Seam / будь-які з різною шириною W) в одну.
 Дві деталі на сусідніх ребрах сходяться в куті панелі тільки однією точкою, і між ними лишається
 виріз. Вибираєш деталі (можна разом із підписами й групами, рамкою), клікаєш у виріз біля кута
-(кілька кутів підряд, Enter — кінець). Торці обох деталей у цьому куті прибираються, зовнішні
+(кілька кутів підряд, Enter — кінець); клік саме у виріз — він вказує, які сегменти торці. Торці обох деталей у цьому куті прибираються, зовнішні
 краї подовжуються по дотичній до перетину (як _Connect), і виходить одна замкнена крива.
 Нова крива бере шар і групу першої деталі, група другої (підпис, точки шва) переходить у неї ж.
 """
+import math
+
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
@@ -28,6 +30,12 @@ def other_end(s, p):
     return s.PointAtEnd if s.PointAtStart.DistanceTo(p) < s.PointAtEnd.DistanceTo(p) else s.PointAtStart
 
 
+def in_sector(v, u, w):
+    """v між напрямками u і w (кут між ними < 180°)."""
+    n = Vector3d.CrossProduct(u, w)
+    return n.Length > 1e-9 and Vector3d.CrossProduct(u, v) * n > 0 and Vector3d.CrossProduct(v, w) * n > 0
+
+
 def shared_corner(sa, sb, click, tol):
     """Спільна вершина сегментів sa і sb, найближча до click, або None."""
     common = [s.PointAtStart for s in sa if at(sb, s.PointAtStart, tol)]
@@ -35,7 +43,7 @@ def shared_corner(sa, sb, click, tol):
 
 
 def fill(sa, sb, ea, eb, c, tol):
-    """(площа заповнення, ea, eb, xa, xb, o), якщо ea, eb — торці, чиї зовнішні краї сходяться в o."""
+    """(площа вирізу, ea, eb, xa, xb, o), якщо ea, eb — торці, чиї зовнішні краї сходяться в o."""
     xa, xb = other_end(ea, c), other_end(eb, c)
     ends = []
     for segs, e, x in ((sa, ea, xa), (sb, eb, xb)):
@@ -57,19 +65,18 @@ def join(a, b, click, tol):
     c = shared_corner(sa, sb, click, tol)
     if c is None:
         return u"деталі не мають спільного кута"
-    # Торці — та пара сегментів у куті, що дає найменший шматок заповнення (виріз ~ W).
-    # Пара «ребро + ребро» теж замикається, але заповнює всю панель — вона значно більша.
-    # ponytail: якщо ребро коротше за ширину деталі, евристика може вибрати не ту пару.
+    # Торці — два сегменти в куті, між якими лежить клік (у вирізі). Без панелі деталі симетричні:
+    # пара «ребро + ребро» теж замикається (заповнює панель), тож відрізнити можна лише кліком.
+    v = click - c
     best = None
     for ea, da in at(sa, c, tol):
         for eb, db in at(sb, c, tol):
-            if Vector3d.CrossProduct(da, db).Length < 1e-6:  # торець однієї по ребру другої
+            if Vector3d.VectorAngle(da, db) > math.radians(175):  # торець однієї по ребру другої
                 continue
-            r = fill(sa, sb, ea, eb, c, tol)
-            if r and (best is None or r[0] < best[0]):
-                best = r
+            if in_sector(v, da, db):
+                best = fill(sa, sb, ea, eb, c, tol)
     if best is None:
-        return u"зовнішні краї не сходяться (паралельні або увігнутий кут)"
+        return u"клікни у виріз між деталями біля кута (або зовнішні краї не сходяться — увігнутий кут)"
     _, ea, eb, xa, xb, o = best
     rest = [s for s in sa if s is not ea] + [s for s in sb if s is not eb]
     rest += [LineCurve(p, o) for p in (xa, xb) if p.DistanceTo(o) > tol]
@@ -97,7 +104,7 @@ def main():
     rs.UnselectAllObjects()
     made = []
     while True:
-        p = rs.GetPoint(u"Клікни у виріз біля кута (Enter — кінець)")
+        p = rs.GetPoint(u"Клікни у виріз між деталями біля кута (Enter — кінець)")
         if p is None:
             break
         # пара деталей зі спільною вершиною, найближчою до кліку

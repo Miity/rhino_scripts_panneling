@@ -55,7 +55,7 @@ GROUPS = [
         (u"Strips", u"Фаші під виділені лінії: висота H, довжина = довжина кожної кривої", py("parts/StripsFromCurves.py"), None),
         (u"CopriZip", u"Клапан над блискавкою: ребро панелі (кут–кут) + офсет W назовні, кінці по сусідніх ребрах; підпис CZ W", py("parts/CopriZip.py"), None),
         (u"Seam", u"Припуск на шов: ребро панелі (кут–кут) + офсет W назовні, кінці по сусідніх ребрах; підпис SA W; Points=Yes — ще й точки шва", py("parts/Seam.py"), None),
-        (u"Join Corner", u"З'єднати дві деталі в куті (CopriZip / Seam, різні W): клік у виріз → торці геть, зовнішні краї до перетину, одна крива", py("parts/JoinCorner.py"), None),
+        (u"Join Corner", u"З'єднати дві деталі в куті (CopriZip / Seam, різні W): клік у виріз між деталями → торці геть, зовнішні краї до перетину, одна крива", py("parts/JoinCorner.py"), None),
         (u"ZipStops", u"Блискавки (Z<n>) і каналіна (Can<n>, опція Type): усі лінії на всіх панелях → Parts::Zip / Parts::Canalina, стопи на кінцях, риска на стику", py("parts/ZipStops.py"), None),
         (u"ZipList", u"Таблиця для замовлення: блискавки (довша сторона, см × шт) і каналіна (повна довжина); CSV поруч із .3dm + буфер обміну", py("parts/ZipList.py"), None),
         (u"Reinf Circle", u"Кутове підсилення — коло радіуса R, обрізане сторонами кута (панеллю)", py("parts/ReinfCircle.py"), None),
