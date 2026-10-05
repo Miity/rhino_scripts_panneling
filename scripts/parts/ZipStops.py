@@ -4,6 +4,8 @@
 уздовж неї; стиль тексту — опція Style (запам'ятовується, за замовчуванням PAT 10 mm).
 Стопи центровані на кривій, лежать у площині CPlane. Крива, стопи і текст — одна група.
 Нумерація продовжується з найбільшого Z<n> у шарі; вже позначені криві пропускаються.
+Далі — етап переносу: клік по блискавці переносить її номер на інший бік кривої (зверху ↔ знизу),
+якщо налазить на інший текст; Enter — готово. Enter на виборі кривих — одразу до переносу.
 Таблиця довжин для замовлення — parts/ZipList.py."""
 import os
 import re
@@ -47,6 +49,41 @@ def label_plane(crv, normal, gap):
     return Plane(crv.PointAt(t) + v * gap, u, v)
 
 
+def is_zip(rhino_object, geometry, component_index):
+    return bool(rhino_object.Attributes.GetUserString(KEY))
+
+
+def flip_label(doc, oid):
+    """Номер блискавки на інший бік кривої: дзеркало відносно кривої, вирівнювання Bottom ↔ Top."""
+    name = rs.GetUserText(oid, KEY)
+    crv = rs.coercecurve(oid)
+    for g in rs.ObjectGroups(oid) or []:
+        for t in rs.ObjectsByGroup(g) or []:
+            if rs.IsText(t) and rs.TextObjectText(t) == name:
+                te = rs.coercegeometry(t)
+                mid = label_plane(crv, te.Plane.ZAxis, 0)
+                y = mid.YAxis * ((te.Plane.Origin - mid.Origin) * mid.YAxis)
+                pl = te.Plane
+                pl.Origin = mid.Origin - y
+                te.Plane = pl
+                te.TextVerticalAlignment = (TextVerticalAlignment.Top if y * mid.YAxis > 0
+                                            else TextVerticalAlignment.Bottom)
+                doc.Objects.Replace(t, te)
+                return True
+    return False
+
+
+def flip_stage(doc):
+    while True:
+        oid = rs.GetObject(u"Клікни блискавку, щоб перенести її номер на інший бік (Enter — готово)",
+                           rs.filter.curve, custom_filter=is_zip)
+        if not oid:
+            return
+        if not flip_label(doc, oid):
+            print(u"%s: текст номера не знайдено в групі кривої" % rs.GetUserText(oid, KEY))
+        doc.Views.Redraw()
+
+
 def next_number():
     """Наступний номер після найбільшого Z<n> у шарі (UserText кривої, текст або TextDot старих позначок)."""
     nums = [0]
@@ -78,8 +115,10 @@ def ask_size(doc, size, style):
 
 def main():
     doc = sc.doc
-    ids = rs.GetObjects(u"Виберіть криві блискавок", rs.filter.curve, preselect=True)
+    ids = rs.GetObjects(u"Виберіть криві блискавок (Enter — лише перенести номери на інший бік)",
+                        rs.filter.curve, preselect=True)
     if not ids:
+        flip_stage(doc)
         return
     D.pts.ensure_styles(doc)
     style = sc.sticky.get(STYLE)
@@ -129,6 +168,8 @@ def main():
     rs.EnableRedraw(True)
     if skipped:
         print(u"Вже позначені, пропущено: %d" % skipped)
+    rs.UnselectAllObjects()
+    flip_stage(doc)
 
 
 if __name__ == "__main__":
