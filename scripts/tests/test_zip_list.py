@@ -4,7 +4,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "parts"))
-from ZipList import sides, tables, csv_text
+from ZipList import sides, tables, csv_text, can_table, is_can
 
 # приклад з фото: одна сторона на одній панелі, друга розбита на дві
 assert sides([51.0, 31.5, 19.0]) == (51.0, 50.5), sides([51.0, 31.5, 19.0])
@@ -20,4 +20,12 @@ assert pieces[3] == ("Z10", 2, 342, 340, 35), pieces[3]            # 34.2 → в
 assert summary == [(12, 1), (35, 2), (51, 1)], summary
 text = csv_text(pieces, summary)
 assert u"Z1;3;510;505;51\r\n" in text and u"Разом;4" in text, text
+
+# каналіна: одна сторона, довжина = сума ліній (розбита на дві панелі)
+assert is_can("Can2") and not is_can("Z2")
+cans = can_table([("Can2", 40.0), ("Can1", 30.0), ("Can1", 20.04)])
+assert cans == [("Can1", 2, 500, 51), ("Can2", 1, 400, 40)], cans
+text = csv_text(pieces, summary, cans)
+assert u"Can1;2;500;51\r\n" in text and u"Разом, см;;;91" in text, text
+assert u"Каналіна" not in csv_text(pieces, summary) and u"Блискавки" not in csv_text([], [], cans)
 print("OK")

@@ -1,12 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Позначає блискавки (zip): одна блискавка = усі її лінії на всіх панелях (обидві сторони тасьми,
-сторона може бути розбита на кілька панелей). Вибір ліній повторюється: Z1, Z2… — Enter завершує.
-Кожна лінія переноситься в шар Parts::Zip і отримує номер блискавки: UserText Zip + текст над серединою,
+"""Позначає блискавки (zip) і каналіну (canalina / guida).
+Одна блискавка = усі її лінії на всіх панелях (обидві сторони тасьми, сторона може бути розбита на кілька панелей).
+Каналіна — одна сторона, теж може бути розбита на кілька панелей. Тип — опція Type на виборі ліній
+(Zip / Can, запам'ятовується): блискавки Z1, Z2… у шарі Parts::Zip, каналіна Can1, Can2… у Parts::Canalina.
+Вибір ліній повторюється — Enter завершує.
+Кожна лінія переноситься у свій шар і отримує номер: UserText Zip + текст над серединою,
 уздовж лінії; стиль тексту — опція Style (запам'ятовується, за замовчуванням PAT 10 mm).
-На кінцях кожної лінії — поперечні стопи (центровані, у площині CPlane). Якщо ліній 3+, сторона розбита:
-клік біля кінця-стику (де блискавка переходить на іншу панель) міняє стоп на риску вдвічі коротшу; ще клік — назад.
+На кінцях кожної лінії — поперечні стопи (центровані, у площині CPlane). Якщо сторона розбита
+(блискавка — ліній 3+, каналіна — 2+), клік біля кінця-стику (де вона переходить на іншу панель)
+міняє стоп на риску вдвічі коротшу; ще клік — назад.
 Лінія, її стопи і текст — одна група (на кожну лінію своя: лінії лежать на різних панелях).
-Нумерація продовжується з найбільшого Z<n> у шарі; вже позначені лінії пропускаються.
+Нумерація продовжується з найбільшого номера в шарі (окремо Z і Can); вже позначені лінії пропускаються.
 Далі — етап переносу: клік по блискавці переносить її номер на інший бік кривої (зверху ↔ знизу),
 якщо налазить на інший текст; Enter — готово. Enter на виборі кривих — одразу до переносу.
 Таблиця довжин для замовлення — parts/ZipList.py."""
@@ -24,10 +28,12 @@ from Rhino.Geometry import Plane, Vector3d
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
 import DotToPanelText as D
 
-LAYER = "Parts::Zip"
-PREFIX = "Z"
-KEY = "Zip"  # ключ UserText з номером блискавки
+# тип → (префікс, шар, у запиті, з якої кількості ліній питати про стики)
+TYPES = {"Zip": ("Z", "Parts::Zip", u"блискавки (обидві сторони)", 3),
+         "Can": ("Can", "Parts::Canalina", u"каналіни (canalina / guida)", 2)}
+KEY = "Zip"  # ключ UserText з номером (Z<n> або Can<n>)
 STYLE = "ZipStops.style"
+KIND = "ZipStops.kind"
 
 
 def stop_lines(crv, size, normal):
@@ -87,16 +93,39 @@ def flip_stage(doc):
         doc.Views.Redraw()
 
 
-def next_number():
-    """Наступний номер після найбільшого Z<n> у шарі (UserText кривої, текст або TextDot старих позначок)."""
+def next_number(kind):
+    """Наступний номер після найбільшого <префікс><n> у шарі типу (UserText кривої, текст або TextDot старих позначок)."""
+    prefix, layer = TYPES[kind][:2]
     nums = [0]
-    for o in rs.ObjectsByLayer(LAYER) or []:
+    for o in (rs.ObjectsByLayer(layer) or []) if rs.IsLayer(layer) else []:
         s = rs.GetUserText(o, KEY) or (rs.TextObjectText(o) if rs.IsText(o) else
                                        rs.TextDotText(o) if rs.IsTextDot(o) else "")
-        m = re.match(PREFIX + r"(\d+)$", s or "")
+        m = re.match(prefix + r"(\d+)$", s or "")
         if m:
             nums.append(int(m.group(1)))
     return max(nums) + 1
+
+
+def get_lines(kind, nums, last):
+    """Вибір ліній однієї блискавки / каналіни з опцією Type. Повертає (id або None, тип)."""
+    go = Rhino.Input.Custom.GetObject()
+    go.GeometryFilter = Rhino.DocObjects.ObjectType.Curve
+    go.EnablePreSelect(not nums, True)  # передвибір — лише для першої
+    while True:
+        prefix, _, what, _ = TYPES[kind]
+        n = nums.get(kind) or next_number(kind)
+        go.SetCommandPrompt(u"%s%d: виберіть усі лінії %s (Enter — %s)" % (prefix, n, what, last))
+        go.ClearCommandOptions()
+        go.AddOption("Type", kind)
+        res = go.GetMultiple(1, 0)
+        if res == Rhino.Input.GetResult.Option:
+            kind = "Can" if kind == "Zip" else "Zip"
+            sc.sticky[KIND] = kind
+            go.EnablePreSelect(False, True)
+            continue
+        if res == Rhino.Input.GetResult.Object:
+            return [go.Object(k).ObjectId for k in range(go.ObjectCount)], kind
+        return None, kind
 
 
 def ask_size(doc, size, style):
@@ -117,7 +146,7 @@ def ask_size(doc, size, style):
 
 
 def mark_line(doc, oid, crv, name, size, normal, ds, gap, attrs):
-    """Лінія → Parts::Zip з номером, стопи на кінцях, текст; одна група. Повертає id стопів [початок, кінець]."""
+    """Лінія → шар attrs з номером, стопи на кінцях, текст; одна група. Повертає id стопів [початок, кінець]."""
     # ModifyAttributes, а не rs.ObjectLayer + rs.SetUserText: так шар і мітку відкочує Undo
     a = rs.coercerhinoobject(oid).Attributes.Duplicate()
     a.LayerIndex = attrs.LayerIndex
@@ -135,7 +164,7 @@ def junction_stage(doc, name, lines, size, normal):
     """lines = [(крива, [id стопа на початку, на кінці])]. Клік біля кінця: стоп ↔ риска на стику."""
     notch = set()
     while True:
-        pt = rs.GetPoint(u"%s: клікни біля стику — кінця, де блискавка переходить на іншу панель (Enter — готово)" % name)
+        pt = rs.GetPoint(u"%s: клікни біля стику — кінця, де вона переходить на іншу панель (Enter — готово)" % name)
         if pt is None:
             return
         d, i, e = min((pt.DistanceTo(c.PointAt((c.Domain.T0, c.Domain.T1)[e])), i, e)
@@ -149,8 +178,9 @@ def junction_stage(doc, name, lines, size, normal):
 
 def main():
     doc = sc.doc
-    ids = rs.GetObjects(u"Виберіть усі лінії однієї блискавки — обидві сторони (Enter — лише перенести номери)",
-                        rs.filter.curve, preselect=True)
+    nums = {}  # тип → наступний номер у цьому запуску
+    kind = sc.sticky.get(KIND, "Zip")
+    ids, kind = get_lines(kind, nums, u"лише перенести номери")
     if not ids:
         flip_stage(doc)
         return
@@ -168,35 +198,35 @@ def main():
     ds = doc.DimStyles.FindName(style)
     gap = 0.5 * ds.TextHeight * ds.DimensionScale
     normal = rs.ViewCPlane().ZAxis
+    layers = [t[1] for t in TYPES.values()]
 
-    if not rs.IsLayer("Parts"):
-        rs.AddLayer("Parts")
-    if not rs.IsLayer(LAYER):
-        rs.AddLayer("Zip", parent="Parts")
-    attrs = doc.CreateDefaultAttributes()
-    attrs.LayerIndex = doc.Layers.FindByFullPath(LAYER, -1)
-
-    n = next_number()
     while ids:
+        prefix, layer, _, junctions = TYPES[kind]
         todo = [i for i in ids if not rs.IsCurveClosed(i)  # у замкненої кривої немає кінців
-                and not (rs.GetUserText(i, KEY) and rs.ObjectLayer(i) == LAYER)]  # вже блискавка
+                and not (rs.GetUserText(i, KEY) and rs.ObjectLayer(i) in layers)]  # вже позначена
         if len(todo) < len(ids):
             print(u"Замкнені або вже позначені, пропущено: %d" % (len(ids) - len(todo)))
         if todo:
-            name = PREFIX + str(n)
-            n += 1
+            if not rs.IsLayer("Parts"):
+                rs.AddLayer("Parts")
+            if not rs.IsLayer(layer):
+                rs.AddLayer(layer.split("::")[1], parent="Parts")
+            attrs = doc.CreateDefaultAttributes()
+            attrs.LayerIndex = doc.Layers.FindByFullPath(layer, -1)
+            n = nums.get(kind) or next_number(kind)
+            nums[kind] = n + 1
+            name = prefix + str(n)
             lines = []
             for oid in todo:
                 crv = rs.coercecurve(oid)
                 lines.append((crv, mark_line(doc, oid, crv, name, size, normal, ds, gap, attrs)))
             rs.UnselectAllObjects()
             doc.Views.Redraw()
-            if len(lines) >= 3:  # хоча б одна сторона розбита на кілька панелей
+            if len(lines) >= junctions:  # сторона розбита на кілька панелей
                 junction_stage(doc, name, lines, size, normal)
             print(u"%s: ліній %d" % (name, len(lines)))
         rs.UnselectAllObjects()
-        ids = rs.GetObjects(u"%s%d: виберіть усі лінії наступної блискавки (Enter — готово)" % (PREFIX, n),
-                            rs.filter.curve)
+        ids, kind = get_lines(kind, nums, u"готово")
     flip_stage(doc)
 
 

@@ -4,7 +4,8 @@
 Лінії з одним номером — одна блискавка: вони діляться на дві сторони з найближчими сумами довжин
 (сторона може бути розбита на кілька панелей), замовляється довша сторона — без запасу,
 вгору до цілого сантиметра. Сторони різняться більше ніж на DIFF_MM — попередження.
-Однакові довжини зводяться в рядок «довжина × кількість».
+Однакові довжини зводяться в рядок «довжина × кількість». Блискавка з однією лінією — попередження (каналіна?).
+Каналіна (Can<n>, canalina / guida) — окрема секція: одна сторона, довжина = сума її ліній, вгору до 1 см.
 Результат: CSV поруч із .3dm (<файл>_zips.csv, роздільник «;» — для Excel), зведена таблиця
 в буфер обміну (через табуляцію — вставляється в Excel чи лист) і в командний рядок."""
 import io
@@ -58,11 +59,33 @@ def tables(zips):
     return pieces, sorted(counts.items())
 
 
-def csv_text(pieces, summary):
-    rows = [u"Замовлення", u"Довжина, см;Кількість"]
-    rows += [u"%d;%d" % s for s in summary]
-    rows += [u"Разом;%d" % len(pieces), u"", u"Поштучно", u"Номер;Ліній;Сторона 1, мм;Сторона 2, мм;Замовити, см"]
-    rows += [u"%s;%d;%d;%d;%d" % p for p in pieces]
+def is_can(name):
+    return name.startswith("Can")
+
+
+def can_table(cans):
+    """cans = [(назва, довжина лінії в см)] → [(назва, ліній, мм, см до замовлення)]: довжина — сума ліній."""
+    num = lambda s: [int(p) if p.isdigit() else p for p in re.split(r"(\d+)", s)]
+    lines = {}
+    for name, cm in cans:
+        lines.setdefault(name, []).append(cm)
+    return [(name, len(lines[name]), int(round(sum(lines[name]) * 10)), order_cm(sum(lines[name])))
+            for name in sorted(lines, key=num)]
+
+
+def csv_text(pieces, summary, cans=()):
+    rows = []
+    if pieces:
+        rows += [u"Блискавки — замовлення", u"Довжина, см;Кількість"]
+        rows += [u"%d;%d" % s for s in summary]
+        rows += [u"Разом;%d" % len(pieces), u""]
+    if cans:
+        rows += [u"Каналіна (canalina / guida)", u"Номер;Ліній;Довжина, мм;Замовити, см"]
+        rows += [u"%s;%d;%d;%d" % c for c in cans]
+        rows += [u"Разом, см;;;%d" % sum(c[3] for c in cans), u""]
+    if pieces:
+        rows += [u"Блискавки — поштучно", u"Номер;Ліній;Сторона 1, мм;Сторона 2, мм;Замовити, см"]
+        rows += [u"%s;%d;%d;%d;%d" % p for p in pieces]
     return u"\r\n".join(rows) + u"\r\n"
 
 
@@ -75,7 +98,9 @@ def main():
         print(u"Немає кривих, позначених ZipStops (UserText Zip)")
         return
     to_cm = Rhino.RhinoMath.UnitScale(sc.doc.ModelUnitSystem, Rhino.UnitSystem.Centimeters)
-    pieces, summary = tables([(rs.GetUserText(i, KEY), rs.CurveLength(i) * to_cm) for i in ids])
+    lines = [(rs.GetUserText(i, KEY), rs.CurveLength(i) * to_cm) for i in ids]
+    pieces, summary = tables([z for z in lines if not is_can(z[0])])
+    cans = can_table([z for z in lines if is_can(z[0])])
 
     path = sc.doc.Path
     if path:
@@ -85,14 +110,22 @@ def main():
         if not path:
             return
     with io.open(path, "w", encoding="utf-8-sig", newline="") as f:  # BOM — щоб Excel не ламав кирилицю
-        f.write(csv_text(pieces, summary))
+        f.write(csv_text(pieces, summary, cans))
 
     for p in pieces:
         if p[3] and p[2] - p[3] > DIFF_MM:
             print(u"Увага, %s: сторони різняться на %d мм (%d / %d)" % (p[0], p[2] - p[3], p[2], p[3]))
-    clip = u"Довжина, см\tКількість\n" + u"".join(u"%d\t%d\n" % s for s in summary)
+        if p[1] == 1:
+            print(u"Увага, %s: одна лінія — це каналіна? (ZipStops, Type=Can)" % p[0])
+    clip = u""
+    if pieces:
+        clip += u"Блискавки, см\tКількість\n" + u"".join(u"%d\t%d\n" % s for s in summary)
+        clip += u"Разом\t%d\n" % len(pieces)
+    if cans:
+        clip += (u"\n" if clip else u"") + u"Каналіна\tсм\n" + u"".join(u"%s\t%d\n" % (c[0], c[3]) for c in cans)
+        clip += u"Разом, см\t%d\n" % sum(c[3] for c in cans)
     rs.ClipboardText(clip)
-    print(clip + u"Разом: %d шт" % len(pieces))
+    print(clip)
     print(u"CSV: %s (зведена таблиця — у буфері обміну)" % path)
 
 
