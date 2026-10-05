@@ -2,11 +2,12 @@
 """Легенда підписів: знаходить у документі тексти й TextDot-и, поставлені скриптами (P1, F3  L=… × 30, CZ 20,
 SA 10, Z2, Can1, RC1  R=…, TP1  H=…, літери стиків A–A), і ставить у точку кліку один текст —
 розшифровку тільки тих позначок, що реально є в кресленні. Нічого в документі не змінює, лише додає текст
-у поточний шар зі стилем PAT (висоту питає).
+у поточний шар (висоту питає). Шрифт звичайний (FONT): одноштриховий SLF-RHN Architect
+зі стилів PAT не має кирилиці.
 """
-import os
 import re
-import sys
+
+FONT = "Arial"
 
 # (regex першого рядка підпису, рядок легенди) — у порядку виводу
 ENTRIES = [
@@ -31,9 +32,7 @@ def legend_lines(texts):
 def main():
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
-    import Rhino
 
-    doc = sc.doc
     texts = [rs.TextObjectText(o) if rs.IsText(o) else rs.TextDotText(o)
              for o in rs.ObjectsByType(512 | 8192) or []]  # 512 текст, 8192 TextDot
     lines = legend_lines(texts)
@@ -49,22 +48,10 @@ def main():
     pt = rs.GetPoint(u"Клікни, де поставити легенду (лівий верхній кут)")
     if pt is None:
         return
-    ds = doc.DimStyles.Current
-    try:  # стилі тексту PAT для лекал 1:1 (scripts/markup/PatternTextStyles.py)
-        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        import PatternTextStyles
-        styles = PatternTextStyles.ensure_styles(doc)
-        ds = styles[min(styles, key=lambda s: abs(s - h))]
-    except Exception:
-        pass
     plane = rs.ViewCPlane()
     plane.Origin = pt
-    te = Rhino.Geometry.TextEntity.Create(body, plane, ds, False, 0, 0)
-    te.TextHeight = h
-    te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Left
-    te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Top
-    doc.Objects.AddText(te)
-    doc.Views.Redraw()
+    rs.AddText(body, plane, h, FONT, justification=262145)  # 262145 = Left | Top
+    sc.doc.Views.Redraw()
     print(u"Легенда: %d позначок" % len(lines))
 
 
