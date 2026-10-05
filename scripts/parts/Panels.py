@@ -3,7 +3,7 @@
 Вибираєш замкнені криві (панелі). Кожна панель копіюється на те саме місце в шар Parts::Panels
 і отримує номер P<n>: текст усередині панелі в куті, біля якого клікнеш (Enter — правий верхній;
 розміщення як у markup/DotToPanelText.py), стиль — опція Style (запам'ятовується),
-і TextDot "P<n>" вище-зліва від краю панелі, щоб номер було видно при будь-якому зумі.
+і TextDot "P<n>" (підшар Parts::Panels::Dots) вище-зліва від краю панелі, щоб номер було видно при будь-якому зумі.
 Номер пишеться і в UserText (Part = P<n>) на оригінал і на копію: повторний запуск
 уже пронумеровані панелі пропускає. Нова панель отримує найменший вільний номер у шарі,
 тож номер видаленої панелі повертається.
@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 import DotToPanelText as D
 
 LAYER = "Parts::Panels"
+DOTS = LAYER + "::Dots"  # TextDot — окремим підшаром, усе інше в LAYER
 PREFIX = "P"
 KEY = "Part"  # ключ UserText з номером панелі
 STYLE = "Panels.style"
@@ -65,6 +66,8 @@ def layer():
         rs.AddLayer("Parts")
     if not rs.IsLayer(LAYER):
         rs.AddLayer("Panels", parent="Parts")
+    if not rs.IsLayer(DOTS):
+        rs.AddLayer("Dots", parent=LAYER)
     return LAYER
 
 
@@ -129,6 +132,8 @@ def main():
     curves = [rs.coercecurve(i) for i in ids]
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
+    dot_attrs = attrs.Duplicate()
+    dot_attrs.LayerIndex = doc.Layers.FindByFullPath(DOTS, -1)
     used = used_numbers(LAYER)
     D.pts.ensure_styles(doc)
     style = sc.sticky.get(STYLE)
@@ -165,7 +170,7 @@ def main():
         tid = D.place_text(doc, name, crv, click, ds, attrs, tol)
         if not tid:
             print(u"%s: текст не влазить у панель (менший стиль — опція Style), лишився TextDot" % name)
-        new += [o for o in (tid, doc.Objects.AddTextDot(dot, attrs)) if o]
+        new += [o for o in (tid, doc.Objects.AddTextDot(dot, dot_attrs)) if o]
         rs.AddObjectsToGroup(new, rs.AddGroup())
         doc.Views.Redraw()
         print(u"%s%s" % (name, u"  (вирізів: %d)" % len(hole_idx) if hole_idx else u""))
