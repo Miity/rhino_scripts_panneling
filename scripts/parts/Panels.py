@@ -5,7 +5,8 @@
 розміщення як у markup/DotToPanelText.py), стиль — опція Style (запам'ятовується),
 і TextDot "P<n>" вище-зліва від краю панелі, щоб номер було видно при будь-якому зумі.
 Номер пишеться і в UserText (Part = P<n>) на оригінал і на копію: повторний запуск
-уже пронумеровані панелі пропускає, а нумерація продовжується з найбільшого P у шарі.
+уже пронумеровані панелі пропускає. Нова панель отримує найменший вільний номер у шарі,
+тож номер видаленої панелі повертається.
 Крива, що лежить усередині іншої вибраної — виріз (отвір) цієї панелі: копіюється разом з нею
 під тим самим номером, свого номера не забирає. Копія, вирізи, текст і TextDot — одна група.
 """
@@ -67,16 +68,21 @@ def layer():
     return LAYER
 
 
-def next_number(lay):
-    """Наступний номер після найбільшого P<n> у шарі (UserText, текст або TextDot)."""
-    nums = [0]
+def num(s):
+    """P4 → 4, інакше None."""
+    m = re.match(PREFIX + r"(\d+)$", s or "")
+    return int(m.group(1)) if m else None
+
+
+def used_numbers(lay):
+    """Зайняті номери P<n> у шарі (UserText, текст або TextDot)."""
+    nums = set()
     for o in rs.ObjectsByLayer(lay) or []:
         s = rs.GetUserText(o, KEY) or (rs.TextObjectText(o) if rs.IsText(o) else
                                        rs.TextDotText(o) if rs.IsTextDot(o) else "")
-        m = re.match(PREFIX + r"(\d+)$", s or "")
-        if m:
-            nums.append(int(m.group(1)))
-    return max(nums) + 1
+        if num(s):
+            nums.add(num(s))
+    return nums
 
 
 def get_corner(doc, crv, name, style):
@@ -123,7 +129,7 @@ def main():
     curves = [rs.coercecurve(i) for i in ids]
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
-    n = next_number(LAYER)
+    used = used_numbers(LAYER)
     D.pts.ensure_styles(doc)
     style = sc.sticky.get(STYLE)
     if not style or doc.DimStyles.FindName(style) is None:  # за замовчуванням — PAT за шириною першої панелі
@@ -131,6 +137,8 @@ def main():
         style = D.pts.style_name(D.pts.height_for(min(x1 - x0, y1 - y0)))
     made = 0
     for i, hole_idx in classify(curves, plane, tol):
+        n = min(k for k in range(1, len(used) + 2) if k not in used)  # найменший вільний: діра після видалення заповнюється
+        used.add(n)
         name = u"%s%d" % (PREFIX, n)
         crv = curves[i]
         rs.UnselectAllObjects()
@@ -161,7 +169,6 @@ def main():
         rs.AddObjectsToGroup(new, rs.AddGroup())
         doc.Views.Redraw()
         print(u"%s%s" % (name, u"  (вирізів: %d)" % len(hole_idx) if hole_idx else u""))
-        n += 1
         made += 1
     rs.UnselectAllObjects()
     rs.SelectObjects(picked)  # вибір як був
