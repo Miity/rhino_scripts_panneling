@@ -17,6 +17,7 @@ import sys
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
 import Rhino
+import System
 from System.Collections.Generic import List
 from Rhino.Geometry import (AreaMassProperties, ArcCurve, Circle, Continuity, Curve, CurveEnd,
                             CurveExtensionStyle, Plane, Point3d, Transform)
@@ -46,7 +47,9 @@ def off_panel(crv, curves, tol):
 def add_part(doc, full, te, markup, attrs, layout=True):
     """layout: повна деталь (геометрія full + підпис te) — на UP вгору по Y CPlane, своя група;
     на місці — розмітка (криві markup + той самий підпис), своя група. Повертає (id повної, id розмітки).
-    Без layout — повна деталь на місці, розмітки немає (id розмітки = [])."""
+    Без layout — повна деталь на місці, розмітки немає (id розмітки = []).
+    Пара зв'язана UserText PartLink (спільний id); повна деталь має LayoutUp (вектор зсуву), розмітка — PartMarkup.
+    JoinCorner за ними з'єднує деталі угорі й перебудовує розмітку."""
     xf = Transform.Translation(rs.ViewCPlane().YAxis * (UP if layout else 0.0))
 
     def add(geo):
@@ -56,6 +59,14 @@ def add_part(doc, full, te, markup, attrs, layout=True):
     ids = [add(c) for c in full] + [add(te)], []
     if layout:
         ids = ids[0], [doc.Objects.AddCurve(c, attrs) for c in markup] + [doc.Objects.AddText(te, attrs)]
+    if layout:
+        link, up = str(System.Guid.NewGuid()), rs.ViewCPlane().YAxis * UP
+        for o in ids[0] + ids[1]:
+            rs.SetUserText(o, "PartLink", link)
+        for o in ids[0]:
+            rs.SetUserText(o, "LayoutUp", "%r,%r,%r" % (up.X, up.Y, up.Z))
+        for o in ids[1]:
+            rs.SetUserText(o, "PartMarkup", "1")
     for g in ids:
         if g:
             rs.AddObjectsToGroup(g, rs.AddGroup())
