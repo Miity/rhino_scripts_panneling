@@ -28,6 +28,10 @@ try:
         assert crv.IsClosed and sq == 0 and crv.TryGetPolyline()[0]
         assert abs(area(crv) - (140 + 146.6667) / 2 * 10) < 1e-2, area(crv)
         assert abs(edge.GetLength() - 140) < 1e-6 and crv.GetBoundingBox(True).Max.Y > 69.99
+        # Up=Yes: розмітка — клапан без ребра панелі (одна відкрита крива)
+        import ReinfCircle
+        mk = ReinfCircle.off_panel(crv, [pan], tol)
+        assert len(mk) == 1 and not mk[0].IsClosed and abs(mk[0].GetLength() - (crv.GetLength() - 140)) < 1e-6
 
     # кривий верх полілінією з 20 дрібних сегментів (зломи < Angle) — ребро від кута до кута
     arc = [(100 - 5 * k, 50 - 10 * math.sin(math.pi * k / 20)) for k in range(21)]

@@ -7,6 +7,8 @@
 від ребра (продовження пішло б дуже далеко) — кінець перпендикулярний, з попередженням.
 Деталь + підпис "CZ W" у групі, шар Parts::CopriZip. Панель не змінюється: перед різом
 PreparePanelCut склеїть її з деталлю (для нього ребро має бути полілінією / лініями).
+Опція Up (галочка, типово No): Yes — як у Reinf (ReinfCircle.add_part): на місці лише розмітка (лінії клапана,
+що не лежать на ребрі панелі, + підпис), повна деталь — на 10000 вгору по Y CPlane, для Layout.
 """
 import math
 import os
@@ -108,13 +110,16 @@ def flap(panel, click, w, angle, normal, tol, inward=False):
 
 
 def ask(gp):
-    """Клік біля ребра з опціями W / Angle. Точка або None (Enter / Esc)."""
+    """Клік біля ребра з опціями W / Angle / Up. Точка або None (Enter / Esc)."""
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 25.0), 0.001, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     gp.AddOptionDouble("W", w)
+    up = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_up", False), "No", "Yes")
     gp.AddOptionDouble("Angle", a)
+    gp.AddOptionToggle("Up", up)
     while True:
         r = gp.Get()
+        sc.sticky[STICKY + "_up"] = up.CurrentValue
         sc.sticky[STICKY] = w.CurrentValue
         sc.sticky[STICKY + "_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
@@ -155,7 +160,12 @@ def main():
                                               text_style(doc, w), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
-        rs.AddObjectsToGroup([doc.Objects.AddCurve(crv, attrs), doc.Objects.AddText(te, attrs)], rs.AddGroup())
+        if sc.sticky[STICKY + "_up"]:
+            sys.modules.pop("ReinfCircle", None)  # тут, а не вгорі: потрібен лише з Up=Yes
+            from ReinfCircle import add_part, off_panel
+            add_part(doc, [crv], te, off_panel(crv, [panel], tol), attrs)
+        else:
+            rs.AddObjectsToGroup([doc.Objects.AddCurve(crv, attrs), doc.Objects.AddText(te, attrs)], rs.AddGroup())
         made += 1
         if square:
             print(u"Увага: %d кін. сусід гостріше 30° — кінець перпендикулярний" % square)
