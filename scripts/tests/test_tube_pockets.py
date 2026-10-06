@@ -82,10 +82,10 @@ try:
     finally:
         rs.DeleteObjects(ids)
         rs.DeleteLayer(base + "::Fold")
-    # розмітка на місці + повна деталь на up: простий контур = трапеція 55000 без SA; Update бачить пару
+    # розмітка на місці + повна деталь на up: розмітка — відкрита (торці + верх, без лінії шва); Update бачить пару
     up = Vector3d(0, 10000, 0)
     res = M.pocket(line, toward, 600, 100, 50, 10, True, Z, tol, False, 20)
-    assert abs(AreaMassProperties.Compute(res[4]).Area - 55000) < 1e-3
+    assert not res[4].IsClosed and abs(res[4].GetLength() - (500 + 2 * (50 ** 2 + 100 ** 2) ** 0.5)) < 1e-6
     before = set(rs.AllObjects() or [])
     M.add_pocket(sc.doc, res + (toward,), 100, 50, 10, True, 9, attrs, Z, tol, False, 20, up)
     ids = [o for o in rs.AllObjects() if o not in before]

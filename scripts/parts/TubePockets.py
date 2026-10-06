@@ -11,7 +11,7 @@ Parts::Pockets, з підписом "TP<n>  H=…" у групі; нумерац
 зсунута на H по нормалі в центрі кармана (Rigid=No — стандартний офсет; припуск SA завжди стандартний).
 Опція Hem — запас на підгин торців (+Hem зліва і справа): торець зсувається назовні на Hem, верх і низ
 кармана подовжуються до нього прямо; старий торець лишається в групі як лінія підгину, у підшарі <шар>::Fold (Hem=0 — без запасу).
-На панелі (на місці) лишається тільки розмітка: простий контур кармана (лінія шва → верх, без SA і Hem)
+На панелі (на місці) лишається тільки розмітка: торці + верх кармана однією відкритою кривою (без лінії шва, SA і Hem)
 + підпис, своя група (UserText TP_Markup). Повна деталь для розкрою — на UP (10000) вгору по Y CPlane
 (UserText TP_Up), її і розкладати Layout. Обидві групи пов'язані номером (UserText TP_N).
 Опції W / H / Trim / SA / Hem / Notch / Rigid / Angle — у запиті кліку, запам'ятовуються між запусками.
@@ -113,7 +113,7 @@ def reversed_copy(c):
 
 
 def pocket(crv, click, w, h, trim, sa, notch, normal, tol, rigid=False, hem=0.0):
-    """(контур, лінія шва, мітка центру або None, лінії підгину, простий контур для розмітки);
+    """(контур, лінія шва, мітка центру або None, лінії підгину, розмітка: торці + верх, без лінії шва);
     рядок — причина, чому не вийшло."""
     length = crv.GetLength()
     seg = crv.DuplicateCurve() if w <= 0 or w >= length else trim_len(crv, (length - w) / 2.0, (length + w) / 2.0)
@@ -132,9 +132,9 @@ def pocket(crv, click, w, h, trim, sa, notch, normal, tol, rigid=False, hem=0.0)
     outer = offset(seg, away, sa, normal, tol) if sa > 0 else seg.DuplicateCurve()
     if outer is None:
         return u"офсет припуску SA не вдався"
-    simple = Curve.JoinCurves([seg, inner, end_side(seg, seg, inner, tol),
+    simple = Curve.JoinCurves([inner, end_side(seg, seg, inner, tol),  # без лінії шва: її дає край панелі
                                end_side(reversed_copy(seg), reversed_copy(seg), reversed_copy(inner), tol)], tol)
-    if len(simple) != 1 or not simple[0].IsClosed:
+    if len(simple) != 1:
         return u"контур розмітки не замкнувся"
     folds = []
     if hem > 0:
@@ -164,9 +164,9 @@ def pocket(crv, click, w, h, trim, sa, notch, normal, tol, rigid=False, hem=0.0)
 
 
 def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False, hem=0.0, up=None):
-    """Додає карман: res (контур, лінія шва, мітка, лінії підгину, простий контур, toward) — на місці.
+    """Додає карман: res (контур, лінія шва, мітка, лінії підгину, розмітка, toward) — на місці.
     up=None — повна деталь на місці (старі кармани); інакше повна деталь зсувається на up,
-    а на місці лишається розмітка (простий контур + підпис). Параметри — UserText для UpdateTubePockets."""
+    а на місці лишається розмітка (торці + верх без лінії шва + підпис). Параметри — UserText для UpdateTubePockets."""
     outline, seg, mark, folds, simple, toward = res
     xf = Transform.Translation(up if up is not None else Vector3d.Zero)
     te = Rhino.Geometry.TextEntity.Create(u"%s%d  H=%g" % (PREFIX, n, h),
