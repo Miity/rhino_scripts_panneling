@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Zip length table for ordering.
-Takes curves marked by parts/ZipStops.py (UserText Zip = Z<n>): selected, or Enter — all in the document.
+Takes the number texts made by parts/ZipStops.py (UserText Zip = Z<n>, ZipLine, ZipTrim): selected,
+or Enter — all in the document. Line length is measured live: the marked line minus Trim at its ends.
 Lines with one number are one zip: they are split into two sides with the closest length sums
 (a side may be split over several panels), the longer side is ordered — no allowance,
 rounded up to a whole centimetre. Sides differing by more than DIFF_MM — warning.
@@ -21,6 +22,8 @@ except ImportError:  # for tests/test_zip_list.py outside Rhino
     Rhino = rs = sc = None
 
 KEY = "Zip"
+LINE = "ZipLine"
+TRIM = "ZipTrim"
 DIFF_MM = 5  # both sides of a zip should be equal — a larger difference = pattern error?
 
 
@@ -89,16 +92,34 @@ def csv_text(pieces, summary, tracks=()):
     return u"\r\n".join(rows) + u"\r\n"
 
 
+def line_length(t):
+    """Length between the stops of the line a number text marks, document units; None if the line is gone."""
+    crv = rs.coercecurve(rs.GetUserText(t, LINE) or "", -1, False)
+    if crv is None:
+        return None
+    try:
+        t0, t1 = [float(x) for x in rs.GetUserText(t, TRIM).split(",")]
+    except Exception:
+        t0 = t1 = 0.0
+    return crv.GetLength() - t0 - t1
+
+
 def main():
-    ids = rs.GetObjects(u"Select zips (Enter — all in the document)", rs.filter.curve, preselect=True)
+    ids = rs.GetObjects(u"Select zip numbers (Enter — all in the document)", rs.filter.annotation, preselect=True)
     if not ids:
-        ids = [o.Id for o in sc.doc.Objects.GetObjectList(Rhino.DocObjects.ObjectType.Curve)]
-    ids = [i for i in ids if rs.GetUserText(i, KEY)]
+        ids = [o.Id for o in sc.doc.Objects.GetObjectList(Rhino.DocObjects.ObjectType.Annotation)]
+    ids = [i for i in ids if rs.GetUserText(i, KEY) and rs.GetUserText(i, LINE)]
     if not ids:
-        print(u"No curves marked by ZipStops (UserText Zip)")
+        print(u"No zip numbers made by ZipStops (text with UserText Zip / ZipLine)")
         return
     to_cm = Rhino.RhinoMath.UnitScale(sc.doc.ModelUnitSystem, Rhino.UnitSystem.Centimeters)
-    lines = [(rs.GetUserText(i, KEY), rs.CurveLength(i) * to_cm) for i in ids]
+    lines = []
+    for i in ids:
+        length = line_length(i)
+        if length is None:
+            print(u"Warning, %s: its line is gone (deleted?) — not counted" % rs.GetUserText(i, KEY))
+        else:
+            lines.append((rs.GetUserText(i, KEY), length * to_cm))
     pieces, summary = tables([z for z in lines if not is_track(z[0])])
     tracks = track_table([z for z in lines if is_track(z[0])])
 

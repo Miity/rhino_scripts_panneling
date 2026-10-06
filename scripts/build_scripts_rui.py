@@ -57,7 +57,7 @@ GROUPS = [
         (u"ZipCover", u"Zip cover flap: panel edge (corner to corner) + offset W outward, ends along the neighbouring edges; label ZC W", py("parts/ZipCover.py"), None),
         (u"Seam", u"Seam allowance: panel edge (corner to corner) + offset W outward, ends along the neighbouring edges; label SA W; Points=Yes — also seam points", py("parts/Seam.py"), None),
         (u"Join Corner", u"Join two parts at a corner (ZipCover / Seam, different W): click in the notch between the parts → ends removed, outer edges to their intersection, one curve", py("parts/JoinCorner.py"), None),
-        (u"ZipStops", u"Zips (Z<n>) and tracks (Trk<n>, option Type): all lines on all panels → Parts::Zip / Parts::Track, stops at the ends, tick at junctions", py("parts/ZipStops.py"), None),
+        (u"ZipStops", u"Zips (Z<n>) and tracks (Trk<n>, option Type): stops Trim in from the line ends + number, tick at junctions; lines untouched", py("parts/ZipStops.py"), None),
         (u"ZipList", u"Order table: zips (longer side, cm × pcs) and tracks (full length); CSV next to the .3dm + clipboard", py("parts/ZipList.py"), None),
         (u"Mark Reinf", u"Reinforcement strip without a part: select labels (ZC / SA…), the panel is found automatically → append R<H>, edge length in UserText", py("parts/MarkReinf.py"), None),
         (u"RList", u"Reinforcement strip table: edge + 5 cm on each side, totals by H; CSV next to the .3dm + clipboard", py("parts/RList.py"), None),
