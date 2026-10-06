@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Позначка фаші (rinforzo / fascia) на наявному підписі — без деталі.
 Вибираєш підписи (CZ / SA / RB…, можна рамкою, на різних панелях): до тексту дописується
-" R<H>" (стара R-позначка замінюється, H=0 — прибирає). Панель для кожного підпису — найближча замкнена
-крива поза Parts:: (крім Parts::Panels — самі деталі CZ / SA теж замкнені, їх пропускаємо); ребро
-(кут–кут, CopriZip.pick_edge) — найближче до підпису — його довжина пишеться в UserText ReinfLen (см), H — у Reinf.
+" R<H>" (стара R-позначка замінюється, H=0 — прибирає). Панель для кожного підпису — найближча (до NEAR_MM) замкнена
+крива поза Parts:: (або в Parts::Panels), на якій є ребро (кут–кут, CopriZip.pick_edge): кола-позначки
+без кутів пропускаються; смуги Seam / CZ — ні (не те ребро). Немає панелі поруч — підпис пропускається; ребро — найближче до підпису — його довжина пишеться в UserText ReinfLen (см), H — у Reinf.
 Таблицю для замовлення робить parts/RList.py. Шар, група, положення підпису не змінюються.
 """
 import os
@@ -18,6 +18,7 @@ except ImportError:  # для tests/test_reinf_list.py поза Rhino
     Rhino = rs = sc = None
 
 STICKY = "MarkReinf"
+NEAR_MM = 200  # панель у цьому радіусі від підпису — перевага над деталлю (підпис стоїть на W/2 від ребра)
 MARK = re.compile(r"\s+R[\d.]+$")
 
 
@@ -42,13 +43,14 @@ def ask(go):
         return [o.ObjectId for o in go.Objects()] if r == Rhino.Input.GetResult.Object else None
 
 
-def panels(doc):
-    """Замкнені криві-кандидати в панелі: не деталі з Parts:: (крім Parts::Panels)."""
+def closed_curves(doc):
+    """[(крива, групи, деталь?)] — усі замкнені криві документа; деталь = шар Parts::*, крім Parts::Panels."""
     out = []
     for o in doc.Objects.GetObjectList(Rhino.DocObjects.ObjectType.Curve):
-        path = doc.Layers[o.Attributes.LayerIndex].FullPath
-        if o.Geometry.IsClosed and (not path.startswith("Parts::") or path.startswith("Parts::Panels")):
-            out.append(o.Geometry)
+        if o.Geometry.IsClosed:
+            path = doc.Layers[o.Attributes.LayerIndex].FullPath
+            part = path.startswith("Parts::") and not path.startswith("Parts::Panels")
+            out.append((o.Geometry, set(o.Attributes.GetGroupList() or []), part))
     return out
 
 
@@ -70,15 +72,18 @@ def main():
     if not ids:
         return
     h, angle = sc.sticky[STICKY], sc.sticky[STICKY + "_angle"]
-    cands = panels(sc.doc)
+    cands = closed_curves(sc.doc)
+    lim = NEAR_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     made = 0
     for tid in ids:
         p = rs.TextObjectPoint(tid)
-        if p is None or not cands:
-            continue
-        # ponytail: перебір усіх замкнених кривих на кожен підпис — ок для сотень, не для десятків тисяч
-        panel = min(cands, key=lambda c: c.PointAt(c.ClosestPoint(p)[1]).DistanceTo(p))
-        res = pick_edge(panel, p, angle, tol)
+        d = lambda c: c.PointAt(c.ClosestPoint(p)[1]).DistanceTo(p)
+        groups = set(rs.coercerhinoobject(tid).Attributes.GetGroupList() or [])
+        # ponytail: сортування всіх замкнених кривих на кожен підпис — ок для сотень, не для десятків тисяч
+        # лише панелі поруч: смуга Seam / CZ теж замкнена, але її ребро — не те; без панелі — пропуск, не хибна довжина
+        near = sorted((d(c), k) for k, (c, g, part) in enumerate(cands) if not part and not g & groups and d(c) <= lim)
+        res = next((r for r in (pick_edge(cands[k][0], p, angle, tol) for _, k in near) if isinstance(r, tuple)),
+                   u"панелі (замкненої кривої з кутами поза Parts::, або Parts::Panels) немає ближче %g мм" % NEAR_MM)
         if not isinstance(res, tuple):
             print(u"Пропущено %s: %s" % (rs.TextObjectText(tid), res))
             continue
