@@ -9,7 +9,9 @@
 Parts::Pockets, з підписом "TP<n>  H=…" у групі; нумерація TP продовжується. Панель не змінюється.
 Опція Rigid — карман жорстким офсетом (curves/OffsetRigid.py): копія відрізка без зміни форми,
 зсунута на H по нормалі в центрі кармана (Rigid=No — стандартний офсет; припуск SA завжди стандартний).
-Опції W / H / Trim / SA / Notch / Rigid / Angle — у запиті кліку, запам'ятовуються між запусками.
+Опція Hem — запас на підгин торців (+Hem зліва і справа): торець зсувається назовні на Hem, верх і низ
+кармана подовжуються до нього прямо; старий торець лишається в групі як лінія підгину (Hem=0 — без запасу).
+Опції W / H / Trim / SA / Hem / Notch / Rigid / Angle — у запиті кліку, запам'ятовуються між запусками.
 """
 import os
 import re
@@ -18,7 +20,9 @@ import sys
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import Curve, CurveOffsetCornerStyle, CurveOrientation, LineCurve, Vector3d
+from Rhino.Geometry import (Curve, CurveEnd, CurveExtensionStyle, CurveOffsetCornerStyle, CurveOrientation, LineCurve,
+                            Polyline, PolylineCurve, Vector3d)
+from Rhino.Geometry.Intersect import Intersection
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("CopriZip", "Seam"):  # Rhino тримає модулі з першого запуску за сесію — беремо свіжі
@@ -66,8 +70,46 @@ def trim_len(crv, a, b):
     return crv.Trim(t0, t1) if ok0 and ok1 and t1 > t0 else None
 
 
-def pocket(crv, click, w, h, trim, sa, notch, normal, tol, rigid=False):
-    """(контур, лінія шва, мітка центру або None); рядок — причина, чому не вийшло."""
+def end_side(outer, seg, inner, tol):
+    """Торець біля початку: ламана низ (outer) → лінія шва → верх (inner)."""
+    pts = [outer.PointAtStart]
+    for p in (seg.PointAtStart, inner.PointAtStart):
+        if p.DistanceTo(pts[-1]) > tol:
+            pts.append(p)
+    return PolylineCurve(Polyline(pts))
+
+
+def hem_start(outer, seg, inner, hem, normal, tol):
+    """Запас на підгин біля початку: торець зсувається назовні на hem, outer і inner подовжуються до нього прямо.
+    (outer, inner, новий торець, лінія підгину) або None."""
+    fold = end_side(outer, seg, inner, tol)
+    big = 10 * (hem + fold.GetLength())
+    side = offset(fold, seg.PointAtStart - seg.TangentAtStart * hem, hem, normal, tol)
+    side = side.Extend(CurveEnd.Both, big, CurveExtensionStyle.Line) if side else None
+    if side is None:
+        return None
+    out, ts = [], []
+    for c in (outer, inner):
+        cx = c.Extend(CurveEnd.Start, big, CurveExtensionStyle.Line)
+        x = Intersection.CurveCurve(cx, side, tol, tol) if cx else None
+        if not x or x.Count == 0:
+            return None
+        ev = min(x, key=lambda e: e.PointA.DistanceTo(c.PointAtStart))
+        out.append(cx.Trim(ev.ParameterA, cx.Domain.T1))
+        ts.append(ev.ParameterB)
+    if None in out:
+        return None
+    return out[0], out[1], side.Trim(min(ts), max(ts)), fold
+
+
+def reversed_copy(c):
+    c = c.DuplicateCurve()
+    c.Reverse()
+    return c
+
+
+def pocket(crv, click, w, h, trim, sa, notch, normal, tol, rigid=False, hem=0.0):
+    """(контур, лінія шва, мітка центру або None, лінії підгину); рядок — причина, чому не вийшло."""
     length = crv.GetLength()
     seg = crv.DuplicateCurve() if w <= 0 or w >= length else trim_len(crv, (length - w) / 2.0, (length + w) / 2.0)
     if seg is None:
@@ -85,9 +127,19 @@ def pocket(crv, click, w, h, trim, sa, notch, normal, tol, rigid=False):
     outer = offset(seg, away, sa, normal, tol) if sa > 0 else seg.DuplicateCurve()
     if outer is None:
         return u"офсет припуску SA не вдався"
-    edges = [outer, LineCurve(outer.PointAtStart, seg.PointAtStart), LineCurve(seg.PointAtStart, inner.PointAtStart),
-             inner, LineCurve(inner.PointAtEnd, seg.PointAtEnd), LineCurve(seg.PointAtEnd, outer.PointAtEnd)]
-    joined = Curve.JoinCurves([e for e in edges if e.GetLength() > tol], tol)
+    folds = []
+    if hem > 0:
+        a = hem_start(outer, seg, inner, hem, normal, tol)
+        b = a and hem_start(reversed_copy(a[0]), reversed_copy(seg), reversed_copy(a[1]), hem, normal, tol)
+        if not b:
+            return u"запас на підгин Hem не вдався"
+        hemmed = reversed_copy(b[0]), reversed_copy(b[1])
+        sides, folds = [a[2], b[2]], [a[3], b[3]]
+    else:
+        hemmed = outer, inner
+        sides = [end_side(outer, seg, inner, tol),
+                 end_side(reversed_copy(outer), reversed_copy(seg), reversed_copy(inner), tol)]
+    joined = Curve.JoinCurves(list(hemmed) + sides, tol)
     if len(joined) != 1 or not joined[0].IsClosed:
         return u"контур кармана не замкнувся"
     mark = None
@@ -99,13 +151,13 @@ def pocket(crv, click, w, h, trim, sa, notch, normal, tol, rigid=False):
         d.Unitize()
         # ponytail: заходить на H/10 у карман від лінії шва; якщо треба фіксовану глибину — окрема опція.
         mark = LineCurve(outer.PointAt(outer.ClosestPoint(m)[1]) if sa > 0 else m, m + d * (h / 10.0))
-    return joined[0], seg, mark
+    return joined[0], seg, mark, folds
 
 
-def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False):
-    """Додає карман (контур, лінія шва, мітка, підпис) у групу; параметри — UserText для UpdateTubePockets."""
-    outline, seg, mark, toward = res
-    new = [doc.Objects.AddCurve(outline, attrs)]
+def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False, hem=0.0):
+    """Додає карман (контур, лінія шва, мітка, лінії підгину, підпис) у групу; параметри — UserText для UpdateTubePockets."""
+    outline, seg, mark, folds, toward = res
+    new = [doc.Objects.AddCurve(outline, attrs)] + [doc.Objects.AddCurve(f, attrs) for f in folds]
     if sa > 0:
         new.append(doc.Objects.AddCurve(seg, attrs))  # лінія шва
     if mark:
@@ -117,7 +169,7 @@ def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False)
     te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
     new.append(doc.Objects.AddText(te, attrs))
     for o in new:
-        for k, v in (("H", h), ("Trim", trim), ("SA", sa), ("Notch", int(notch)), ("Rigid", int(rigid))):
+        for k, v in (("H", h), ("Trim", trim), ("SA", sa), ("Notch", int(notch)), ("Rigid", int(rigid)), ("Hem", hem)):
             rs.SetUserText(o, "TP_" + k, "%g" % v)
     rs.AddObjectsToGroup(new, rs.AddGroup())
     doc.Views.Redraw()
@@ -153,12 +205,13 @@ def inward(panel, edge, normal):
 
 
 def ask(gp):
-    """Клік біля ребра з опціями W, H, Trim, SA, Notch, Rigid, Angle. (точка, значення) або None."""
+    """Клік біля ребра з опціями W, H, Trim, SA, Hem, Notch, Rigid, Angle. (точка, значення) або None."""
     get = sc.sticky.get
     w = Rhino.Input.Custom.OptionDouble(get(STICKY + "_w", 2000.0), 0.0, 1e7)
     h = Rhino.Input.Custom.OptionDouble(get(STICKY + "_h", 130.0), 0.001, 1e6)
     trim = Rhino.Input.Custom.OptionDouble(get(STICKY + "_trim", 50.0), 0.0, 1e6)
     sa = Rhino.Input.Custom.OptionDouble(get(STICKY + "_sa", 10.0), 0.0, 1e6)
+    hem = Rhino.Input.Custom.OptionDouble(get(STICKY + "_hem", 20.0), 0.0, 1e6)
     notch = Rhino.Input.Custom.OptionToggle(get(STICKY + "_notch", True), "No", "Yes")
     rigid = Rhino.Input.Custom.OptionToggle(get(STICKY + "_rigid", False), "No", "Yes")
     angle = Rhino.Input.Custom.OptionDouble(get("CopriZip_angle", 30.0), 1.0, 179.0)  # спільний із CopriZip
@@ -166,13 +219,15 @@ def ask(gp):
     gp.AddOptionDouble("H", h)
     gp.AddOptionDouble("Trim", trim)
     gp.AddOptionDouble("SA", sa)
+    gp.AddOptionDouble("Hem", hem)
     gp.AddOptionToggle("Notch", notch)
     gp.AddOptionToggle("Rigid", rigid)
     gp.AddOptionDouble("Angle", angle)
     while True:
         r = gp.Get()
-        vals = (w.CurrentValue, h.CurrentValue, trim.CurrentValue, sa.CurrentValue, notch.CurrentValue, rigid.CurrentValue)
-        for k, v in zip(("_w", "_h", "_trim", "_sa", "_notch", "_rigid"), vals):
+        vals = (w.CurrentValue, h.CurrentValue, trim.CurrentValue, sa.CurrentValue, notch.CurrentValue, rigid.CurrentValue,
+                hem.CurrentValue)
+        for k, v in zip(("_w", "_h", "_trim", "_sa", "_notch", "_rigid", "_hem"), vals):
             sc.sticky[STICKY + k] = v
         sc.sticky["CopriZip_angle"] = angle.CurrentValue
         if r == Rhino.Input.GetResult.Option:
@@ -200,7 +255,7 @@ def main():
         got = ask(gp)
         if got is None:
             break
-        click, (w, h, trim, sa, notch, rigid, angle) = got
+        click, (w, h, trim, sa, notch, rigid, hem, angle) = got
         res = pick_edge(panel, click, angle, tol)
         if not isinstance(res, tuple):
             print(u"Пропущено: " + res)
@@ -209,12 +264,12 @@ def main():
         if 0 < edge.GetLength() <= w:
             print(u"W %g ≥ довжини ребра %.1f — карман на все ребро" % (w, edge.GetLength()))
         toward = inward(panel, edge, normal)
-        res = pocket(edge, toward, w, h, trim, sa, notch, normal, tol, rigid)
+        res = pocket(edge, toward, w, h, trim, sa, notch, normal, tol, rigid, hem)
         if not isinstance(res, tuple):
             print(u"Пропущено: " + res)
             continue
         res = res + (toward,)
-        label = add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid)
+        label = add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid, hem)
         print(label)
         n += 1
         made += 1
