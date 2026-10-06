@@ -74,6 +74,7 @@ GROUPS = [
          (u"DotToPanelText", u"TextDot → текст у правому верхньому куті панелі (INK)", py("markup/DotToPanelText.py"))),
         (u"TextToCurves", u"Текст → криві для нестингу (як Explode, але дзеркальний / перевернутий текст лишається читабельним, як на екрані)", py("markup/TextToCurves.py"), None),
         (u"Legend", u"Легенда підписів (P, F, CZ, SA, Z, Can, RC, TP, A–A): тільки ті, що є в кресленні, текстом у точці кліку", py("markup/Legend.py"), None),
+        (u"Panel Page", u"Лист A4 для панелі: новий Layout P<n>, detail Top з зумом на панель, масштаб 1:N, заблоковано", py("markup/PanelPage.py"), None),
     ]),
 ]
 
