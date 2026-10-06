@@ -12,6 +12,7 @@ R = відстань до кліку + Plus (опція, типово 5 см, з
 SA=0 — без припуску. Plus і SA — у запиті другого кліку.
 Деталь лежить на місці,
 шар Parts::Reinforcements, підпис "RO<n>  R=…" уздовж дуги (усередині) у групі; нумерація RO продовжується між запусками.
+На панелі — розмітка (тільки дуга, без ребер панелі), повна деталь — на 10000 вгору (ReinfCircle.add_part).
 """
 import os
 import sys
@@ -23,7 +24,7 @@ from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, CurveOff
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino тримає модулі з першого запуску за сесію
-from ReinfCircle import LAYER, layer, next_number, piece, text_style  # шар, нумерація, обрізка, стиль PAT
+from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, piece, text_style  # шар, нумерація, обрізка, стиль PAT
 
 STICKY = "ReinfO"
 PREFIX = "RO"  # Reinforcement O
@@ -181,8 +182,8 @@ def main():
         te = Rhino.Geometry.TextEntity.Create(label, tp, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign
-        new = [doc.Objects.AddCurve(c, attrs) for c in [crv] + seams] + [doc.Objects.AddText(te, attrs)]
-        rs.AddObjectsToGroup(new, rs.AddGroup())
+        fin = o_shape(curves, center, got[0], got[1], normal, tol)[0] or crv  # без SA: що видно на панелі
+        add_part(doc, [crv] + seams, te, off_panel(fin, curves, tol), attrs)
         doc.Views.Redraw()
         print(label)
         n += 1

@@ -6,6 +6,7 @@
 Цикл: кілька D підряд (обидва кінці кожного кармана), Enter — кінець. Деталь лежить на місці,
 шар Parts::Reinforcements, підпис "RD<n>  W=…  R=…" у групі; нумерація RD продовжується між запусками.
 Опції W і R — у запиті першої точки, запам'ятовуються.
+На панелі — розмітка D без низу (низ лежить на краю), повна деталь — на 10000 вгору (ReinfCircle.add_part).
 """
 import os
 import sys
@@ -17,7 +18,7 @@ from Rhino.Geometry import Arc, ArcCurve, Curve, Plane, Polyline, PolylineCurve,
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino тримає модулі з першого запуску за сесію
-from ReinfCircle import LAYER, layer, next_number, text_style  # той самий шар, нумерація, стиль PAT
+from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, text_style  # шар, нумерація, стиль PAT
 
 STICKY = "ReinfD"
 PREFIX = "RD"  # Reinforcement D
@@ -101,7 +102,8 @@ def main():
         te = Rhino.Geometry.TextEntity.Create(label, tp, text_style(doc, min(r, w / 2.0)), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
-        rs.AddObjectsToGroup([doc.Objects.AddCurve(crv, attrs), doc.Objects.AddText(te, attrs)], rs.AddGroup())
+        base = min(crv.DuplicateSegments(), key=lambda g: g.PointAtNormalizedLength(0.5).DistanceTo(bottom))  # низ D
+        add_part(doc, [crv], te, off_panel(crv, [base], tol), attrs)
         doc.Views.Redraw()
         print(label)
         n += 1

@@ -29,6 +29,32 @@ try:
     assert abs(AreaMassProperties.Compute(c).Area - (15000 + 3.14159265 * 75 * 50 / 2)) < 1e-1
     bb = c.GetBoundingBox(True)
     assert abs(bb.Max.Y - 50) < 1e-6 and abs(bb.Max.X - 75) < 1e-6 and abs(bb.Min.X + 75) < 1e-6, bb
+    # розмітка D без низу: дві сторони 100 + півколо R50; add_part: повна деталь на 10000 вгору, розмітка на місці
+    import math
+    import rhinoscriptsyntax as rs
+    import scriptcontext as sc
+    import ReinfCircle as RC
+    c = M.d_shape(Point3d(0, 0, 0), Point3d(0, -100, 0), 100, 50, Z, tol)
+    base = min(c.DuplicateSegments(), key=lambda g: g.PointAtNormalizedLength(0.5).DistanceTo(Point3d(0, -100, 0)))
+    mk = RC.off_panel(c, [base], tol)
+    assert len(mk) == 1 and not mk[0].IsClosed and abs(mk[0].GetLength() - (200 + math.pi * 50)) < 1e-3
+    # RC: квадратна панель, сектор R100 у куті (0,0) → розмітка лише дуга π·100/2
+    from Rhino.Geometry import Polyline, PolylineCurve, TextEntity
+    sq = PolylineCurve(Polyline([Point3d(0, 0, 0), Point3d(1000, 0, 0), Point3d(1000, 1000, 0),
+                                 Point3d(0, 1000, 0), Point3d(0, 0, 0)]))
+    sector = RC.piece([sq], Point3d(0, 0, 0), Point3d(10, 10, 0), 100, Z, tol)
+    mk = RC.off_panel(sector, [sq], tol)
+    assert len(mk) == 1 and abs(mk[0].GetLength() - math.pi * 50) < 1e-3, [m.GetLength() for m in mk]
+    te = TextEntity.Create("RD99", rs.WorldXYPlane(), sc.doc.DimStyles.Current, False, 0, 0)
+    full, markup = RC.add_part(sc.doc, [c], te, mk, sc.doc.CreateDefaultAttributes())
+    try:
+        dy = rs.ViewCPlane().YAxis * RC.UP
+        assert len(full) == 2 and len(markup) == 2
+        assert abs(rs.BoundingBox(full[0])[0].Y - (-100 + dy.Y)) < 1e-6
+        assert abs(rs.BoundingBox(markup[0])[0].Y) < 1e-6
+        assert rs.ObjectGroups(full[0]) == rs.ObjectGroups(full[1]) != rs.ObjectGroups(markup[0])
+    finally:
+        rs.DeleteObjects(full + markup)
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())

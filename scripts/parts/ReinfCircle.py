@@ -5,6 +5,8 @@
 (злам кривої, кінець лінії або перетин ліній). Від кола лишається тільки частина між
 сторонами кута. Деталь лежить на місці, у шарі Parts::Reinforcements, з підписом "RC<n>  R=…"
 у групі. Нумерація RC продовжується між запусками. Вихідні криві не змінюються.
+Як у всіх Reinf (add_part): на панелі лишається тільки розмітка — лінії деталі, що не лежать на кривих
+панелі, + підпис; повна деталь (різ, шов, підпис) — на UP (10000) вгору по Y CPlane, її розкладати Layout.
 Підсилення нашивається поверх матеріалу, тому припуску на шов немає.
 """
 import os
@@ -16,7 +18,7 @@ import scriptcontext as sc
 import Rhino
 from System.Collections.Generic import List
 from Rhino.Geometry import (AreaMassProperties, ArcCurve, Circle, Continuity, Curve, CurveEnd,
-                            CurveExtensionStyle, Plane, Point3d)
+                            CurveExtensionStyle, Plane, Point3d, Transform)
 from Rhino.Geometry.Intersect import Intersection
 
 try:  # стилі тексту PAT для лекал 1:1 (scripts/markup/PatternTextStyles.py)
@@ -28,6 +30,31 @@ except Exception:
 STICKY = "ReinfCircle"
 LAYER = "Parts::Reinforcements"
 PREFIX = "RC"  # Reinforcement Circle; інші форми — свої префікси (RS, RT…)
+UP = 10000.0  # повна деталь — на стільки вгору по Y CPlane від розмітки (як TubePockets)
+
+
+def off_panel(crv, curves, tol):
+    """Розмітка: сегменти crv, що не лежать на curves (лінії панелі не дублюємо), з'єднані."""
+    def on(p):
+        return any(c.PointAt(c.ClosestPoint(p)[1]).DistanceTo(p) <= tol for c in curves)
+    keep = [s for s in crv.DuplicateSegments() or [crv]
+            if not all(on(s.PointAtNormalizedLength(t)) for t in (0.25, 0.5, 0.75))]
+    return list(Curve.JoinCurves(keep, tol)) if keep else []
+
+
+def add_part(doc, full, te, markup, attrs):
+    """Повна деталь (криві full + підпис te) — на UP вгору по Y CPlane, своя група;
+    на місці — розмітка (криві markup + той самий підпис), своя група. Повертає (id повної, id розмітки)."""
+    xf = Transform.Translation(rs.ViewCPlane().YAxis * UP)
+
+    def add(geo):
+        geo = geo.Duplicate()
+        geo.Transform(xf)
+        return doc.Objects.Add(geo, attrs)
+    ids = [add(c) for c in full] + [add(te)], [doc.Objects.AddCurve(c, attrs) for c in markup] + [doc.Objects.AddText(te, attrs)]
+    for g in ids:
+        rs.AddObjectsToGroup(g, rs.AddGroup())
+    return ids
 
 
 def corners(curves, tol):
@@ -140,8 +167,7 @@ def main():
         te = Rhino.Geometry.TextEntity.Create(label, tp, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
-        new = [doc.Objects.AddCurve(crv, attrs), doc.Objects.AddText(te, attrs)]
-        rs.AddObjectsToGroup(new, rs.AddGroup())
+        add_part(doc, [crv], te, off_panel(crv, curves, tol), attrs)
         doc.Views.Redraw()
         print(label)
         n += 1

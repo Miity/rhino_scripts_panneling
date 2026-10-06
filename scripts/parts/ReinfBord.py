@@ -7,6 +7,7 @@
 Опція SA — припуск на шов на внутрішньому краї (типово 0): різ на H + SA, лінія шва на H, у групі.
 Панель не змінюється. Деталь на місці, шар Parts::Reinforcements, підпис "RB<n>  H=…" (≈ H/10, на чверті ребра, вздовж внутрішньої лінії) у групі;
 нумерація RB продовжується між запусками.
+На панелі — розмітка (лише внутрішня лінія H, без ребер панелі), повна деталь — на 10000 вгору (ReinfCircle.add_part).
 """
 import os
 import sys
@@ -19,7 +20,7 @@ from Rhino.Geometry import Curve
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ReinfCircle", "Seam", "CopriZip"):  # Rhino тримає модулі з першого запуску за сесію
     sys.modules.pop(_m, None)
-from ReinfCircle import LAYER, layer, next_number, text_style  # шар, нумерація, стиль PAT ≈ H/10 (як RC)
+from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, text_style  # шар, нумерація, стиль PAT ≈ H/10
 from Seam import label_frame  # напрямок підпису вздовж ребра (читається зліва направо)
 from CopriZip import flap  # ребро кут–кут + офсет, кінці по сусідніх ребрах
 
@@ -110,8 +111,7 @@ def main():
         te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign
-        new = [doc.Objects.AddCurve(c, attrs) for c in [cut] + seams] + [doc.Objects.AddText(te, attrs)]
-        rs.AddObjectsToGroup(new, rs.AddGroup())
+        add_part(doc, [cut] + seams, te, seams or off_panel(cut, [panel], tol), attrs)  # шов = лінія H на панелі
         doc.Views.Redraw()
         print(label)
         if square:
