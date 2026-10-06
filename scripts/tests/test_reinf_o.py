@@ -27,11 +27,14 @@ try:
     assert abs(r - 150) < 1e-6 and abs(AreaMassProperties.Compute(c).Area - pi * 150 * 150 / 4) < 1e-1
     bb = c.GetBoundingBox(True)
     assert bb.Max.Y < 300 + 1e-3 and bb.Max.X < 500 + 1e-3, bb
-    # SA 10 назовні: чверть кола R150 → офсет більший, з усіх боків на 10 (bbox +10)
-    o = M.outward(c, 10, Z, tol)
-    ob = o.GetBoundingBox(True)
-    assert o.IsClosed and abs(ob.Max.Y - 310) < 1e-3 and abs(ob.Max.X - 510) < 1e-3, ob
-    assert AreaMassProperties.Compute(o).Area > AreaMassProperties.Compute(c).Area
+    # SA 10: різ — коло R150, обрізане панеллю + 10 → сторони на 10 зовні, дуга лишається на R150
+    cut, seams, r = M.reinf([panel], Point3d(500, 300, 0), Point3d(400, 300, 0), 50, 10, Z, tol)
+    ob = cut.GetBoundingBox(True)
+    assert cut.IsClosed and abs(r - 150) < 1e-6
+    assert abs(ob.Max.Y - 310) < 1e-3 and abs(ob.Max.X - 510) < 1e-3, ob
+    assert abs(ob.Min.X - (500 - 150)) < 1e-3 and abs(ob.Min.Y - (300 - 150)) < 1e-3, ob  # дуга не зсунута
+    # шов — два ребра панелі всередині кола (150 + 150), без дуги
+    assert abs(sum(c.GetLength() for c in seams) - 300) < 1e-3, [c.GetLength() for c in seams]
     # без межі — повне коло R = 100 + 50
     c, r = M.o_shape([], Point3d(0, 0, 0), Point3d(0, -100, 0), 50, Z, tol)
     assert c.IsClosed and abs(AreaMassProperties.Compute(c).Area - pi * 150 * 150) < 1e-1

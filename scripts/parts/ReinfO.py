@@ -7,8 +7,9 @@
 R = відстань до кліку + Plus (опція, типово 5 см, запам'ятовується). Коло видно наживо. Enter — кінець.
 З панеллю (замкнена крива) лишається тільки частина кола всередині панелі, що торкається центру;
 з відкритими лініями — частина між ними з боку другого кліку.
-Опція SA — припуск на шов (типово 1 см): контур кола — лінія шва, зовні з'являється лінія різу
-на відстані SA, обидві в групі (SA=0 — без припуску). Plus і SA — у запиті другого кліку.
+Опція SA — припуск на шов (типово 1 см, лише з панеллю): сторони по краю панелі виходять назовні на SA
+(дуга лишається на R — на ній шва немає); лінія шва — ребра панелі всередині кола, у групі.
+SA=0 — без припуску. Plus і SA — у запиті другого кліку.
 Деталь лежить на місці,
 шар Parts::Reinforcements, підпис "RO<n>  R=…  SA=…" у групі; нумерація RO продовжується між запусками.
 """
@@ -18,7 +19,7 @@ import sys
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, CurveOffsetCornerStyle, Plane
+from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, CurveOffsetCornerStyle, Plane, PointContainment
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino тримає модулі з першого запуску за сесію
@@ -37,11 +38,12 @@ def o_shape(curves, center, edge, plus, normal, tol):
         return None, r
     circle = ArcCurve(Circle(plane, r))
     closed = [c for c in curves if c.IsClosed]
-    if closed:  # панель: тільки всередині неї, шматок біля центру
+    if closed:  # панель: тільки всередині неї, шматок з центром (або найближчий до нього)
         best = None
         for c in closed:
             for p in Curve.CreateBooleanIntersection(circle, c, tol) or []:
-                gap = center.DistanceTo(p.PointAt(p.ClosestPoint(center)[1]))
+                inside = p.Contains(center, plane, tol) != PointContainment.Outside
+                gap = 0.0 if inside else center.DistanceTo(p.PointAt(p.ClosestPoint(center)[1]))
                 if best is None or gap < best[0]:
                     best = (gap, p)
         return (best[1] if best else None), r
@@ -64,19 +66,49 @@ def outward(crv, d, normal, tol):
     return best[1] if best else None
 
 
+def grow(curves, sa, normal, tol):
+    """Замкнені панелі, розширені назовні на sa (для лінії різу). [] — немає панелі або sa = 0."""
+    if sa <= 0:
+        return []
+    return [g for g in (outward(c, sa, normal, tol) for c in curves if c.IsClosed) if g]
+
+
+def seam_lines(crv, center, r, tol):
+    """Ребра панелі на контурі crv — усе, крім дуги кола (центр center, радіус r)."""
+    keep = [s for s in crv.DuplicateSegments() or [crv]
+            if any(abs(center.DistanceTo(s.PointAtNormalizedLength(t)) - r) > tol for t in (0.25, 0.5, 0.75))]
+    return list(Curve.JoinCurves(keep, tol)) if keep else []
+
+
+def reinf(curves, center, edge, plus, sa, normal, tol, grown=None):
+    """(різ, [лінії шва], R): різ = коло, обрізане панеллю + sa; шов — ребра панелі в колі. різ None — не вийшло."""
+    crv, r = o_shape(curves, center, edge, plus, normal, tol)
+    if grown is None:
+        grown = grow(curves, sa, normal, tol)
+    if crv is None or not grown:
+        return crv, [], r
+    cut = o_shape(grown, center, edge, plus, normal, tol)[0]
+    return cut, (seam_lines(crv, center, r, tol) if cut else []), r
+
+
 def get_edge(curves, center, normal, tol):
     """Друга точка з живим O і опціями Plus, SA. (точка, plus, sa) або None."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     plus = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 50.0 * unit), 0.0, 1e6)
     sa = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_sa", 10.0 * unit), 0.0, 1e6)
 
+    grown = {}  # SA → розширені панелі: офсет панелі не рахуємо на кожен рух миші
+
     def draw(sender, e):
-        c = o_shape(curves, center, e.CurrentPoint, plus.CurrentValue, normal, tol)[0]
-        if c:
-            e.Display.DrawCurve(c, sc.doc.Layers.CurrentLayer.Color, 2)
-            o = outward(c, sa.CurrentValue, normal, tol) if sa.CurrentValue > 0 else None
-            if o:
-                e.Display.DrawCurve(o, sc.doc.Layers.CurrentLayer.Color, 1)
+        s = sa.CurrentValue
+        if s not in grown:
+            grown[s] = grow(curves, s, normal, tol)
+        cut, seams, _ = reinf(curves, center, e.CurrentPoint, plus.CurrentValue, s, normal, tol, grown[s])
+        color = sc.doc.Layers.CurrentLayer.Color
+        if cut:
+            e.Display.DrawCurve(cut, color, 2)
+        for c in seams:
+            e.Display.DrawCurve(c, color, 1)
     gp = Rhino.Input.Custom.GetPoint()
     gp.SetCommandPrompt(u"Клік на лінії: R = відстань до неї + Plus")
     gp.SetBasePoint(center, True)
@@ -112,15 +144,13 @@ def main():
         got = get_edge(curves, center, normal, tol)
         if got is None:
             break
-        crv, r = o_shape(curves, center, got[0], got[1], normal, tol)
+        crv, seams, r = reinf(curves, center, got[0], got[1], got[2], normal, tol)
         if crv is None:
             print(u"Не вдалось вирізати коло (точки збігаються? криві не в площині CPlane?)")
             continue
-        sa = got[2]
-        outer = outward(crv, sa, normal, tol) if sa > 0 else None
-        if sa > 0 and outer is None:
-            print(u"Офсет припуску SA не вдався")
-            continue
+        sa = got[2] if seams else 0  # ponytail: SA лише з замкненою панеллю; з лініями кута — без припуску
+        if got[2] > 0 and not seams:
+            print(u"SA пропущено: потрібна замкнена панель")
         label = u"%s%d  R=%g" % (PREFIX, n, round(r, 1)) + (u"  SA=%g" % sa if sa > 0 else u"")
         amp = AreaMassProperties.Compute(crv)
         tp = Plane(rs.ViewCPlane())
@@ -128,9 +158,7 @@ def main():
         te = Rhino.Geometry.TextEntity.Create(label, tp, text_style(doc, r), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
-        new = [doc.Objects.AddCurve(crv, attrs), doc.Objects.AddText(te, attrs)]
-        if outer:
-            new.append(doc.Objects.AddCurve(outer, attrs))
+        new = [doc.Objects.AddCurve(c, attrs) for c in [crv] + seams] + [doc.Objects.AddText(te, attrs)]
         rs.AddObjectsToGroup(new, rs.AddGroup())
         doc.Views.Redraw()
         print(label)
