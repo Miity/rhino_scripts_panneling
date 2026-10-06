@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Сторінка (Layout) для панелі: вибрати контур(и) панелі → на кожну новий лист A4 з одним detail (Top),
-зум на панель, масштаб — найбільший круглий 1:N, що влазить, detail заблоковано.
-Ім'я листа — номер панелі: UserText Part (Panels.py), інакше підпис P<n> усередині контуру,
+"""Сторінка (Layout) для панелі: виділити об'єкти (контур панелі або будь-які частини) → один новий лист A4
+з одним detail (Top), наведеним на всі виділені разом (як Zoom Selected); масштаб — найбільший круглий 1:N,
+що влазить; detail не заблоковано (можна поправити). Один запуск — один лист.
+Ім'я листа: UserText Part (Panels.py) з виділених, інакше підпис P<n> у межах виділеного,
 інакше наступний вільний P<n> серед листів. Підписи й шари не чіпає.
 """
 import re
@@ -32,12 +33,13 @@ def unique(name, taken):
     return out
 
 
-def panel_name(doc, obj, bb):
-    """UserText Part, інакше текст / TextDot P<n> усередині bb (по XY)."""
+def panel_name(doc, objs, bb):
+    """UserText Part з виділених, інакше текст / TextDot P<n> усередині bb (по XY)."""
     import Rhino
-    part = obj.Attributes.GetUserString("Part")
-    if part:
-        return part
+    for o in objs:
+        part = o.Attributes.GetUserString("Part")
+        if part:
+            return part
     for o in doc.Objects.GetObjectList(Rhino.DocObjects.ObjectType.Annotation | Rhino.DocObjects.ObjectType.TextDot):
         g = o.Geometry
         if isinstance(g, Rhino.Geometry.TextEntity):
@@ -51,25 +53,31 @@ def panel_name(doc, obj, bb):
     return None
 
 
-def make_page(doc, obj, taken):
-    """Лист A4 з detail на obj; повертає (ім'я, N). taken — зайняті імена листів (доповнюється)."""
+def make_page(doc, objs):
+    """Лист A4 з detail на всі objs разом; повертає (ім'я, N)."""
     import Rhino
-    from Rhino.Geometry import Point2d
-    bb = obj.Geometry.GetBoundingBox(True)
-    name = unique(panel_name(doc, obj, bb) or next_name(taken), taken)
-    taken.add(name)
+    from Rhino.Geometry import BoundingBox, Point2d
+    bb = BoundingBox.Empty
+    for o in objs:
+        bb.Union(o.Geometry.GetBoundingBox(True))
+    taken = set(v.PageName for v in doc.Views.GetPageViews())
+    name = unique(panel_name(doc, objs, bb) or next_name(taken), taken)
     pw, ph, n = fit(bb.Max.X - bb.Min.X, bb.Max.Y - bb.Min.Y)
     page = doc.Views.AddPageView(name, pw, ph)
+    page.SetPageAsActive()
+    doc.Views.ActiveView = page
     det = page.AddDetailView(name, Point2d(MARGIN, MARGIN), Point2d(pw - MARGIN, ph - MARGIN),
                              Rhino.Display.DefinedViewportProjection.Top)
     page.SetActiveDetail(det.Id)
-    det.Viewport.ZoomBoundingBox(bb)
+    doc.Views.Redraw()
+    # порядок важливий: CommitChanges (масштаб) перезаписує камеру, тож центр — після нього, окремим commit
     det.DetailGeometry.SetScale(1, doc.ModelUnitSystem, 1.0 / n, doc.PageUnitSystem)
-    det.Viewport.SetCameraTarget(bb.Center, True)  # після масштабу — центр знову на панель
-    det.CommitViewportChanges()
-    det.DetailGeometry.IsProjectionLocked = True
     det.CommitChanges()
+    det = [d for d in page.GetDetailViews() if d.Id == det.Id][0]
+    det.Viewport.SetCameraTarget(bb.Center, True)
+    det.CommitViewportChanges()
     page.SetPageAsActive()
+    doc.Views.Redraw()
     return name, n
 
 
@@ -78,16 +86,12 @@ def main():
     import scriptcontext as sc
 
     go = Rhino.Input.Custom.GetObject()
-    go.SetCommandPrompt(u"Вибери контур(и) панелей — кожна отримає свій лист")
-    go.GeometryFilter = Rhino.DocObjects.ObjectType.Curve
+    go.SetCommandPrompt(u"Виділи об'єкти для листа (панель або її частини) — буде один лист на все виділене")
     go.EnablePreSelect(True, True)
     if go.GetMultiple(1, 0) != Rhino.Input.GetResult.Object:
         return
-    doc = sc.doc
-    taken = set(v.PageName for v in doc.Views.GetPageViews())
-    made = [u"%s 1:%d" % make_page(doc, go.Object(i).Object(), taken) for i in range(go.ObjectCount)]
-    doc.Views.Redraw()
-    print(u"Листи: " + u", ".join(made))
+    name, n = make_page(sc.doc, [go.Object(i).Object() for i in range(go.ObjectCount)])
+    print(u"Лист %s, масштаб 1:%d" % (name, n))
 
 
 if __name__ == "__main__":
