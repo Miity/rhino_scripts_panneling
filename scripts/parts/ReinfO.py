@@ -154,7 +154,7 @@ def main():
         amp = AreaMassProperties.Compute(crv)
         tp = Plane(rs.ViewCPlane())
         tp.Origin = amp.Centroid if amp else center
-        te = Rhino.Geometry.TextEntity.Create(label, tp, text_style(doc, r), False, 0, 0)
+        te = Rhino.Geometry.TextEntity.Create(label, tp, text_style(doc, got[1] or r), False, 0, 0)  # як RD: від смуги Plus
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
         new = [doc.Objects.AddCurve(c, attrs) for c in [crv] + seams] + [doc.Objects.AddText(te, attrs)]
