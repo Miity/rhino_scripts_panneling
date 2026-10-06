@@ -54,6 +54,20 @@ def pick_edge(panel, click, angle, tol):
     return segs, s, e, edge
 
 
+def along_panel(loop, corner, ext, back, tol):
+    """(точка, шматок панелі) від кута по панелі до першого перетину з ext: back — назад за обходом
+    (сусід перед ребром, шматок іде до кута), інакше вперед (шматок від кута). (None, None) — перетину немає."""
+    c = loop.DuplicateCurve()
+    c.ChangeClosedCurveSeam(c.ClosestPoint(corner)[1])  # кут — на шві: шматок не перетинає шов
+    x = [ev.ParameterA for ev in Intersection.CurveCurve(c, ext, tol, tol) or []
+         if ev.PointA.DistanceTo(corner) > tol]
+    if not x:
+        return None, None
+    t = max(x) if back else min(x)
+    piece = c.Trim(t, c.Domain.T1) if back else c.Trim(c.Domain.T0, t)
+    return (c.PointAt(t), piece) if piece else (None, None)
+
+
 def flap(panel, click, w, angle, normal, tol, inward=False):
     """(крива деталі, ребро, офсет, к-сть перпендикулярних кінців) або рядок-помилка.
     inward — деталь усередину панелі (ReinfBord): кінці по самих сусідніх ребрах, а не по їх продовженню."""
@@ -81,24 +95,27 @@ def flap(panel, click, w, angle, normal, tol, inward=False):
     if ext is None:
         return u"не вдалося подовжити офсет"
 
-    ends, square = [], 0
-    for corner, d, t, own in ((edge.PointAtStart, segs[(s - 1) % n].TangentAtEnd * side, t0, off.PointAtStart),
-                              (edge.PointAtEnd, -segs[e].TangentAtStart * side, edge.TangentAtEnd, off.PointAtEnd)):
+    loop = Curve.JoinCurves(segs, tol)[0] if inward else None  # замкнена панель: торці по ній
+    ends, sides, square = [], [], 0
+    for back, corner, d, t, own in ((True, edge.PointAtStart, segs[(s - 1) % n].TangentAtEnd * side, t0, off.PointAtStart),
+                                    (False, edge.PointAtEnd, -segs[e].TangentAtStart * side, edge.TangentAtEnd, off.PointAtEnd)):
         k = d * outward(t)  # sin кута між продовженням сусіда і ребром (з боку деталі)
-        p = None
-        if k >= MIN_SIN:
+        p = piece = None
+        if k >= MIN_SIN and inward:  # по самому сусідньому ребру (воно може гнутись), до лінії офсету
+            p, piece = along_panel(loop, corner, ext, back, tol)
+        elif k >= MIN_SIN:
             x = Intersection.CurveCurve(LineCurve(corner, corner + d * (w / k + big)), ext, tol, tol)
             p = min((ev.PointA for ev in x), key=corner.DistanceTo) if x and x.Count else None
         if p is None:
-            p, square = own, square + 1
+            p, piece, square = own, None, square + 1
         ends.append(p)
+        sides.append(piece or (LineCurve(p, corner) if back else LineCurve(corner, p)))
     ta, tb = ext.ClosestPoint(ends[0])[1], ext.ClosestPoint(ends[1])[1]
     if ta >= tb - tol:
         return u"ребро закоротке для клапана W=%g (продовження сусідів перетнулись)" % w
     top = ext.Trim(ta, tb)
     top.Reverse()
-    joined = Curve.JoinCurves([edge, LineCurve(edge.PointAtEnd, top.PointAtStart), top,
-                               LineCurve(top.PointAtEnd, edge.PointAtStart)], tol)
+    joined = Curve.JoinCurves([edge, sides[1], top, sides[0]], tol)
     if len(joined) != 1 or not joined[0].IsClosed:
         return u"деталь не замкнулась"
     out = joined[0]

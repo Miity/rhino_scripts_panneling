@@ -49,6 +49,18 @@ try:
     import Rhino
     TV = Rhino.DocObjects.TextVerticalAlignment
     assert (va == TV.Bottom) == (pl.YAxis.X > 0), (va, pl.YAxis)
+    # сусіднє ребро — ламана (злам 4.8° < Angle, через 20 від кута): торець іде по панелі, не по дотичній;
+    # розмітка (off_panel) — лише внутрішня лінія x=440, торці на панелі не дублюються
+    panel = poly((0, 0), (500, 0), (500, 300), (480, 300), (0, 340))
+    cut = M.bordino(panel, Point3d(510, 150, 0), 60, 0, 30, Z, tol)[0]
+    top = 300 + 40 * 40 / 480.0
+    assert cut.IsClosed and abs(cut.GetBoundingBox(True).Max.Y - top) < 1e-3, cut.GetBoundingBox(True)
+    assert abs(area(cut) - (60 * 300 + 40 * 40 / 2 * 40 / 480.0)) < 1e-2, area(cut)  # + трикутник під скосом
+    from ReinfCircle import off_panel
+    mk = off_panel(cut, [panel], tol)
+    assert len(mk) == 1 and abs(mk[0].GetLength() - top) < 1e-3, [c.GetLength() for c in mk]
+    cut, seams = M.bordino(panel, Point3d(510, 150, 0), 60, 10, 30, Z, tol)[:2]  # SA: шов — теж лише лінія H
+    assert len(seams) == 1 and abs(seams[0].GetLength() - top) < 1e-3, [c.GetLength() for c in seams]
     # JoinCorner: смуги на правому і верхньому ребрі перекриваються в куті → одна L-подібна деталь
     panel = poly((0, 0), (500, 0), (500, 300), (0, 300))
     a = M.bordino(panel, Point3d(510, 150, 0), 60, 0, 30, Z, tol)[0]
