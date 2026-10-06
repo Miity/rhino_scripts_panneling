@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """Підсилення-«D» під кінець кармана для труби (rinforzo a D).
 Перша точка — верхній кут кармана (центр півкола D), друга — нижній кут (звідки D починається).
-Деталь: прямокутник шириною 2R від другої точки до першої + півколо радіуса R за першою точкою
-(R=50 → ширина 100, за кут кармана виходить на 50). Поки вибираєш другу точку — D видно наживо.
+Деталь: прямокутник шириною W від другої точки до першої + кінець, що виходить за першу точку на R
+(W = 2R — півколо; інакше півеліпс W/2 × R, плавно, не ширший за W). Поки вибираєш другу точку — D видно наживо.
 Цикл: кілька D підряд (обидва кінці кожного кармана), Enter — кінець. Деталь лежить на місці,
-шар Parts::Reinforcements, підпис "RD<n>  R=…" у групі; нумерація RD продовжується між запусками.
-Опція R — у запиті першої точки, запам'ятовується.
+шар Parts::Reinforcements, підпис "RD<n>  W=…  R=…" у групі; нумерація RD продовжується між запусками.
+Опції W і R — у запиті першої точки, запам'ятовуються.
 """
 import os
 import sys
@@ -13,7 +13,7 @@ import sys
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import Arc, ArcCurve, Curve, Plane, Polyline, PolylineCurve, Vector3d
+from Rhino.Geometry import Arc, ArcCurve, Curve, Plane, Polyline, PolylineCurve, Transform, Vector3d
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino тримає модулі з першого запуску за сесію
@@ -23,39 +23,45 @@ STICKY = "ReinfD"
 PREFIX = "RD"  # Reinforcement D
 
 
-def d_shape(top, bottom, r, normal, tol):
-    """Замкнена крива D: прямокутник 2R від bottom до top + півколо радіуса R за top. None — точки збігаються."""
+def d_shape(top, bottom, w, r, normal, tol):
+    """Замкнена крива D: прямокутник ширини w від bottom до top + кінець на r за top
+    (півколо при w = 2r, інакше півеліпс w/2 × r). None — точки збігаються."""
     u = top - bottom
     if u.Length <= tol:
         return None
     u.Unitize()
     v = Vector3d.CrossProduct(normal, u)
     v.Unitize()
-    rect = PolylineCurve(Polyline([top + v * r, bottom + v * r, bottom - v * r, top - v * r]))
-    cap = ArcCurve(Arc(top - v * r, top + u * r, top + v * r))
+    hw = w / 2.0
+    rect = PolylineCurve(Polyline([top + v * hw, bottom + v * hw, bottom - v * hw, top - v * hw]))
+    cap = ArcCurve(Arc(top - v * hw, top + u * hw, top + v * hw)).ToNurbsCurve()
+    cap.Transform(Transform.Scale(Plane(top, u, v), r / hw, 1, 1))  # півколо → півеліпс уздовж осі
     joined = Curve.JoinCurves([rect, cap], tol)
     return joined[0] if len(joined) == 1 and joined[0].IsClosed else None
 
 
 def get_top():
-    """Перша точка з опцією R. (точка, r) або None."""
+    """Перша точка з опціями W і R. (точка, w, r) або None."""
     gp = Rhino.Input.Custom.GetPoint()
     gp.SetCommandPrompt(u"Верхній кут кармана — центр D (Enter — кінець)")
     gp.AcceptNothing(True)
+    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_w", 100.0), 0.001, 1e6)
     r = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 50.0), 0.001, 1e6)
+    gp.AddOptionDouble("W", w)
     gp.AddOptionDouble("R", r)
     while True:
         res = gp.Get()
+        sc.sticky[STICKY + "_w"] = w.CurrentValue
         sc.sticky[STICKY] = r.CurrentValue
         if res == Rhino.Input.GetResult.Option:
             continue
-        return (gp.Point(), r.CurrentValue) if res == Rhino.Input.GetResult.Point else None
+        return (gp.Point(), w.CurrentValue, r.CurrentValue) if res == Rhino.Input.GetResult.Point else None
 
 
-def get_bottom(top, r, normal, tol):
+def get_bottom(top, w, r, normal, tol):
     """Друга точка з живим D. Точка або None."""
     def draw(sender, e):
-        c = d_shape(top, e.CurrentPoint, r, normal, tol)
+        c = d_shape(top, e.CurrentPoint, w, r, normal, tol)
         if c:
             e.Display.DrawCurve(c, sc.doc.Layers.CurrentLayer.Color, 2)
     gp = Rhino.Input.Custom.GetPoint()
@@ -81,18 +87,18 @@ def main():
         got = get_top()
         if got is None:
             break
-        top, r = got
-        bottom = get_bottom(top, r, normal, tol)
+        top, w, r = got
+        bottom = get_bottom(top, w, r, normal, tol)
         if bottom is None:
             break
-        crv = d_shape(top, bottom, r, normal, tol)
+        crv = d_shape(top, bottom, w, r, normal, tol)
         if crv is None:
             print(u"Точки збігаються — пропущено")
             continue
-        label = u"%s%d  R=%g" % (PREFIX, n, r)
+        label = u"%s%d  W=%g  R=%g" % (PREFIX, n, w, r)
         tp = Plane(rs.ViewCPlane())
         tp.Origin = (top + bottom) / 2.0
-        te = Rhino.Geometry.TextEntity.Create(label, tp, text_style(doc, r), False, 0, 0)
+        te = Rhino.Geometry.TextEntity.Create(label, tp, text_style(doc, min(r, w / 2.0)), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
         rs.AddObjectsToGroup([doc.Objects.AddCurve(crv, attrs), doc.Objects.AddText(te, attrs)], rs.AddGroup())

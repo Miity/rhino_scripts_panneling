@@ -17,12 +17,18 @@ try:
 
     Z, tol = Vector3d.ZAxis, 0.001
     # центр D (0,0), низ (0,-100), R 50: прямокутник 100×100 + півколо R50 вгору → y від -100 до 50
-    c = M.d_shape(Point3d(0, 0, 0), Point3d(0, -100, 0), 50, Z, tol)
+    c = M.d_shape(Point3d(0, 0, 0), Point3d(0, -100, 0), 100, 50, Z, tol)
     assert c.IsClosed
     assert abs(AreaMassProperties.Compute(c).Area - (10000 + 3.14159265 * 2500 / 2)) < 1e-2
     bb = c.GetBoundingBox(True)
     assert abs(bb.Min.Y + 100) < 1e-6 and abs(bb.Max.Y - 50) < 1e-6 and abs(bb.Max.X - 50) < 1e-6, bb
-    assert M.d_shape(Point3d(0, 0, 0), Point3d(0, 0, 0), 50, Z, tol) is None
+    assert M.d_shape(Point3d(0, 0, 0), Point3d(0, 0, 0), 100, 50, Z, tol) is None
+    # W 150, R 50: прямокутник 150×100 + півеліпс 75×50 → площа 15000 + π·75·50/2, ширина рівно 150
+    c = M.d_shape(Point3d(0, 0, 0), Point3d(0, -100, 0), 150, 50, Z, tol)
+    assert c.IsClosed
+    assert abs(AreaMassProperties.Compute(c).Area - (15000 + 3.14159265 * 75 * 50 / 2)) < 1e-1
+    bb = c.GetBoundingBox(True)
+    assert abs(bb.Max.Y - 50) < 1e-6 and abs(bb.Max.X - 75) < 1e-6 and abs(bb.Min.X + 75) < 1e-6, bb
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())
