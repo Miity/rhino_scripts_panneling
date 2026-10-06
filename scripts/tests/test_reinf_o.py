@@ -35,6 +35,10 @@ try:
     assert abs(ob.Min.X - (500 - 150)) < 1e-3 and abs(ob.Min.Y - (300 - 150)) < 1e-3, ob  # дуга не зсунута
     # шов — два ребра панелі всередині кола (150 + 150), без дуги
     assert abs(sum(c.GetLength() for c in seams) - 300) < 1e-3, [c.GetLength() for c in seams]
+    # підпис на середині дуги R150 (кут 225°), дотична читається зліва направо, зсув 5 до центру
+    pl, va = M.arc_label(cut, Point3d(500, 300, 0), 150, Z, 5, tol)
+    assert abs(pl.Origin.DistanceTo(Point3d(500, 300, 0)) - 145) < 1e-3, pl.Origin
+    assert pl.XAxis.X > 0 and abs(pl.XAxis * (pl.Origin - Point3d(500, 300, 0))) < 1e-3, pl.XAxis
     # без межі — повне коло R = 100 + 50
     c, r = M.o_shape([], Point3d(0, 0, 0), Point3d(0, -100, 0), 50, Z, tol)
     assert c.IsClosed and abs(AreaMassProperties.Compute(c).Area - pi * 150 * 150) < 1e-1

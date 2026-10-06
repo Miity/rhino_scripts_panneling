@@ -11,7 +11,7 @@ R = відстань до кліку + Plus (опція, типово 5 см, з
 (дуга лишається на R — на ній шва немає); лінія шва — ребра панелі всередині кола, у групі.
 SA=0 — без припуску. Plus і SA — у запиті другого кліку.
 Деталь лежить на місці,
-шар Parts::Reinforcements, підпис "RO<n>" у групі; нумерація RO продовжується між запусками.
+шар Parts::Reinforcements, підпис "RO<n>  R=…" уздовж дуги (усередині) у групі; нумерація RO продовжується між запусками.
 """
 import os
 import sys
@@ -19,7 +19,7 @@ import sys
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, CurveOffsetCornerStyle, Plane, PointContainment
+from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, CurveOffsetCornerStyle, Plane, PointContainment, Vector3d
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino тримає модулі з першого запуску за сесію
@@ -73,11 +73,32 @@ def grow(curves, sa, normal, tol):
     return [g for g in (outward(c, sa, normal, tol) for c in curves if c.IsClosed) if g]
 
 
+def on_circle(s, center, r, tol):
+    return all(abs(center.DistanceTo(s.PointAtNormalizedLength(t)) - r) <= tol for t in (0.25, 0.5, 0.75))
+
+
 def seam_lines(crv, center, r, tol):
     """Ребра панелі на контурі crv — усе, крім дуги кола (центр center, радіус r)."""
-    keep = [s for s in crv.DuplicateSegments() or [crv]
-            if any(abs(center.DistanceTo(s.PointAtNormalizedLength(t)) - r) > tol for t in (0.25, 0.5, 0.75))]
+    keep = [s for s in crv.DuplicateSegments() or [crv] if not on_circle(s, center, r, tol)]
     return list(Curve.JoinCurves(keep, tol)) if keep else []
+
+
+def arc_label(crv, center, r, normal, gap, tol):
+    """(площина тексту, вирівнювання): середина дуги, уздовж дотичної, зсув на gap до центру. None — дуги немає."""
+    arcs = [s for s in crv.DuplicateSegments() or [crv] if on_circle(s, center, r, tol)]
+    if not arcs:
+        return None
+    a = max(arcs, key=lambda s: s.GetLength())
+    ok, t = a.LengthParameter(a.GetLength() / 2.0)
+    m = a.PointAt(t if ok else a.Domain.Mid)
+    u = a.TangentAt(t if ok else a.Domain.Mid)
+    if u.X < -1e-9 or (abs(u.X) < 1e-9 and u.Y < 0):  # текст читається зліва направо
+        u = -u
+    inward = center - m
+    inward.Unitize()
+    plane = Plane(m + inward * gap, u, Vector3d.CrossProduct(normal, u))
+    va = Rhino.DocObjects.TextVerticalAlignment
+    return plane, (va.Bottom if plane.YAxis * inward > 0 else va.Top)
 
 
 def reinf(curves, center, edge, plus, sa, normal, tol, grown=None):
@@ -150,13 +171,16 @@ def main():
             continue
         if got[2] > 0 and not seams:  # ponytail: SA лише з замкненою панеллю; з лініями кута — без припуску
             print(u"SA пропущено: потрібна замкнена панель")
-        label = u"%s%d" % (PREFIX, n)
-        amp = AreaMassProperties.Compute(crv)
-        tp = Plane(rs.ViewCPlane())
-        tp.Origin = amp.Centroid if amp else center
-        te = Rhino.Geometry.TextEntity.Create(label, tp, text_style(doc, got[1] or r), False, 0, 0)  # як RD: від смуги Plus
+        label = u"%s%d  R=%g" % (PREFIX, n, round(r, 1))
+        style = text_style(doc, got[1] or r)  # як RD: від смуги Plus
+        tp, valign = arc_label(crv, center, r, normal, style.TextHeight * 0.5, tol) or \
+            (Plane(rs.ViewCPlane()), Rhino.DocObjects.TextVerticalAlignment.Middle)
+        if valign == Rhino.DocObjects.TextVerticalAlignment.Middle:
+            amp = AreaMassProperties.Compute(crv)
+            tp.Origin = amp.Centroid if amp else center
+        te = Rhino.Geometry.TextEntity.Create(label, tp, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
-        te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
+        te.TextVerticalAlignment = valign
         new = [doc.Objects.AddCurve(c, attrs) for c in [crv] + seams] + [doc.Objects.AddText(te, attrs)]
         rs.AddObjectsToGroup(new, rs.AddGroup())
         doc.Views.Redraw()
