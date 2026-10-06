@@ -11,7 +11,7 @@ R = відстань до кліку + Plus (опція, типово 5 см, з
 (дуга лишається на R — на ній шва немає); лінія шва — ребра панелі всередині кола, у групі.
 SA=0 — без припуску. Plus і SA — у запиті другого кліку.
 Деталь лежить на місці,
-шар Parts::Reinforcements, підпис "RO<n>  R=…" у групі; нумерація RO продовжується між запусками.
+шар Parts::Reinforcements, підпис "RO<n>" у групі; нумерація RO продовжується між запусками.
 """
 import os
 import sys
@@ -150,7 +150,7 @@ def main():
             continue
         if got[2] > 0 and not seams:  # ponytail: SA лише з замкненою панеллю; з лініями кута — без припуску
             print(u"SA пропущено: потрібна замкнена панель")
-        label = u"%s%d  R=%g" % (PREFIX, n, round(r, 1))
+        label = u"%s%d" % (PREFIX, n)
         amp = AreaMassProperties.Compute(crv)
         tp = Plane(rs.ViewCPlane())
         tp.Origin = amp.Centroid if amp else center
