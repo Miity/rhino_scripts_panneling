@@ -11,6 +11,9 @@ Parts::Pockets, з підписом "TP<n>  H=…" у групі; нумерац
 зсунута на H по нормалі в центрі кармана (Rigid=No — стандартний офсет; припуск SA завжди стандартний).
 Опція Hem — запас на підгин торців (+Hem зліва і справа): торець зсувається назовні на Hem, верх і низ
 кармана подовжуються до нього прямо; старий торець лишається в групі як лінія підгину, у підшарі <шар>::Fold (Hem=0 — без запасу).
+На панелі (на місці) лишається тільки розмітка: простий контур кармана (лінія шва → верх, без SA і Hem)
++ підпис, своя група (UserText TP_Markup). Повна деталь для розкрою — на UP (10000) вгору по Y CPlane
+(UserText TP_Up), її і розкладати Layout. Обидві групи пов'язані номером (UserText TP_N).
 Опції W / H / Trim / SA / Hem / Notch / Rigid / Angle — у запиті кліку, запам'ятовуються між запусками.
 """
 import os
@@ -21,7 +24,7 @@ import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
 from Rhino.Geometry import (Curve, CurveEnd, CurveExtensionStyle, CurveOffsetCornerStyle, CurveOrientation, LineCurve,
-                            Polyline, PolylineCurve, Vector3d)
+                            Polyline, PolylineCurve, Transform, Vector3d)
 from Rhino.Geometry.Intersect import Intersection
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -36,6 +39,7 @@ from OffsetRigid import shift  # жорсткий офсет: зсув по но
 STICKY = "TubePockets"
 LAYER = "Parts::Pockets"
 PREFIX = "TP"  # Tube Pocket
+UP = 10000.0  # повна деталь — на стільки вгору по Y CPlane від розмітки на панелі
 
 
 def offset(crv, toward, d, normal, tol):
@@ -109,7 +113,8 @@ def reversed_copy(c):
 
 
 def pocket(crv, click, w, h, trim, sa, notch, normal, tol, rigid=False, hem=0.0):
-    """(контур, лінія шва, мітка центру або None, лінії підгину); рядок — причина, чому не вийшло."""
+    """(контур, лінія шва, мітка центру або None, лінії підгину, простий контур для розмітки);
+    рядок — причина, чому не вийшло."""
     length = crv.GetLength()
     seg = crv.DuplicateCurve() if w <= 0 or w >= length else trim_len(crv, (length - w) / 2.0, (length + w) / 2.0)
     if seg is None:
@@ -127,6 +132,10 @@ def pocket(crv, click, w, h, trim, sa, notch, normal, tol, rigid=False, hem=0.0)
     outer = offset(seg, away, sa, normal, tol) if sa > 0 else seg.DuplicateCurve()
     if outer is None:
         return u"офсет припуску SA не вдався"
+    simple = Curve.JoinCurves([seg, inner, end_side(seg, seg, inner, tol),
+                               end_side(reversed_copy(seg), reversed_copy(seg), reversed_copy(inner), tol)], tol)
+    if len(simple) != 1 or not simple[0].IsClosed:
+        return u"контур розмітки не замкнувся"
     folds = []
     if hem > 0:
         a = hem_start(outer, seg, inner, hem, normal, tol)
@@ -151,33 +160,49 @@ def pocket(crv, click, w, h, trim, sa, notch, normal, tol, rigid=False, hem=0.0)
         d.Unitize()
         # ponytail: заходить на H/10 у карман від лінії шва; якщо треба фіксовану глибину — окрема опція.
         mark = LineCurve(outer.PointAt(outer.ClosestPoint(m)[1]) if sa > 0 else m, m + d * (h / 10.0))
-    return joined[0], seg, mark, folds
+    return joined[0], seg, mark, folds, simple[0]
 
 
-def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False, hem=0.0):
-    """Додає карман (контур, лінія шва, мітка, лінії підгину, підпис) у групу; параметри — UserText для UpdateTubePockets."""
-    outline, seg, mark, folds, toward = res
-    new = [doc.Objects.AddCurve(outline, attrs)]
-    if folds:
-        fa = attrs.Duplicate()
-        fa.LayerIndex = fold_layer(doc, attrs.LayerIndex)
-        new += [doc.Objects.AddCurve(f, fa) for f in folds]
-    if sa > 0:
-        new.append(doc.Objects.AddCurve(seg, attrs))  # лінія шва
-    if mark:
-        new.append(doc.Objects.AddCurve(mark, attrs))
-    label = u"%s%d  H=%g" % (PREFIX, n, h)
-    te = Rhino.Geometry.TextEntity.Create(label, label_frame(seg, pocket_side(seg, toward, h, normal, tol, rigid), normal),
+def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False, hem=0.0, up=None):
+    """Додає карман: res (контур, лінія шва, мітка, лінії підгину, простий контур, toward) — на місці.
+    up=None — повна деталь на місці (старі кармани); інакше повна деталь зсувається на up,
+    а на місці лишається розмітка (простий контур + підпис). Параметри — UserText для UpdateTubePockets."""
+    outline, seg, mark, folds, simple, toward = res
+    xf = Transform.Translation(up if up is not None else Vector3d.Zero)
+    te = Rhino.Geometry.TextEntity.Create(u"%s%d  H=%g" % (PREFIX, n, h),
+                                          label_frame(seg, pocket_side(seg, toward, h, normal, tol, rigid), normal),
                                           text_style(doc, h / 4.0), False, 0, 0)
     te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
     te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
-    new.append(doc.Objects.AddText(te, attrs))
-    for o in new:
-        for k, v in (("H", h), ("Trim", trim), ("SA", sa), ("Notch", int(notch)), ("Rigid", int(rigid)), ("Hem", hem)):
-            rs.SetUserText(o, "TP_" + k, "%g" % v)
-    rs.AddObjectsToGroup(new, rs.AddGroup())
+
+    def add(geo, a):
+        geo = geo.Duplicate()
+        geo.Transform(xf)
+        return doc.Objects.Add(geo, a)
+
+    fa = attrs.Duplicate()
+    fa.LayerIndex = fold_layer(doc, attrs.LayerIndex) if folds else attrs.LayerIndex
+    full = [add(outline, attrs)] + [add(f, fa) for f in folds]
+    if sa > 0:
+        full.append(add(seg, attrs))  # лінія шва
+    if mark:
+        full.append(add(mark, attrs))
+    full.append(add(te, attrs))
+    groups = [full]
+    if up is not None:
+        groups.append([doc.Objects.AddCurve(simple, attrs), doc.Objects.AddText(te, attrs)])
+    for i, ids in enumerate(groups):
+        for o in ids:
+            for k, v in (("H", h), ("Trim", trim), ("SA", sa), ("Notch", int(notch)), ("Rigid", int(rigid)),
+                         ("Hem", hem), ("N", n)):
+                rs.SetUserText(o, "TP_" + k, "%g" % v)
+            if up is not None:
+                rs.SetUserText(o, "TP_Up", "%r,%r,%r" % (up.X, up.Y, up.Z))
+            if i == 1:
+                rs.SetUserText(o, "TP_Markup", "1")
+        rs.AddObjectsToGroup(ids, rs.AddGroup())
     doc.Views.Redraw()
-    return label
+    return u"%s%d  H=%g" % (PREFIX, n, h)
 
 
 def fold_layer(doc, index):
@@ -282,7 +307,8 @@ def main():
             print(u"Пропущено: " + res)
             continue
         res = res + (toward,)
-        label = add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid, hem)
+        label = add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid, hem,
+                           rs.ViewCPlane().YAxis * UP)
         print(label)
         n += 1
         made += 1

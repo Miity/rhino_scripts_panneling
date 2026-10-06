@@ -18,7 +18,7 @@ try:
     Z, tol = Vector3d.ZAxis, 0.001
     line = LineCurve(Point3d(0, 0, 0), Point3d(1000, 0, 0))
     # W 600 по центру, H 100 вгору, Trim 50, SA 10 вниз: трапеція (600+500)/2·100 + 600·10
-    outline, seg, mark, folds = M.pocket(line, Point3d(300, 40, 0), 600, 100, 50, 10, True, Z, tol)
+    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 50, 10, True, Z, tol)
     assert outline.IsClosed
     assert abs(AreaMassProperties.Compute(outline).Area - 61000) < 1e-3
     assert abs(seg.PointAtStart.X - 200) < 1e-6 and abs(seg.PointAtEnd.X - 800) < 1e-6
@@ -27,7 +27,7 @@ try:
     bb = outline.GetBoundingBox(True)
     assert abs(bb.Min.Y + 10) < 1e-6 and abs(bb.Max.Y - 100) < 1e-6
     # W 0 — уся лінія; клік знизу → карман вниз, без SA
-    outline, seg, mark, folds = M.pocket(line, Point3d(300, -40, 0), 0, 100, 50, 0, False, Z, tol)
+    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, -40, 0), 0, 100, 50, 0, False, Z, tol)
     assert abs(AreaMassProperties.Compute(outline).Area - 95000) < 1e-3 and mark is None
     assert outline.GetBoundingBox(True).Min.Y < -99
     # Trim завеликий → причина рядком
@@ -39,7 +39,7 @@ try:
         panel = PolylineCurve(Polyline(order))
         edge = M.pick_edge(panel, Point3d(400, 520, 0), 30, tol)[3]
         assert abs(edge.GetLength() - 1000) < 1e-6 and abs(edge.PointAtStart.Y - 500) < 1e-6
-        outline, seg, mark, folds = M.pocket(edge, M.inward(panel, edge, Z), 600, 100, 50, 10, True, Z, tol)
+        outline, seg, mark, folds, simple = M.pocket(edge, M.inward(panel, edge, Z), 600, 100, 50, 10, True, Z, tol)
         bb = outline.GetBoundingBox(True)
         assert abs(bb.Min.Y - 400) < 1e-6 and abs(bb.Max.Y - 510) < 1e-6, bb
         assert abs(AreaMassProperties.Compute(outline).Area - 61000) < 1e-3
@@ -82,6 +82,29 @@ try:
     finally:
         rs.DeleteObjects(ids)
         rs.DeleteLayer(base + "::Fold")
+    # розмітка на місці + повна деталь на up: простий контур = трапеція 55000 без SA; Update бачить пару
+    up = Vector3d(0, 10000, 0)
+    res = M.pocket(line, toward, 600, 100, 50, 10, True, Z, tol, False, 20)
+    assert abs(AreaMassProperties.Compute(res[4]).Area - 55000) < 1e-3
+    before = set(rs.AllObjects() or [])
+    M.add_pocket(sc.doc, res + (toward,), 100, 50, 10, True, 9, attrs, Z, tol, False, 20, up)
+    ids = [o for o in rs.AllObjects() if o not in before]
+    try:
+        markup = [o for o in ids if rs.GetUserText(o, "TP_Markup")]
+        full = [o for o in ids if o not in markup]
+        assert len(markup) == 2 and rs.ObjectGroups(markup[0]) == rs.ObjectGroups(markup[1])
+        assert all(rs.BoundingBox(o)[0].Y < 1000 for o in markup)
+        assert all(rs.BoundingBox(o)[0].Y > 9000 for o in full) and len(full) == 6  # контур, 2 підгини, шов, мітка, текст
+        assert set(U.tagged(markup[0], "9", False)) == set(o for o in full if rs.ObjectLayer(o) == rs.ObjectLayer(markup[0]))
+        p = U.read_pocket(rs.ObjectsByGroup(rs.ObjectGroups(full[0])[0]), tol)
+        assert p["up"] == up and set(p["markup"]) == set(markup) and p["n"] == 9, p
+        seg = p["seg"].DuplicateCurve()
+        seg.Translate(-up)
+        assert abs(seg.PointAtStart.Y) < 1e-6  # лінія шва повертається на місце розмітки
+    finally:
+        rs.DeleteObjects(ids)
+        if rs.IsLayer(base + "::Fold"):
+            rs.DeleteLayer(base + "::Fold")
     # Rigid: дуга R1000 (45°..135°), карман до центру H 100: жорсткий — та сама довжина, центр зсунутий рівно на H;
     # стандартний — дуга R900 (коротша в 0.9)
     from Rhino.Geometry import Arc, ArcCurve
@@ -95,12 +118,12 @@ try:
     res = M.pocket(arc, Point3d(0, 0, 0), 0, 100, 50, 10, True, Z, tol, True)
     assert isinstance(res, tuple) and res[0].IsClosed, res
     # Hem 20: прямокутний карман (Trim 0) 600×100 + SA 10 → торці назовні на 20: 640×110, дві лінії підгину x=200 / 800
-    outline, seg, mark, folds = M.pocket(line, Point3d(300, 40, 0), 600, 100, 0, 10, False, Z, tol, False, 20)
+    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 0, 10, False, Z, tol, False, 20)
     assert abs(AreaMassProperties.Compute(outline).Area - 70400) < 1e-3
     assert len(folds) == 2 and sorted(round(f.PointAtStart.X) for f in folds) == [200, 800]
     assert abs(folds[0].GetLength() - 110) < 1e-6
     # з Trim 50 (косий торець): низ SA подовжується до x=180, верх — далі від краю; контур замкнений
-    outline, seg, mark, folds = M.pocket(line, Point3d(300, 40, 0), 600, 100, 50, 10, False, Z, tol, False, 20)
+    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 50, 10, False, Z, tol, False, 20)
     bb = outline.GetBoundingBox(True)
     assert outline.IsClosed and abs(bb.Min.X - 180) < 1e-6 and abs(bb.Max.X - 820) < 1e-6, bb
     assert AreaMassProperties.Compute(outline).Area > 61000 + 2 * 20 * 110

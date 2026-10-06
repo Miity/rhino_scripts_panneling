@@ -4,6 +4,7 @@
 на місці, з тим самим номером TP<n>, шаром і боком. Змінюються тільки ті параметри, які ти змінив
 в опціях; решта — свої в кожного кармана. Параметри читаються з UserText (TP_H…); у старих карманах
 без UserText — з геометрії (H з підпису, SA і Trim — з контуру).
+Карман = розмітка на панелі + повна деталь угорі (TP_Up): можна вибрати будь-яку з них, перебудовуються обидві.
 """
 import os
 import re
@@ -19,6 +20,12 @@ import TubePockets as TP
 
 KEYS = ("H", "Trim", "SA", "Hem", "Notch", "Rigid")
 TOGGLES = ("Notch", "Rigid")
+
+
+def tagged(near, n, markup):
+    """Об'єкти в шарі near з UserText TP_N == n: розмітка (markup) або повна деталь."""
+    return [o for o in rs.ObjectsByLayer(rs.ObjectLayer(near)) or []
+            if rs.GetUserText(o, "TP_N") == n and bool(rs.GetUserText(o, "TP_Markup")) == markup]
 
 
 def read_pocket(ids, tol):
@@ -51,6 +58,9 @@ def read_pocket(ids, tol):
         v = rs.GetUserText(ids[0], "TP_" + k)
         if v:
             vals[k] = float(v)
+    up = rs.GetUserText(outline_ids[0], "TP_Up")
+    vals["up"] = Rhino.Geometry.Vector3d(*[float(x) for x in up.split(",")]) if up else None
+    vals["markup"] = tagged(outline_ids[0], rs.GetUserText(outline_ids[0], "TP_N"), True) if up else []
     vals.update(n=int(m.group(1)), seg=seg, toward=toward, normal=normal, ids=ids,
                 attrs=sc.doc.Objects.FindId(rs.coerceguid(outline_ids[0])).Attributes.Duplicate())  # шар контуру, не Fold
     return vals
@@ -68,7 +78,18 @@ def main():
         if g is None or g in groups:
             continue
         groups.add(g)
-        res = read_pocket(rs.ObjectsByGroup(g), tol)
+        ids = rs.ObjectsByGroup(g)
+        if rs.GetUserText(ids[0], "TP_Markup"):  # вибрано розмітку на панелі → повна деталь угорі
+            full = tagged(ids[0], rs.GetUserText(ids[0], "TP_N"), False)
+            g = full and (rs.ObjectGroups(full[0]) or [None])[0]
+            if not g:
+                print(u"Пропущено: немає повної деталі для розмітки TP%s" % rs.GetUserText(ids[0], "TP_N"))
+                continue
+            if g in groups:
+                continue
+            groups.add(g)
+            ids = rs.ObjectsByGroup(g)
+        res = read_pocket(ids, tol)
         if isinstance(res, dict):
             pockets.append(res)
         else:
@@ -100,13 +121,19 @@ def main():
         p.update(changed)
         h, trim, sa, notch, rigid = p["H"], p["Trim"], p["SA"], bool(p["Notch"]), bool(p["Rigid"])
         hem = p["Hem"]
-        res = TP.pocket(p["seg"], p["toward"], 0, h, trim, sa, notch, p["normal"], tol, rigid, hem)
+        seg, toward, up = p["seg"], p["toward"], p["up"]
+        if up is not None:  # будуємо на місці розмітки, повна деталь знову піде на up
+            seg = seg.DuplicateCurve()
+            seg.Translate(-up)
+            toward = toward - up
+        res = TP.pocket(seg, toward, 0, h, trim, sa, notch, p["normal"], tol, rigid, hem)
         if not isinstance(res, tuple):
             print(u"TP%d пропущено: %s" % (p["n"], res))
             continue
         p["attrs"].RemoveFromAllGroups()
-        rs.DeleteObjects(p["ids"])
-        print(u"Оновлено: " + TP.add_pocket(doc, res + (p["toward"],), h, trim, sa, notch, p["n"], p["attrs"], p["normal"], tol, rigid, hem))
+        rs.DeleteObjects(list(p["ids"]) + p["markup"])
+        print(u"Оновлено: " + TP.add_pocket(doc, res + (toward,), h, trim, sa, notch, p["n"], p["attrs"], p["normal"],
+                                           tol, rigid, hem, up))
     print(u"Змінено: " + ", ".join(u"%s=%g" % kv for kv in sorted(changed.items())))
 
 
