@@ -6,9 +6,9 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
 import PanelPage as M
 
-assert M.fit(2000, 800) == (297.0, 210.0, 10)   # широка панель → горизонтальний A4, 1:10
-assert M.fit(800, 2000) == (210.0, 297.0, 10)   # висока → вертикальний
-assert M.fit(3000, 1000)[2] == 15
+assert M.fit(800, 2000) == (210.0, 297.0, 10)   # завжди вертикальний A4
+assert M.fit(2000, 800) == (210.0, 297.0, 15)   # широка: 2000 / 10 не влазить у 190 мм → 1:15
+assert M.fit(3000, 1000)[2] == 20
 assert M.fit(100, 50)[2] == 1
 assert M.next_name(set()) == "P1"
 assert M.next_name({"P1", "P3", "Schema", "Legenda"}) == "P4"
