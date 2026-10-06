@@ -208,7 +208,7 @@ def dot(message, xy, z, layer_name):
 
 
 def main():
-    ids = rs.GetObjects(u'Виберіть замкнені полілінії різу',
+    ids = rs.GetObjects(u'Select closed cut polylines',
                         rs.filter.curve, preselect=True)
     if not ids:
         return
@@ -217,15 +217,15 @@ def main():
         Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     if mm_to_doc <= 0.0:
         mm_to_doc = 1.0
-    min_gap = rs.GetReal(u'Мінімальний допустимий проміжок (одиниці документа)',
+    min_gap = rs.GetReal(u'Minimum allowed gap (document units)',
                          5.0 * mm_to_doc, tolerance)
     if min_gap is None:
         return
-    min_area = rs.GetReal(u'Мінімальна площа деталі (кв. одиниці документа)',
+    min_area = rs.GetReal(u'Minimum part area (sq. document units)',
                           25.0 * mm_to_doc * mm_to_doc, 0.0)
     if min_area is None:
         return
-    turn_degrees = rs.GetReal(u'Позначати повороти ножа від (градуси)',
+    turn_degrees = rs.GetReal(u'Mark knife turns from (degrees)',
                               120.0, 0.0, 180.0)
     if turn_degrees is None:
         return
@@ -252,10 +252,10 @@ def main():
         valid_ids.append(object_id)
         z_values.append(z)
     if not contours:
-        print(u'Замкнених плоских поліліній не знайдено.')
+        print(u'No closed planar polylines found.')
         return
     if max(z_values) - min(z_values) > tolerance:
-        print(u'Контури лежать на різних висотах Z; перевірте площину різу.')
+        print(u'Contours lie at different Z heights; check the cut plane.')
         return
 
     between, within, small, turns = scan(contours, min_gap,
@@ -282,13 +282,13 @@ def main():
             dot('T %.0f' % angle, p, z, turn_layer)
     finally:
         rs.EnableRedraw(True)
-    print(u'Перевірено контурів: %d; пропущено: %d.' %
+    print(u'Contours checked: %d; skipped: %d.' %
           (len(contours), skipped))
-    print(u'Проміжки між контурами: %d; вузькі місця в контурі: %d; '
-          u'малі деталі: %d; різкі повороти: %d.' %
+    print(u'Gaps between contours: %d; narrow spots in a contour: %d; '
+          u'small parts: %d; sharp turns: %d.' %
           (len(between), len(within), len(small), len(turns)))
-    print(u'G — між контурами; W — ширина в одному контурі; '
-          u'A — площа; T — поворот ножа. Оригінальні криві не змінено.')
+    print(u'G — between contours; W — width within one contour; '
+          u'A — area; T — knife turn. Original curves unchanged.')
 
 
 if __name__ == '__main__':

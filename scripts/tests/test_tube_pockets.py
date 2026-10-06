@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Перевірка TubePockets.pocket у Rhino 8 (потрібен RhinoCommon):
-DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <цей файл>
-Результат пишеться в test_tube_pockets.txt поруч."""
+"""Check of TubePockets.pocket in Rhino 8 (needs RhinoCommon):
+DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
+The result is written to test_tube_pockets.txt next to it."""
 import os
 import sys
 import traceback
@@ -11,28 +11,28 @@ out = open(os.path.join(HERE, "test_tube_pockets.txt"), "w")
 try:
     from Rhino.Geometry import AreaMassProperties, LineCurve, Point3d, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
-    for m in ("CopriZip", "Seam", "OffsetRigid", "TubePockets"):  # живий Rhino тримає старі версії модулів
+    for m in ("ZipCover", "Seam", "OffsetRigid", "TubePockets"):  # live Rhino keeps old module versions
         sys.modules.pop(m, None)
     import TubePockets as M
 
     Z, tol = Vector3d.ZAxis, 0.001
     line = LineCurve(Point3d(0, 0, 0), Point3d(1000, 0, 0))
-    # W 600 по центру, H 100 вгору, Trim 50, SA 10 вниз: трапеція (600+500)/2·100 + 600·10
+    # W 600 centred, H 100 up, Trim 50, SA 10 down: trapezoid (600+500)/2·100 + 600·10
     outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 50, 10, True, Z, tol)
     assert outline.IsClosed
     assert abs(AreaMassProperties.Compute(outline).Area - 61000) < 1e-3
     assert abs(seg.PointAtStart.X - 200) < 1e-6 and abs(seg.PointAtEnd.X - 800) < 1e-6
     assert abs(mark.PointAtStart.X - 500) < 1e-6 and abs(mark.PointAtStart.Y + 10) < 1e-6
-    assert abs(mark.PointAtEnd.Y - 10) < 1e-6  # H/10 у карман
+    assert abs(mark.PointAtEnd.Y - 10) < 1e-6  # H/10 into the pocket
     bb = outline.GetBoundingBox(True)
     assert abs(bb.Min.Y + 10) < 1e-6 and abs(bb.Max.Y - 100) < 1e-6
-    # W 0 — уся лінія; клік знизу → карман вниз, без SA
+    # W 0 — the whole line; click below → pocket downward, no SA
     outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, -40, 0), 0, 100, 50, 0, False, Z, tol)
     assert abs(AreaMassProperties.Compute(outline).Area - 95000) < 1e-3 and mark is None
     assert outline.GetBoundingBox(True).Min.Y < -99
-    # Trim завеликий → причина рядком
+    # Trim too large → reason as a string
     assert not isinstance(M.pocket(line, Point3d(0, 40, 0), 80, 100, 50, 10, False, Z, tol), tuple)
-    # панель 1000×500: клік біля верхнього ребра → карман униз (всередину), SA вгору; обидва напрямки обходу
+    # panel 1000×500: click near the top edge → pocket downward (inward), SA upward; both directions
     from Rhino.Geometry import Polyline, PolylineCurve
     pts = [Point3d(0, 0, 0), Point3d(1000, 0, 0), Point3d(1000, 500, 0), Point3d(0, 500, 0), Point3d(0, 0, 0)]
     for order in (pts, pts[::-1]):
@@ -43,7 +43,7 @@ try:
         bb = outline.GetBoundingBox(True)
         assert abs(bb.Min.Y - 400) < 1e-6 and abs(bb.Max.Y - 510) < 1e-6, bb
         assert abs(AreaMassProperties.Compute(outline).Area - 61000) < 1e-3
-    # UpdateTubePockets.read_pocket: карман у документі → параметри; без UserText — з геометрії
+    # UpdateTubePockets.read_pocket: pocket in the document → parameters; without UserText — from geometry
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
     sys.modules.pop("UpdateTubePockets", None)
@@ -67,7 +67,7 @@ try:
             assert abs(AreaMassProperties.Compute(r[0]).Area - 63000) < 1e-3
     finally:
         rs.DeleteObjects(ids)
-    # Hem: лінії підгину в підшарі <шар>::Fold, у групі; Update бере шар контуру і Hem з UserText
+    # Hem: fold lines in sublayer <layer>::Fold, in the group; Update takes the contour layer and Hem from UserText
     res = M.pocket(line, toward, 600, 100, 0, 10, False, Z, tol, False, 20) + (toward,)
     attrs = sc.doc.CreateDefaultAttributes()
     before = set(rs.AllObjects() or [])
@@ -82,7 +82,7 @@ try:
     finally:
         rs.DeleteObjects(ids)
         rs.DeleteLayer(base + "::Fold")
-    # розмітка на місці + повна деталь на up: розмітка — відкрита (торці + верх, без лінії шва); Update бачить пару
+    # markup in place + full part at up: markup is open (ends + top, without seam line); Update sees the pair
     up = Vector3d(0, 10000, 0)
     res = M.pocket(line, toward, 600, 100, 50, 10, True, Z, tol, False, 20)
     assert not res[4].IsClosed and abs(res[4].GetLength() - (500 + 2 * (50 ** 2 + 100 ** 2) ** 0.5)) < 1e-6
@@ -94,19 +94,19 @@ try:
         full = [o for o in ids if o not in markup]
         assert len(markup) == 2 and rs.ObjectGroups(markup[0]) == rs.ObjectGroups(markup[1])
         assert all(rs.BoundingBox(o)[0].Y < 1000 for o in markup)
-        assert all(rs.BoundingBox(o)[0].Y > 9000 for o in full) and len(full) == 6  # контур, 2 підгини, шов, мітка, текст
+        assert all(rs.BoundingBox(o)[0].Y > 9000 for o in full) and len(full) == 6  # contour, 2 folds, seam, mark, text
         assert set(U.tagged(markup[0], "9", False)) == set(o for o in full if rs.ObjectLayer(o) == rs.ObjectLayer(markup[0]))
         p = U.read_pocket(rs.ObjectsByGroup(rs.ObjectGroups(full[0])[0]), tol)
         assert p["up"] == up and set(p["markup"]) == set(markup) and p["n"] == 9, p
         seg = p["seg"].DuplicateCurve()
         seg.Translate(-up)
-        assert abs(seg.PointAtStart.Y) < 1e-6  # лінія шва повертається на місце розмітки
+        assert abs(seg.PointAtStart.Y) < 1e-6  # the seam line returns to the markup position
     finally:
         rs.DeleteObjects(ids)
         if rs.IsLayer(base + "::Fold"):
             rs.DeleteLayer(base + "::Fold")
-    # Rigid: дуга R1000 (45°..135°), карман до центру H 100: жорсткий — та сама довжина, центр зсунутий рівно на H;
-    # стандартний — дуга R900 (коротша в 0.9)
+    # Rigid: arc R1000 (45°..135°), pocket towards the centre H 100: rigid — same length, centre moved exactly by H;
+    # standard — arc R900 (shorter by 0.9)
     from Rhino.Geometry import Arc, ArcCurve
     import math
     arc = ArcCurve(Arc(Point3d(707.1068, 707.1068, 0), Point3d(0, 1000, 0), Point3d(-707.1068, 707.1068, 0)))
@@ -117,17 +117,17 @@ try:
     assert abs(std.GetLength() - 0.9 * arc.GetLength()) < 1e-2
     res = M.pocket(arc, Point3d(0, 0, 0), 0, 100, 50, 10, True, Z, tol, True)
     assert isinstance(res, tuple) and res[0].IsClosed, res
-    # Hem 20: прямокутний карман (Trim 0) 600×100 + SA 10 → торці назовні на 20: 640×110, дві лінії підгину x=200 / 800
+    # Hem 20: rectangular pocket (Trim 0) 600×100 + SA 10 → ends outward by 20: 640×110, two fold lines x=200 / 800
     outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 0, 10, False, Z, tol, False, 20)
     assert abs(AreaMassProperties.Compute(outline).Area - 70400) < 1e-3
     assert len(folds) == 2 and sorted(round(f.PointAtStart.X) for f in folds) == [200, 800]
     assert abs(folds[0].GetLength() - 110) < 1e-6
-    # з Trim 50 (косий торець): низ SA подовжується до x=180, верх — далі від краю; контур замкнений
+    # with Trim 50 (slanted end): bottom SA extends to x=180, top — farther from the edge; contour closed
     outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 50, 10, False, Z, tol, False, 20)
     bb = outline.GetBoundingBox(True)
     assert outline.IsClosed and abs(bb.Min.X - 180) < 1e-6 and abs(bb.Max.X - 820) < 1e-6, bb
     assert AreaMassProperties.Compute(outline).Area > 61000 + 2 * 20 * 110
-    # Hem на дузі з Rigid
+    # Hem on an arc with Rigid
     res = M.pocket(arc, Point3d(0, 0, 0), 0, 100, 50, 10, True, Z, tol, True, 20)
     assert isinstance(res, tuple) and res[0].IsClosed and len(res[3]) == 2, res
     out.write("OK\n")

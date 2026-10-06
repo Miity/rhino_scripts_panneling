@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Підсилення-«O» під кінець кармана на всю ширину панелі (rinforzo a O).
-Як ReinfD, але без прямокутника: карман доходить до краю панелі, тож підсилення — коло
-з центром у верхньому куті кармана, обрізане панеллю.
-Вибираєш межу (панель або лінії кута; Enter — без обрізки, повне коло). Далі в циклі:
-перша точка — верхній кут кармана (центр кола), друга — клік на лінії (напр. другий бік кармана):
-R = відстань до кліку + Plus (опція, типово 5 см, запам'ятовується). Коло видно наживо. Enter — кінець.
-З панеллю (замкнена крива) лишається тільки частина кола всередині панелі, що торкається центру;
-з відкритими лініями — частина між ними з боку другого кліку.
-Опція SA — припуск на шов (типово 1 см, лише з панеллю): сторони по краю панелі виходять назовні на SA
-(дуга лишається на R — на ній шва немає); лінія шва — ребра панелі всередині кола, у групі.
-SA=0 — без припуску. Plus і SA — у запиті другого кліку.
-Деталь лежить на місці,
-шар Parts::Reinforcements, підпис "RO<n>  R=…" уздовж дуги (усередині) у групі; нумерація RO продовжується між запусками.
-Опція Layout (типово Yes, у запиті другого кліку): на панелі — розмітка (тільки дуга, без ребер панелі),
-повна деталь — на 10000 вгору (ReinfCircle.add_part); No — повна деталь на місці.
+""""O" reinforcement at the end of a full-width pocket.
+Like ReinfD, but without the rectangle: the pocket reaches the panel edge, so the reinforcement is a circle
+centred at the top corner of the pocket, trimmed by the panel.
+Select a boundary (panel or corner lines; Enter — no trimming, full circle). Then in a loop:
+first point — top corner of the pocket (circle centre), second — a click on a line (e.g. the other side of the pocket):
+R = distance to the click + Plus (option, default 5 cm, remembered). The circle is shown live. Enter — done.
+With a panel (closed curve) only the part of the circle inside the panel touching the centre is kept;
+with open lines — the part between them on the side of the second click.
+Option SA — seam allowance (default 1 cm, panel only): sides along the panel edge extend outward by SA
+(the arc stays at R — no seam on it); seam line — panel edges inside the circle, in the group.
+SA=0 — no allowance. Plus and SA — in the second click prompt.
+The part lies in place,
+layer Parts::Reinforcements, label "RO<n>  R=…" along the arc (inside) in a group; RO numbering continues between runs.
+Option Layout (default Yes, in the second click prompt): on the panel — markup (arc only, without panel edges),
+full part — 10000 up (ReinfCircle.add_part); No — full part in place.
 """
 import os
 import sys
@@ -24,15 +24,15 @@ import scriptcontext as sc
 from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, CurveOffsetCornerStyle, Plane, PointContainment, Vector3d
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.modules.pop("ReinfCircle", None)  # Rhino тримає модулі з першого запуску за сесію
-from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, piece, text_style  # шар, нумерація, обрізка, стиль PAT
+sys.modules.pop("ReinfCircle", None)  # Rhino keeps modules from the first run for the session
+from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, piece, text_style  # layer, numbering, trimming, PAT style
 
 STICKY = "ReinfO"
 PREFIX = "RO"  # Reinforcement O
 
 
 def o_shape(curves, center, edge, plus, normal, tol):
-    """Коло (центр center, R = відстань до edge + plus), обрізане curves. (крива або None, R)."""
+    """Circle (centre center, R = distance to edge + plus) trimmed by curves. (curve or None, R)."""
     plane = Plane(center, normal)
     d = plane.ClosestPoint(edge).DistanceTo(center)
     r = d + plus
@@ -40,7 +40,7 @@ def o_shape(curves, center, edge, plus, normal, tol):
         return None, r
     circle = ArcCurve(Circle(plane, r))
     closed = [c for c in curves if c.IsClosed]
-    if closed:  # панель: тільки всередині неї, шматок з центром (або найближчий до нього)
+    if closed:  # panel: only inside it, the piece containing the centre (or closest to it)
         best = None
         for c in closed:
             for p in Curve.CreateBooleanIntersection(circle, c, tol) or []:
@@ -55,7 +55,7 @@ def o_shape(curves, center, edge, plus, normal, tol):
 
 
 def outward(crv, d, normal, tol):
-    """Офсет замкненої crv на d назовні (з двох боків той, що більший). None — не вдався."""
+    """Offset of closed crv by d outward (of the two sides, the larger one). None — failed."""
     plane = Plane(crv.PointAtStart, normal)
     best = None
     for s in (d, -d):
@@ -69,7 +69,7 @@ def outward(crv, d, normal, tol):
 
 
 def grow(curves, sa, normal, tol):
-    """Замкнені панелі, розширені назовні на sa (для лінії різу). [] — немає панелі або sa = 0."""
+    """Closed panels grown outward by sa (for the cut line). [] — no panel or sa = 0."""
     if sa <= 0:
         return []
     return [g for g in (outward(c, sa, normal, tol) for c in curves if c.IsClosed) if g]
@@ -80,13 +80,13 @@ def on_circle(s, center, r, tol):
 
 
 def seam_lines(crv, center, r, tol):
-    """Ребра панелі на контурі crv — усе, крім дуги кола (центр center, радіус r)."""
+    """Panel edges on contour crv — everything except the circle arc (centre center, radius r)."""
     keep = [s for s in crv.DuplicateSegments() or [crv] if not on_circle(s, center, r, tol)]
     return list(Curve.JoinCurves(keep, tol)) if keep else []
 
 
 def arc_label(crv, center, r, normal, gap, tol):
-    """(площина тексту, вирівнювання): середина дуги, уздовж дотичної, зсув на gap до центру. None — дуги немає."""
+    """(text plane, alignment): arc midpoint, along the tangent, moved by gap towards the centre. None — no arc."""
     arcs = [s for s in crv.DuplicateSegments() or [crv] if on_circle(s, center, r, tol)]
     if not arcs:
         return None
@@ -94,7 +94,7 @@ def arc_label(crv, center, r, normal, gap, tol):
     ok, t = a.LengthParameter(a.GetLength() / 2.0)
     m = a.PointAt(t if ok else a.Domain.Mid)
     u = a.TangentAt(t if ok else a.Domain.Mid)
-    if u.X < -1e-9 or (abs(u.X) < 1e-9 and u.Y < 0):  # текст читається зліва направо
+    if u.X < -1e-9 or (abs(u.X) < 1e-9 and u.Y < 0):  # text reads left to right
         u = -u
     inward = center - m
     inward.Unitize()
@@ -104,7 +104,7 @@ def arc_label(crv, center, r, normal, gap, tol):
 
 
 def reinf(curves, center, edge, plus, sa, normal, tol, grown=None):
-    """(різ, [лінії шва], R): різ = коло, обрізане панеллю + sa; шов — ребра панелі в колі. різ None — не вийшло."""
+    """(cut, [seam lines], R): cut = circle trimmed by panel + sa; seam — panel edges inside the circle. cut None — failed."""
     crv, r = o_shape(curves, center, edge, plus, normal, tol)
     if grown is None:
         grown = grow(curves, sa, normal, tol)
@@ -115,12 +115,12 @@ def reinf(curves, center, edge, plus, sa, normal, tol, grown=None):
 
 
 def get_edge(curves, center, normal, tol):
-    """Друга точка з живим O і опціями Plus, SA. (точка, plus, sa) або None."""
+    """Second point with a live O and options Plus, SA. (point, plus, sa) or None."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     plus = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 50.0 * unit), 0.0, 1e6)
     sa = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_sa", 10.0 * unit), 0.0, 1e6)
 
-    grown = {}  # SA → розширені панелі: офсет панелі не рахуємо на кожен рух миші
+    grown = {}  # SA → grown panels: the panel offset is not recomputed on every mouse move
 
     def draw(sender, e):
         s = sa.CurrentValue
@@ -133,7 +133,7 @@ def get_edge(curves, center, normal, tol):
         for c in seams:
             e.Display.DrawCurve(c, color, 1)
     gp = Rhino.Input.Custom.GetPoint()
-    gp.SetCommandPrompt(u"Клік на лінії: R = відстань до неї + Plus")
+    gp.SetCommandPrompt(u"Click on a line: R = distance to it + Plus")
     gp.SetBasePoint(center, True)
     gp.DrawLineFromPoint(center, True)
     gp.AddOptionDouble("Plus", plus)
@@ -153,17 +153,17 @@ def get_edge(curves, center, normal, tol):
         gp.DynamicDraw -= draw
 
 
-HELP = u"""Опції:
-  Plus — на скільки дуга O виходить за лінію, на якій клікнув
-  SA — припуск на шов по краях панелі (на дузі шва немає; 0 — без)
-  Layout — Yes: на панелі лише розмітка, повна деталь на 10000 вгору; No: повна деталь на місці"""  # друкується на старті — видно під полями опцій
+HELP = u"""Options:
+  Plus — how far the O arc extends past the line you clicked
+  SA — seam allowance along the panel edges (no seam on the arc; 0 — none)
+  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place"""  # printed at start — visible under the option fields
 
 
 def main():
     print(HELP)
     doc = sc.doc
     tol = doc.ModelAbsoluteTolerance
-    ids = rs.GetObjects(u"Виберіть межу: панель або лінії кута (Enter — без обрізки)", rs.filter.curve, preselect=True)
+    ids = rs.GetObjects(u"Select a boundary: panel or corner lines (Enter — no trimming)", rs.filter.curve, preselect=True)
     curves = [rs.coercecurve(i) for i in ids or []]
     normal = rs.ViewCPlane().ZAxis
     attrs = doc.CreateDefaultAttributes()
@@ -171,7 +171,7 @@ def main():
     n = next_number(LAYER, PREFIX)
     made = 0
     while True:
-        center = rs.GetPoint(u"Верхній кут кармана — центр O (Enter — кінець)")
+        center = rs.GetPoint(u"Top corner of the pocket — centre of the O (Enter — done)")
         if center is None:
             break
         got = get_edge(curves, center, normal, tol)
@@ -179,12 +179,12 @@ def main():
             break
         crv, seams, r = reinf(curves, center, got[0], got[1], got[2], normal, tol)
         if crv is None:
-            print(u"Не вдалось вирізати коло (точки збігаються? криві не в площині CPlane?)")
+            print(u"Could not cut the circle (points coincide? curves not in the CPlane?)")
             continue
-        if got[2] > 0 and not seams:  # ponytail: SA лише з замкненою панеллю; з лініями кута — без припуску
-            print(u"SA пропущено: потрібна замкнена панель")
+        if got[2] > 0 and not seams:  # ponytail: SA only with a closed panel; with corner lines — no allowance
+            print(u"SA skipped: a closed panel is needed")
         label = u"%s%d  R=%g" % (PREFIX, n, round(r, 1))
-        style = text_style(doc, got[1] or r)  # як RD: від смуги Plus
+        style = text_style(doc, got[1] or r)  # as RD: from the Plus strip
         tp, valign = arc_label(crv, center, r, normal, style.TextHeight * 0.5, tol) or \
             (Plane(rs.ViewCPlane()), Rhino.DocObjects.TextVerticalAlignment.Middle)
         if valign == Rhino.DocObjects.TextVerticalAlignment.Middle:
@@ -193,13 +193,13 @@ def main():
         te = Rhino.Geometry.TextEntity.Create(label, tp, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign
-        fin = o_shape(curves, center, got[0], got[1], normal, tol)[0] or crv  # без SA: що видно на панелі
+        fin = o_shape(curves, center, got[0], got[1], normal, tol)[0] or crv  # without SA: what is visible on the panel
         add_part(doc, [crv] + seams, te, off_panel(fin, curves, tol), attrs, sc.sticky[STICKY + "_layout"])
         doc.Views.Redraw()
         print(label)
         n += 1
         made += 1
-    print(u"Підсилень O: %d → %s" % (made, LAYER))
+    print(u"O reinforcements: %d → %s" % (made, LAYER))
 
 
 if __name__ == "__main__":

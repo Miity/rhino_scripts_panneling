@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
-# Вибирає всі замкнені криві, площа яких менша за поріг
-# (дрібні контури, які плотер/різак фізично не проріже).
+# Selects all closed curves whose area is below the threshold
+# (small contours the plotter/cutter physically cannot cut).
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
 
 
 def select_small_closed_curves():
-    # Поріг у кв. одиницях документа. 25 мм^2 ~ отвір діаметром 5.6 мм.
-    min_area = rs.GetReal("Мінімальна площа, яку ріже плотер (кв. одиниць)", 25.0, 0.0)
+    # Threshold in sq. document units. 25 mm^2 ~ a hole 5.6 mm in diameter.
+    min_area = rs.GetReal("Minimum area the plotter can cut (sq. units)", 25.0, 0.0)
     if min_area is None:
         return
 
-    # Працюємо з виділеним, а якщо нічого не вибрано — з усіма кривими документа.
+    # Work on the selection, or if nothing is selected — on all curves in the document.
     objs = rs.SelectedObjects() or rs.ObjectsByType(4, select=False)
     if not objs:
-        print("Кривих у документі не знайдено.")
+        print("No curves found in the document.")
         return
 
     rs.EnableRedraw(False)
@@ -24,7 +24,7 @@ def select_small_closed_curves():
     for obj in objs:
         if not rs.IsCurveClosed(obj):
             continue
-        # Плоскі криві: CurveArea повертає None для неплоских — їх пропускаємо.
+        # Planar curves: CurveArea returns None for non-planar ones — they are skipped.
         if not rs.IsCurvePlanar(obj, sc.doc.ModelAbsoluteTolerance):
             continue
         area = rs.CurveArea(obj)
@@ -33,7 +33,7 @@ def select_small_closed_curves():
 
     rs.SelectObjects(small)
     rs.EnableRedraw(True)
-    print("Вибрано {} замкнених кривих з площею < {}.".format(len(small), min_area))
+    print("Selected {} closed curves with area < {}.".format(len(small), min_area))
 
 
 if __name__ == "__main__":

@@ -1,48 +1,48 @@
-# Перемички для різання — AddCutTabs
+# Cutting tabs — AddCutTabs
 
-Скрипт для Rhino 6/7/8: ручне розміщення коротких пропусків різу на замкнених плоских кривих. Підтримує полілінії та NURBS. Усі вибрані контури мають лежати в одній площині.
+Script for Rhino 6/7/8: manual placement of short gaps in the cut on closed planar curves. Supports polylines and NURBS. All selected contours must lie in one plane.
 
-## Кнопка тулбара
+## Toolbar button
 
-Вставте в поле Macro:
+Paste into the Macro field:
 
 ```text
 ! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/AddCutTabs.py"
 ```
 
-## Робота
+## Usage
 
-1. Запустіть кнопку та виберіть контури. Попереднє виділення також працює.
-2. Введіть ширину перемички в одиницях документа. У міліметровому документі початкове значення — 0,5 мм; це пробне значення, яке потрібно підібрати під матеріал і налаштування ножа.
-3. Наведіть курсор на контур: зелений відрізок показує майбутню перемичку. Клік додає її; вона стає помаранчевою. Помаранчеве означає «цю ділянку не різати».
-4. Повторний клік по помаранчевій ділянці прибирає перемичку. Якщо кілька контурів близькі, збільште масштаб для точного вибору.
-5. Enter застосовує результат. Esc скасовує весь попередній перегляд.
+1. Run the button and select the contours. Preselection works too.
+2. Enter the tab width in document units. In a millimetre document the default is 0.5 mm; this is a trial value to be tuned to the material and knife settings.
+3. Hover over a contour: a green segment shows the future tab. A click adds it; it turns orange. Orange means "do not cut this section".
+4. Clicking an orange section again removes the tab. If several contours are close, zoom in for precise picking.
+5. Enter applies the result. Esc cancels the whole preview.
 
-Опції в командному рядку:
+Command line options:
 
-| Опція | Дія |
+| Option | Action |
 | --- | --- |
-| Move | Клікніть наявну перемичку, потім нове місце. Enter повертає до звичайного режиму без переміщення. |
-| Width | Змінює ширину всіх перемичок поточного запуску. |
-| Undo | Скасовує останнє додавання, видалення, переміщення або зміну ширини. |
-| Clear | Прибирає всі перемички поточного запуску. |
+| Move | Click an existing tab, then the new position. Enter returns to the normal mode without moving. |
+| Width | Changes the width of all tabs in the current run. |
+| Undo | Undoes the last add, remove, move or width change. |
+| Clear | Removes all tabs of the current run. |
 
-Червоний хрестик означає, що нова перемичка завелика або перекриває іншу. Ширина вимірюється вздовж кривої. Перехід через початок замкненого контуру враховується; зайвого розриву на початку не створюється.
+A red cross means the new tab is too large or overlaps another one. The width is measured along the curve. Crossing the start of a closed contour is handled; no extra gap is created at the start.
 
-## Результат і експорт
+## Result and export
 
-Після Enter скрипт створює відкриті криві різу зі справжніми пропусками та атрибутами вихідних кривих. Оригінали оброблених контурів приховуються. Криві, на яких перемичок немає, залишаються як є.
+After Enter the script creates open cut curves with real gaps and the attributes of the source curves. Originals of the processed contours are hidden. Curves without tabs stay as they are.
 
-Для експорту автоматично вибираються нові ділянки різу разом із рештою початково вибраних контурів. Використовуйте **Export Selected / Експорт вибраного**. Позначки попереднього перегляду не є об'єктами документа й до DXF не потрапляють.
+For export, the new cut sections are selected automatically together with the rest of the initially selected contours. Use **Export Selected**. Preview marks are not document objects and do not end up in the DXF.
 
-Після завершення команда Rhino Undo повертає стан до операції. Команда Show може повернути приховані оригінали, але вони накладатимуться на нові криві: не включайте їх у файл різу.
+After the command, Rhino Undo returns to the state before the operation. The Show command can restore the hidden originals, but they will overlap the new curves: do not include them in the cut file.
 
-Поточна версія редагує перемички в межах одного запуску. Щоб переробити їх після застосування, скасуйте операцію через Undo й запустіть скрипт повторно.
+The current version edits tabs within one run. To redo them after applying, undo the operation and run the script again.
 
-На пробному різі перевірте, що програма плотера не з'єднує кінці через пропуски та що компенсація ножа/продовження різу не прорізає перемички.
+On a trial cut, check that the plotter software does not join the ends across the gaps and that knife compensation / cut overrun does not cut through the tabs.
 
-## Перевірки
+## Checks
 
-- 12 автоматичних перевірок: переходи через початок контуру, перекриття, короткі залишки, 400 варіантів розподілу та відновлення при помилках створення результату.
-- 180 випадків розбиття виконано всередині Rhino 8.24 на Mac: коло, прямокутна полілінія та копії 43 замкнених кривих відкритого документа. Перевірено довжини та відкритість результатів; креслення не редагувалося.
-- Повний інтерактивний цикл кліками та фактичний різ на плотері ще не перевірено.
+- 12 automatic checks: crossing the contour start, overlaps, short remainders, 400 distribution variants and recovery from errors while creating the result.
+- 180 split cases run inside Rhino 8.24 on Mac: a circle, a rectangular polyline and copies of 43 closed curves of an open document. Lengths and openness of the results checked; the drawing was not edited.
+- The full interactive click cycle and an actual plotter cut have not been checked yet.

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Перевірка OffsetRigid.shift у Rhino 8 (потрібен RhinoCommon):
-DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <цей файл>
-Результат пишеться в test_offset_rigid.txt поруч."""
+"""Check of OffsetRigid.shift in Rhino 8 (needs RhinoCommon):
+DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
+The result is written to test_offset_rigid.txt next to it."""
 import os
 import sys
 import traceback
@@ -14,14 +14,14 @@ try:
     import OffsetRigid as M
 
     Z = Vector3d.ZAxis
-    # верхня півдуга R=50 з центром у (0,0): вершина (0,50), нормаль там — вісь Y
+    # upper half-arc R=50 centred at (0,0): apex (0,50), the normal there — the Y axis
     arc = ArcCurve(Arc(Plane.WorldXY, 50.0, 3.141592653589793))
     ok, t = arc.ClosestPoint(Point3d(0, 50, 0))
-    up = M.shift(arc, t, Z, Point3d(3, 80, 0), 20.0)      # клік зовні → +Y
-    down = M.shift(arc, t, Z, Point3d(-3, 10, 0), 20.0)   # клік усередині → −Y
+    up = M.shift(arc, t, Z, Point3d(3, 80, 0), 20.0)      # click outside → +Y
+    down = M.shift(arc, t, Z, Point3d(-3, 10, 0), 20.0)   # click inside → −Y
     assert (up - Vector3d(0, 20, 0)).Length < 1e-9, up
     assert (down - Vector3d(0, -20, 0)).Length < 1e-9, down
-    # копія тієї ж форми: радіус не змінився
+    # copy of the same shape: radius unchanged
     c = arc.DuplicateCurve(); c.Translate(up)
     ok, a = c.TryGetArc()
     assert ok and abs(a.Radius - 50.0) < 1e-9, a.Radius

@@ -156,28 +156,28 @@ def classify(area, perimeter, min_area, min_width, neck=None):
 
 def analyse_curve(curve, min_area, min_width, tolerance, angle_tolerance):
     if not curve.IsValid or not curve.IsClosed or not curve.IsPlanar(tolerance):
-        raise ValueError(u'потрібен замкнений плоский контур')
+        raise ValueError(u'a closed planar contour is needed')
     intersections = Rhino.Geometry.Intersect.Intersection.CurveSelf(curve, tolerance)
     if intersections is not None:
         try:
             if intersections.Count:
-                raise ValueError(u'самоперетин або самодотик')
+                raise ValueError(u'self-intersection or self-touch')
         finally:
             intersections.Dispose()
     amp = Rhino.Geometry.AreaMassProperties.Compute(curve)
     if amp is None:
-        raise ValueError(u'не вдалося обчислити площу')
+        raise ValueError(u'could not compute the area')
     try:
         area, point = abs(amp.Area), amp.Centroid
     finally:
         amp.Dispose()
     perimeter = curve.GetLength()
     if area <= tolerance*tolerance or perimeter <= tolerance:
-        raise ValueError(u'вироджена деталь')
+        raise ValueError(u'degenerate part')
     level, reasons = classify(area, perimeter, min_area, min_width)
     success, plane = curve.TryGetPlane(tolerance)
     if not success:
-        raise ValueError(u'не вдалося визначити площину')
+        raise ValueError(u'could not determine the plane')
     if curve.Contains(point, plane, tolerance) != Rhino.Geometry.PointContainment.Inside:
         point = curve.PointAtNormalizedLength(.5)
     if level is None:
@@ -187,12 +187,12 @@ def analyse_curve(curve, min_area, min_width, tolerance, angle_tolerance):
             if not ok:
                 approximation = curve.ToPolyline(tolerance, angle_tolerance, 0., 0.)
                 if approximation is None:
-                    raise ValueError(u'не вдалося перевірити локальні звуження')
+                    raise ValueError(u'could not check local narrowings')
                 ok, polyline = approximation.TryGetPolyline()
             if not ok:
-                raise ValueError(u'не вдалося отримати полілінію')
+                raise ValueError(u'could not get a polyline')
             if polyline.Count > 12000:
-                raise ValueError(u'понад 12000 вершин — локальна перевірка пропущена')
+                raise ValueError(u'over 12000 vertices — local check skipped')
             transform = Rhino.Geometry.Transform.PlaneToPlane(plane, Rhino.Geometry.Plane.WorldXY)
             points = []
             for p in polyline:
@@ -235,23 +235,23 @@ def annotations(results):
             messages = []
             for kind, value in result['reasons']:
                 if kind == 'area':
-                    messages.append(u'Мала площа %.2f' % value)
+                    messages.append(u'Small area %.2f' % value)
                 elif kind == 'shape':
-                    messages.append(u'Вузька форма %.2f' % value)
+                    messages.append(u'Narrow shape %.2f' % value)
                 else:
-                    messages.append(u'Звуження ~%.2f' % value)
+                    messages.append(u'Narrowing ~%.2f' % value)
             attrs = Rhino.DocObjects.ObjectAttributes()
             attrs.LayerIndex = layer_indices[result['level']]
             attrs.SetUserString(TAG, '1')
             attrs.SetUserString('RecommendCutTabs.SourceId', str(source_id))
-            attrs.Name = u'Кандидат на перемички: '+u'; '.join(messages)
-            dot = Rhino.Geometry.TextDot(u'Перемички?\n'+u'\n'.join(messages), result['point'])
+            attrs.Name = u'Tab candidate: '+u'; '.join(messages)
+            dot = Rhino.Geometry.TextDot(u'Tabs?\n'+u'\n'.join(messages), result['point'])
             try:
                 oid = sc.doc.Objects.AddTextDot(dot, attrs)
             finally:
                 dot.Dispose()
             if oid == System.Guid.Empty:
-                raise RuntimeError(u'Не вдалося додати позначку.')
+                raise RuntimeError(u'Could not add the mark.')
             added.append(oid)
     except Exception:
         for oid in added:
@@ -259,11 +259,11 @@ def annotations(results):
         raise
     failed = sum(not sc.doc.Objects.Delete(oid, True) for oid in old)
     if failed:
-        print(u'Не вдалося прибрати старі позначки: %d. Перевірте блокування їхнього шару.' % failed)
+        print(u'Could not remove old marks: %d. Check whether their layer is locked.' % failed)
 
 
 def main():
-    ids = rs.GetObjects(u'Виберіть контури деталей для перевірки перемичок',
+    ids = rs.GetObjects(u'Select part contours to check for tabs',
                         rs.filter.curve, preselect=True)
     if not ids:
         return
@@ -271,22 +271,22 @@ def main():
     factor = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     if sc.doc.ModelUnitSystem == getattr(Rhino.UnitSystem, 'None'):
         factor = 1.
-        print(u'Документ без одиниць: усі пороги — в одиницях креслення.')
-    area_limit = rs.GetReal(u'Мінімальна площа деталі (кв. одиниці документа)',
+        print(u'Document has no units: all thresholds are in drawing units.')
+    area_limit = rs.GetReal(u'Minimum part area (sq. document units)',
                             50.*factor*factor, tol*tol)
     if area_limit is None:
         return
-    width_limit = rs.GetReal(u'Поріг вузької форми / звуження (одиниці документа)',
+    width_limit = rs.GetReal(u'Narrow shape / narrowing threshold (document units)',
                              max(3.*factor, 10.*tol), 10.*tol)
     if width_limit is None:
         return
     results, skipped = [], []
     for index, oid in enumerate(ids):
         if sc.escape_test(False):
-            print(u'Перевірку скасовано.')
+            print(u'Check cancelled.')
             return
         if index % 20 == 0:
-            rs.Prompt(u'Перевірка деталей: %d / %d' % (index+1, len(ids)))
+            rs.Prompt(u'Checking parts: %d / %d' % (index+1, len(ids)))
             Rhino.RhinoApp.Wait()
         obj = sc.doc.Objects.FindId(oid)
         if obj is None or not isinstance(obj.Geometry, Rhino.Geometry.Curve):
@@ -298,7 +298,7 @@ def main():
         except Exception as error:
             skipped.append((oid, text_type(error)))
     if not results:
-        print(u'Немає придатних контурів. Пропущено: %d.' % len(skipped))
+        print(u'No suitable contours. Skipped: %d.' % len(skipped))
         for oid, reason in skipped[:8]:
             print(u'%s: %s' % (oid, reason))
         return
@@ -310,13 +310,13 @@ def main():
     sc.doc.Views.Redraw()
     primary = sum(result['level'] == 'recommended' for oid, result in results)
     review = sum(result['level'] == 'review' for oid, result in results)
-    print(u'Перевірено: %d. Червоні кандидати: %d; помаранчеві для огляду: %d; '
-          u'пропущено: %d.' % (len(results), primary, review, len(skipped)))
-    print(u'Виділено цілі контури кандидатів. Можна запускати AddCutTabs. '
-          u'Площа — у кв. одиницях; ширини — в одиницях документа. '
-          u'Вузька форма = 2*площа/периметр, це показник форми, а не мінімальна ширина.')
+    print(u'Checked: %d. Red candidates: %d; orange for review: %d; '
+          u'skipped: %d.' % (len(results), primary, review, len(skipped)))
+    print(u'Whole candidate contours selected. You can run AddCutTabs. '
+          u'Area — in sq. units; widths — in document units. '
+          u'Narrow shape = 2*area/perimeter, a shape indicator, not the minimum width.')
     if skipped:
-        print(u'Пропущені об’єкти не вважаються перевіреними:')
+        print(u'Skipped objects are not considered checked:')
         for oid, reason in skipped[:8]:
             print(u'%s: %s' % (oid, reason))
 

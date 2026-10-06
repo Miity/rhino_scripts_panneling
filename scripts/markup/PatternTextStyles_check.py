@@ -1,7 +1,7 @@
 #! python3
 # -*- coding: utf-8 -*-
-# Перевірка PatternTextStyles у тимчасовому документі (відкриті файли не чіпає):
-# текст у смузі 430 x 4467 мм має отримати "PAT 28 mm", 28 мм, шрифт SLF-RHN Architect.
+# Check of PatternTextStyles in a temporary document (open files are not touched):
+# text in a 430 x 4467 mm strip must get "PAT 28 mm", 28 mm, font SLF-RHN Architect.
 import os
 import sys
 import Rhino
@@ -22,7 +22,7 @@ try:
     assert te.Font.QuartetName == P.FONT
     assert [P.height_for(w) for w in (30, 100, 2480)] == [2.5, 5, 40]
     names = [P.style_name(h) for h in P.SERIES]
-    assert sorted(names) == names  # у списку Rhino (за алфавітом) стилі йдуть за розміром
+    assert sorted(names) == names  # in Rhino's list (alphabetical) the styles follow by size
     print("PatternTextStyles: OK")
 finally:
     doc.Dispose()

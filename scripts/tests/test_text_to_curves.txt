@@ -1,1 +1,1 @@
-ok (Explode дав дзеркальних: 144 із 216); p1.3dm ok
+ok (Explode gave mirrored: 144 of 216); p1.3dm ok

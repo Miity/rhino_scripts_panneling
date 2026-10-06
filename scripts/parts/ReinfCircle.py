@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Кутове підсилення — коло (rinforzo d'angolo, cerchio).
-Вибираєш межу: замкнену панель або лінії, що утворюють кут. Задаєш радіус R.
-Клікаєш біля кута з того боку, який лишити. Центр кола — найближча до кліку вершина
-(злам кривої, кінець лінії або перетин ліній). Від кола лишається тільки частина між
-сторонами кута. Деталь лежить на місці, у шарі Parts::Reinforcements, з підписом "RC<n>  R=…"
-у групі. Нумерація RC продовжується між запусками. Вихідні криві не змінюються.
-Опція Layout (типово Yes) — як у всіх Reinf (add_part): на панелі лишається тільки розмітка — лінії деталі, що не лежать на кривих
-панелі, + підпис; повна деталь (різ, шов, підпис) — на UP (10000) вгору по Y CPlane, її розкладати Layout.
-Layout=No — повна деталь на місці, без розмітки.
-Підсилення нашивається поверх матеріалу, тому припуску на шов немає.
+"""Corner reinforcement — circle.
+Select a boundary: a closed panel or lines forming a corner. Enter the radius R.
+Click near the corner on the side to keep. The circle centre is the vertex closest to the click
+(curve kink, line end or line intersection). Only the part of the circle between the
+sides of the corner is kept. The part lies in place, in layer Parts::Reinforcements, with label "RC<n>  R=…"
+in a group. RC numbering continues between runs. The source curves are not changed.
+Option Layout (default Yes) — as in all Reinf (add_part): only markup stays on the panel — part lines not lying on the panel
+curves, + label; the full part (cut, seam, label) — UP (10000) up along CPlane Y, to be laid out by Layout.
+Layout=No — full part in place, no markup.
+The reinforcement is sewn on top of the material, so there is no seam allowance.
 """
 import os
 import re
@@ -23,7 +23,7 @@ from Rhino.Geometry import (AreaMassProperties, ArcCurve, Circle, Continuity, Cu
                             CurveExtensionStyle, Plane, Point3d, Transform)
 from Rhino.Geometry.Intersect import Intersection
 
-try:  # стилі тексту PAT для лекал 1:1 (scripts/markup/PatternTextStyles.py)
+try:  # PAT text styles for 1:1 patterns (scripts/markup/PatternTextStyles.py)
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
     import PatternTextStyles
 except Exception:
@@ -31,12 +31,12 @@ except Exception:
 
 STICKY = "ReinfCircle"
 LAYER = "Parts::Reinforcements"
-PREFIX = "RC"  # Reinforcement Circle; інші форми — свої префікси (RS, RT…)
-UP = 10000.0  # повна деталь — на стільки вгору по Y CPlane від розмітки (як TubePockets)
+PREFIX = "RC"  # Reinforcement Circle; other shapes have their own prefixes (RS, RT…)
+UP = 10000.0  # the full part is this far up along CPlane Y from the markup (as TubePockets)
 
 
 def off_panel(crv, curves, tol):
-    """Розмітка: сегменти crv, що не лежать на curves (лінії панелі не дублюємо), з'єднані."""
+    """Markup: segments of crv not lying on curves (panel lines are not duplicated), joined."""
     def on(p):
         return any(c.PointAt(c.ClosestPoint(p)[1]).DistanceTo(p) <= tol for c in curves)
     keep = [s for s in crv.DuplicateSegments() or [crv]
@@ -45,11 +45,11 @@ def off_panel(crv, curves, tol):
 
 
 def add_part(doc, full, te, markup, attrs, layout=True):
-    """layout: повна деталь (геометрія full + підпис te) — на UP вгору по Y CPlane, своя група;
-    на місці — розмітка (криві markup + той самий підпис), своя група. Повертає (id повної, id розмітки).
-    Без layout — повна деталь на місці, розмітки немає (id розмітки = []).
-    Пара зв'язана UserText PartLink (спільний id); повна деталь має LayoutUp (вектор зсуву), розмітка — PartMarkup.
-    JoinCorner за ними з'єднує деталі угорі й перебудовує розмітку."""
+    """layout: full part (geometry full + label te) — UP up along CPlane Y, its own group;
+    in place — markup (curves markup + the same label), its own group. Returns (full id, markup ids).
+    Without layout — full part in place, no markup (markup ids = []).
+    The pair is linked by UserText PartLink (common id); the full part has LayoutUp (offset vector), the markup — PartMarkup.
+    JoinCorner uses them to join the parts above and rebuild the markup."""
     xf = Transform.Translation(rs.ViewCPlane().YAxis * (UP if layout else 0.0))
 
     def add(geo):
@@ -74,7 +74,7 @@ def add_part(doc, full, te, markup, attrs, layout=True):
 
 
 def corners(curves, tol):
-    """Кандидати в центр: зломи, кінці відкритих кривих, перетини кривих між собою."""
+    """Centre candidates: kinks, ends of open curves, curve-curve intersections."""
     pts = []
     for c in curves:
         if not c.IsClosed:
@@ -89,13 +89,13 @@ def corners(curves, tol):
         for j in range(i + 1, len(curves)):
             for e in Intersection.CurveCurve(curves[i], curves[j], tol, tol) or []:
                 pts.append(e.PointA)
-    # ponytail: скруглений (філетом) кут не має вершини — центр візьметься з найближчого зламу;
-    # якщо треба — шукати віртуальний перетин продовжених сторін.
+    # ponytail: a rounded (filleted) corner has no vertex — the centre is taken from the nearest kink;
+    # if needed — look for a virtual intersection of the extended sides.
     return pts
 
 
 def piece(curves, center, toward, r, normal, tol):
-    """Частина кола (центр center, радіус r), що лежить між curves з боку точки toward. None — не вийшло."""
+    """Part of the circle (centre center, radius r) lying between curves on the side of point toward. None — failed."""
     plane = Plane(center, normal)
     d = plane.ClosestPoint(toward) - center
     if not d.Unitize():
@@ -103,11 +103,11 @@ def piece(curves, center, toward, r, normal, tol):
     bounds = List[Curve]()
     bounds.Add(ArcCurve(Circle(plane, r)))
     for c in curves:
-        # відкриті лінії продовжуємо за кут і за коло: коротка сторона теж замкне область
+        # open lines are extended past the corner and past the circle: a short side still closes the region
         ext = None if c.IsClosed else c.Extend(CurveEnd.Both, 2 * r, CurveExtensionStyle.Line)
         bounds.Add(ext or c)
     pts = List[Point3d]()
-    pts.Add(center + d * (r * 0.5))  # точка всередині клину: клік може бути і далі за R
+    pts.Add(center + d * (r * 0.5))  # point inside the wedge: the click may be farther than R
     res = Curve.CreateBooleanRegions(bounds, plane, pts, False, tol)
     if res is None or res.RegionCount == 0:
         return None
@@ -124,7 +124,7 @@ def layer():
 
 
 def next_number(lay, prefix=PREFIX):
-    """Наступний номер після найбільшого <prefix><n> (RC, RD…), що вже є в шарі."""
+    """Next number after the largest <prefix><n> (RC, RD…) already in the layer."""
     nums = [0]
     for o in rs.ObjectsByLayer(lay) or []:
         m = re.match(prefix + r"(\d+)\b", rs.TextObjectText(o) if rs.IsText(o) else "")
@@ -134,7 +134,7 @@ def next_number(lay, prefix=PREFIX):
 
 
 def text_style(doc, r):
-    """Стиль PAT, щоб підпис влазив у сектор (≈ R/10)."""
+    """PAT style so that the label fits in the sector (≈ R/10)."""
     if PatternTextStyles is None:
         return doc.DimStyles.Current
     styles = PatternTextStyles.ensure_styles(doc)
@@ -142,18 +142,18 @@ def text_style(doc, r):
     return styles[fit[-1] if fit else PatternTextStyles.SERIES[0]]
 
 
-HELP = u"""Опції:
-  R — радіус кола підсилення (центр — кут панелі)
-  Layout — Yes: на панелі лише розмітка, повна деталь на 10000 вгору; No: повна деталь на місці"""  # друкується на старті — видно під полями опцій
+HELP = u"""Options:
+  R — reinforcement circle radius (centre — panel corner)
+  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place"""  # printed at start — visible under the option fields
 
 
 def main():
     print(HELP)
     doc = sc.doc
-    ids = rs.GetObjects(u"Виберіть межу: замкнену панель або лінії кута", rs.filter.curve, preselect=True)
+    ids = rs.GetObjects(u"Select a boundary: closed panel or corner lines", rs.filter.curve, preselect=True)
     if not ids:
         return
-    r = rs.GetReal(u"Радіус кола підсилення R", sc.sticky.get(STICKY, 40.0), 0.001)
+    r = rs.GetReal(u"Reinforcement circle radius R", sc.sticky.get(STICKY, 40.0), 0.001)
     if r is None:
         return
     sc.sticky[STICKY] = r
@@ -162,7 +162,7 @@ def main():
     curves = [rs.coercecurve(i) for i in ids]
     cands = corners(curves, tol)
     if not cands:
-        print(u"У вибраних кривих немає кутів")
+        print(u"The selected curves have no corners")
         return
     normal = rs.ViewCPlane().ZAxis
     attrs = doc.CreateDefaultAttributes()
@@ -172,7 +172,7 @@ def main():
     made = 0
     while True:
         gp = Rhino.Input.Custom.GetPoint()
-        gp.SetCommandPrompt(u"Клікни біля кута, з того боку, що лишити (Enter — кінець)")
+        gp.SetCommandPrompt(u"Click near the corner, on the side to keep (Enter — done)")
         gp.AcceptNothing(True)
         lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
         gp.AddOptionToggle("Layout", lay)
@@ -184,11 +184,11 @@ def main():
         click = gp.Point()
         center = min(cands, key=lambda p: p.DistanceTo(click))
         if center.DistanceTo(click) > r:
-            print(u"Кут далі за R від кліку — клікни ближче до вершини")
+            print(u"Corner farther than R from the click — click closer to the vertex")
             continue
         crv = piece(curves, center, click, r, normal, tol)
         if crv is None:
-            print(u"Не вдалось вирізати сектор (клік на самій лінії? криві не в площині CPlane?)")
+            print(u"Could not cut the sector (click on the line itself? curves not in the CPlane?)")
             continue
         label = u"%s%d  R=%g" % (PREFIX, n, r)
         amp = AreaMassProperties.Compute(crv)
@@ -202,7 +202,7 @@ def main():
         print(label)
         n += 1
         made += 1
-    print(u"Підсилень-кіл: %d → %s" % (made, LAYER))
+    print(u"Circle reinforcements: %d → %s" % (made, LAYER))
 
 
 if __name__ == "__main__":

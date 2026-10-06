@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Фаші (смуги) під виділені лінії: прямокутник висотою H і довжиною = довжина лінії.
-Кожна вибрана крива — окрема смуга (нічого не з'єднується автоматично).
-Якщо смуга має йти по кількох лініях — спершу об'єднай їх (_Join) в одну криву.
-Fasce per bordatura del telo o rinforzo ai bordi — dipende dall'altezza scelta.
+"""Strips under the selected lines: a rectangle of height H and length = line length.
+Each selected curve is a separate strip (nothing is joined automatically).
+If a strip must run along several lines — join them (_Join) into one curve first.
+Strips for cover edge binding or edge reinforcement — depends on the chosen height.
 
-Смуги стають стовпчиком впритул одна до одної від вказаної точки (по CPlane), у шар Parts::Strips; кожна підписана "F1  L=… × H".
-Той самий номер ставиться TextDot-ом посередині відповідної лінії, щоб знати, яка смуга куди.
+Strips are stacked in a column touching each other from the given point (along CPlane), in layer Parts::Strips; each labelled "S1  L=… × H".
+The same number is placed as a TextDot at the middle of the corresponding line, to know which strip goes where.
 """
 import re
 
@@ -17,7 +17,7 @@ STICKY = "StripsFromCurves"
 
 
 def strips(curves):
-    """Одна смуга на криву. Повертає [(довжина, середня точка)]."""
+    """One strip per curve. Returns [(length, midpoint)]."""
     out = []
     for c in curves:
         length = c.GetLength()
@@ -27,7 +27,7 @@ def strips(curves):
 
 
 def strips_layer():
-    """Parts::Strips — створює, якщо нема."""
+    """Parts::Strips — creates it if missing."""
     if not rs.IsLayer("Parts"):
         rs.AddLayer("Parts")
     if not rs.IsLayer("Parts::Strips"):
@@ -36,10 +36,10 @@ def strips_layer():
 
 
 def next_number(layer):
-    """Наступний номер після найбільшого F<n>, що вже є в шарі (текст або TextDot)."""
+    """Next number after the largest S<n> already in the layer (text or TextDot)."""
     nums = [0]
     for o in rs.ObjectsByLayer(layer) or []:
-        m = re.match(r"F(\d+)\b", rs.TextObjectText(o) if rs.IsText(o) else
+        m = re.match(r"S(\d+)\b", rs.TextObjectText(o) if rs.IsText(o) else
                      rs.TextDotText(o) if rs.IsTextDot(o) else "")
         if m:
             nums.append(int(m.group(1)))
@@ -47,14 +47,14 @@ def next_number(layer):
 
 
 def main():
-    ids = rs.GetObjects(u"Виберіть криві для фаш (кожна крива — окрема смуга)", rs.filter.curve, preselect=True)
+    ids = rs.GetObjects(u"Select curves for strips (each curve is a separate strip)", rs.filter.curve, preselect=True)
     if not ids:
         return
     prev_h, prev_extra = sc.sticky.get(STICKY, (50.0, 0.0))
-    h = rs.GetReal(u"Висота фаші", prev_h, 0.001)
+    h = rs.GetReal(u"Strip height", prev_h, 0.001)
     if h is None:
         return
-    extra = rs.GetReal(u"Запас по довжині (додається до кожної смуги)", prev_extra, 0.0)
+    extra = rs.GetReal(u"Length allowance (added to each strip)", prev_extra, 0.0)
     if extra is None:
         return
     sc.sticky[STICKY] = (h, extra)
@@ -62,7 +62,7 @@ def main():
     found = strips([rs.coercecurve(i) for i in ids])
     found.sort(key=lambda x: -x[0])
 
-    base = rs.GetPoint(u"Точка, звідки ставити смуги (лівий верхній кут)")
+    base = rs.GetPoint(u"Point to place the strips from (top-left corner)")
     if not base:
         return
     plane = rs.MovePlane(rs.ViewCPlane(), base)
@@ -77,17 +77,17 @@ def main():
             p = Rhino.Geometry.Plane(plane.PointAt(0, -i * h), plane.XAxis, plane.YAxis)
             rect = rs.AddRectangle(p, w, h)
             rs.ObjectLayer(rect, layer)
-            label = u"F%d  L=%.0f × %g" % (n, w, h)
+            label = u"S%d  L=%.0f × %g" % (n, w, h)
             tp = Rhino.Geometry.Plane(p.PointAt(txt_h * 0.5, h / 2.0), p.XAxis, p.YAxis)
-            t = rs.AddText(label, tp, txt_h, justification=131073)  # ліво-по центру висоти: не вилазить за смугу
+            t = rs.AddText(label, tp, txt_h, justification=131073)  # left, vertical middle: stays inside the strip
             if t:
                 rs.ObjectLayer(t, layer)
-            d = rs.AddTextDot(u"F%d" % n, mid)
+            d = rs.AddTextDot(u"S%d" % n, mid)
             rs.ObjectLayer(d, layer)
-            print(u"F%d: довжина %.1f (+%g) → %.1f × %g" % (n, length, extra, w, h))
+            print(u"S%d: length %.1f (+%g) → %.1f × %g" % (n, length, extra, w, h))
     finally:
         rs.EnableRedraw(True)
-    print(u"Ліній: %d → смуг: %d" % (len(ids), len(found)))
+    print(u"Lines: %d → strips: %d" % (len(ids), len(found)))
 
 
 if __name__ == "__main__":

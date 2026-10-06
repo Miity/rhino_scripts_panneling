@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Вирізає середину кривих: лишає по заданій довжині на початку і в кінці.
-Два шматки кожної кривої зберігають шар/атрибути, групи оригіналу, згруповані між собою й виділені."""
+"""Cuts out the middle of curves: keeps the given length at the start and at the end.
+Both pieces of each curve keep the original's layer/attributes and groups, are grouped together and selected."""
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
 
 
 def keep_ends(crv, dist):
-    """Повертає [початковий, кінцевий] шматки або None, якщо крива закоротка."""
+    """Returns [start, end] pieces or None if the curve is too short."""
     length = crv.GetLength()
     if length - 2 * dist <= sc.doc.ModelAbsoluteTolerance:
         return None
@@ -21,11 +21,11 @@ def keep_ends(crv, dist):
 
 
 def main():
-    ids = rs.GetObjects("Виберіть криві", rs.filter.curve, preselect=True)
+    ids = rs.GetObjects("Select curves", rs.filter.curve, preselect=True)
     if not ids:
         return
     mm5 = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem) * 5
-    dist = rs.GetReal("Довжина, яка лишається на кожному кінці", sc.sticky.get("keep_ends_dist", mm5), 0.0)
+    dist = rs.GetReal("Length kept at each end", sc.sticky.get("keep_ends_dist", mm5), 0.0)
     if not dist:
         return
     sc.sticky["keep_ends_dist"] = dist
@@ -36,9 +36,9 @@ def main():
         pieces = keep_ends(rs.coercecurve(oid), dist)
         if pieces is None:
             skipped += 1
-            result.append(oid)  # лишається як є, але теж виділена
+            result.append(oid)  # stays as is, but selected too
             continue
-        attrs = sc.doc.Objects.FindId(oid).Attributes  # шар, колір, тип лінії, групи
+        attrs = sc.doc.Objects.FindId(oid).Attributes  # layer, colour, linetype, groups
         new = [sc.doc.Objects.AddCurve(p, attrs) for p in pieces]
         rs.AddObjectsToGroup(new, rs.AddGroup())
         sc.doc.Objects.Delete(oid, True)
@@ -47,7 +47,7 @@ def main():
     rs.SelectObjects(result)
     rs.EnableRedraw(True)
     if skipped:
-        print("Пропущено {} кривих: коротші за 2 x {}".format(skipped, dist))
+        print("Skipped {} curves: shorter than 2 x {}".format(skipped, dist))
 
 
 if __name__ == "__main__":

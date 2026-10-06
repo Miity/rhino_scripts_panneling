@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Sewing points: точка в центрі кривої + точки від центру вліво/вправо з однаковим кроком."""
+"""Sewing points: a point at the curve centre + points left/right of the centre with an equal step."""
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
 
 
 def sewing_lengths(total, step):
-    """Довжини вздовж кривої: центр, потім центр ± k*step, поки в межах кривої."""
+    """Lengths along the curve: centre, then centre ± k*step, while within the curve."""
     mid = total / 2.0
     out = [mid]
     k = 1
@@ -16,14 +16,14 @@ def sewing_lengths(total, step):
 
 
 def main():
-    crvs = rs.GetObjects("Виберіть криві для sewing points", rs.filter.curve, preselect=True)
+    crvs = rs.GetObjects("Select curves for sewing points", rs.filter.curve, preselect=True)
     if not crvs:
         return
-    step = rs.GetReal("Крок між точками (одиниці документа)", sc.sticky.get("sew_step", 20.0), 0.001)
+    step = rs.GetReal("Step between points (document units)", sc.sticky.get("sew_step", 20.0), 0.001)
     if not step:
         return
     sc.sticky["sew_step"] = step
-    opt = rs.GetBoolean("Опції", [("DeleteInput", "No", "Yes")], [sc.sticky.get("sew_del", True)])
+    opt = rs.GetBoolean("Options", [("DeleteInput", "No", "Yes")], [sc.sticky.get("sew_del", True)])
     if opt is None:
         return
     delete = opt[0]
@@ -44,7 +44,7 @@ def main():
             rs.DeleteObject(cid)
         else:
             ids.append(cid)
-        # точки (+ крива, якщо лишається) = одна група
+        # points (+ the curve, if kept) = one group
         if ids:
             rs.AddObjectsToGroup(ids, rs.AddGroup())
     rs.EnableRedraw(True)

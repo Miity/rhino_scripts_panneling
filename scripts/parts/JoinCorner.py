@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
-"""З'єднати дві деталі в куті панелі (CopriZip / Seam / будь-які з різною шириною W) в одну.
-Дві деталі на сусідніх ребрах сходяться в куті панелі тільки однією точкою, і між ними лишається
-виріз. Вибираєш деталі (можна разом із підписами й групами, рамкою), клікаєш у виріз біля кута
-(кілька кутів підряд, Enter — кінець); клік саме у виріз — він вказує, які сегменти торці. Торці обох деталей у цьому куті прибираються, зовнішні
-краї подовжуються по дотичній до перетину (як _Connect), і виходить одна замкнена крива.
-Останній кут рамки навколо панелі (обидва торці — одна деталь) → лишається тільки зовнішній контур.
-Деталі всередину панелі (ReinfBord) у куті перекриваються, а не мають вирізу → просто об'єднання
-(внутрішні краї до перетину); клік біля кута.
-Нова крива бере шар і групу першої деталі, група другої (підпис, точки шва) переходить у неї ж.
-Деталі з Layout=Yes (розмітка на панелі + повна деталь угорі, UserText PartLink): можна вибрати розмітку
-або деталь угорі і клікати в кут будь-де з них — з'єднуються деталі вгорі, розмітка на панелі перебудовується
-(лінії з'єднаної деталі, що не лежать на ребрах панелі).
+"""Join two parts at a panel corner (ZipCover / Seam / any with different width W) into one.
+Two parts on neighbouring edges meet at the panel corner in a single point only, leaving a notch
+between them. Select the parts (labels and groups may be included, window selection), click in the notch near the corner
+(several corners in a row, Enter — done); the click must be in the notch — it tells which segments are the ends. The ends of both parts at this corner are removed, the outer
+edges are extended along the tangent to their intersection (like _Connect), giving one closed curve.
+Last corner of a frame around the panel (both ends belong to one part) → only the outer contour is kept.
+Parts inside the panel (ReinfBord) overlap at the corner instead of leaving a notch → simple union
+(inner edges to their intersection); click near the corner.
+The new curve takes the layer and group of the first part, the group of the second (label, seam points) merges into it.
+Parts with Layout=Yes (markup on the panel + full part above, UserText PartLink): you may select the markup
+or the part above and click the corner in either — the parts above are joined, the markup on the panel is rebuilt
+(lines of the joined part that do not lie on panel edges).
 """
 import math
 import os
@@ -24,7 +24,7 @@ from Rhino.Geometry.Intersect import Intersection
 
 
 def at(segs, p, tol):
-    """[(сегмент, напрямок від p)] для сегментів, що мають кінець у p."""
+    """[(segment, direction from p)] for segments that have an end at p."""
     res = []
     for s in segs:
         if s.PointAtStart.DistanceTo(p) <= tol:
@@ -39,28 +39,28 @@ def other_end(s, p):
 
 
 def in_sector(v, u, w):
-    """v між напрямками u і w (кут між ними < 180°)."""
+    """v between directions u and w (angle between them < 180°)."""
     n = Vector3d.CrossProduct(u, w)
     return n.Length > 1e-9 and Vector3d.CrossProduct(u, v) * n > 0 and Vector3d.CrossProduct(v, w) * n > 0
 
 
 def shared_corner(sa, sb, click, tol):
-    """Спільна вершина сегментів sa і sb, найближча до click, або None.
-    sb is sa — кут, де деталь торкається сама себе (останній кут рамки навколо панелі)."""
+    """Common vertex of segments sa and sb closest to click, or None.
+    sb is sa — a corner where the part touches itself (last corner of a frame around the panel)."""
     common = [s.PointAtStart for s in sa
               if (len(at(sa, s.PointAtStart, tol)) >= 4 if sb is sa else at(sb, s.PointAtStart, tol))]
     return min(common, key=click.DistanceTo) if common else None
 
 
 def fill(sa, sb, ea, eb, c, tol):
-    """(площа вирізу, ea, eb, xa, xb, o), якщо ea, eb — торці, чиї зовнішні краї сходяться в o."""
+    """(notch area, ea, eb, xa, xb, o) if ea, eb are ends whose outer edges meet at o."""
     xa, xb = other_end(ea, c), other_end(eb, c)
     ends = []
     for segs, e, x in ((sa, ea, xa), (sb, eb, xb)):
         nxt = [t for t in at(segs, x, tol) if t[0] is not e]
         if len(nxt) != 1:
             return None
-        ends.append(-nxt[0][1])  # дотична зовнішнього краю, подовження за x
+        ends.append(-nxt[0][1])  # tangent of the outer edge, extension past x
     ok, ta, tb = Intersection.LineLine(Line(xa, xa + ends[0]), Line(xb, xb + ends[1]), tol, False)
     if not ok or ta < -tol or tb < -tol:
         return None
@@ -70,13 +70,13 @@ def fill(sa, sb, ea, eb, c, tol):
 
 
 def join(a, b, click, tol):
-    """[замкнені криві] — a і b, з'єднані в куті біля click; або рядок-помилка.
-    b None — обидва торці в куті належать a: рамка замикається → лише зовнішній контур."""
-    sa = list(a.DuplicateSegments())  # list: сталі обгортки для `is`
+    """[closed curves] — a and b joined at the corner near click; or an error string.
+    b None — both ends at the corner belong to a: the frame closes → only the outer contour."""
+    sa = list(a.DuplicateSegments())  # list: stable wrappers for `is`
     sb = sa if b is None else list(b.DuplicateSegments())
     c = shared_corner(sa, sb, click, tol)
     if c is None:
-        return u"деталі не мають спільного кута"
+        return u"parts have no common corner"
     joined = overlap(a, b, tol)
     if joined is None:
         joined = gap(sa, sb, c, click, tol)
@@ -84,7 +84,7 @@ def join(a, b, click, tol):
             return joined
     out = []
     for crv in joined:
-        ok, pl = crv.TryGetPolyline()  # як у CopriZip: чиста полілінія для PreparePanelCut
+        ok, pl = crv.TryGetPolyline()  # as in ZipCover: a clean polyline for PreparePanelCut
         if ok:
             pl.DeleteShortSegments(tol)
             if hasattr(pl, "MergeColinearSegments"):
@@ -95,8 +95,8 @@ def join(a, b, click, tol):
 
 
 def overlap(a, b, tol):
-    """[об'єднання a і b], якщо вони перекриваються (смуги всередину панелі, ReinfBord); інакше None."""
-    # ponytail: рамка зі смуг усередину (останній кут — деталь сама з собою) не обробляється
+    """[union of a and b] if they overlap (strips inside the panel, ReinfBord); otherwise None."""
+    # ponytail: a frame of inward strips (last corner — part with itself) is not handled
     if b is None:
         return None
     u = Curve.CreateBooleanUnion([a, b], tol)
@@ -104,23 +104,23 @@ def overlap(a, b, tol):
         return None
     area = lambda c: AreaMassProperties.Compute(c).Area
     ua, aa, ab = area(u[0]), area(a), area(b)
-    return [u[0]] if max(aa, ab) * 1.001 < ua < 0.999 * (aa + ab) else None  # справжнє перекриття, не дотик і не та сама
+    return [u[0]] if max(aa, ab) * 1.001 < ua < 0.999 * (aa + ab) else None  # a real overlap, not a touch and not the same part
 
 
 def gap(sa, sb, c, click, tol):
-    """[замкнені криві] — деталі з вирізом у куті c, торці геть, зовнішні краї до перетину; або рядок-помилка."""
-    # Торці — два сегменти в куті, між якими лежить клік (у вирізі). Без панелі деталі симетричні:
-    # пара «ребро + ребро» теж замикається (заповнює панель), тож відрізнити можна лише кліком.
+    """[closed curves] — parts with a notch at corner c, ends removed, outer edges to their intersection; or an error string."""
+    # Ends — the two segments at the corner with the click between them (in the notch). Without the panel the parts are symmetric:
+    # the pair "edge + edge" also closes (fills the panel), so only the click can tell them apart.
     v = click - c
     best = None
     for ea, da in at(sa, c, tol):
         for eb, db in at(sb, c, tol):
-            if ea is eb or Vector3d.VectorAngle(da, db) > math.radians(175):  # торець однієї по ребру другої
+            if ea is eb or Vector3d.VectorAngle(da, db) > math.radians(175):  # end of one along the edge of the other
                 continue
             if in_sector(v, da, db):
                 best = fill(sa, sb, ea, eb, c, tol)
     if best is None:
-        return u"клікни у виріз між деталями біля кута (або зовнішні краї не сходяться — увігнутий кут)"
+        return u"click in the notch between the parts near the corner (or the outer edges do not meet — concave corner)"
     _, ea, eb, xa, xb, o = best
     rest = [s for s in sa if s is not ea and s is not eb]
     if sb is not sa:
@@ -128,26 +128,26 @@ def gap(sa, sb, c, click, tol):
     rest += [LineCurve(p, o) for p in (xa, xb) if p.DistanceTo(o) > tol]
     joined = Curve.JoinCurves(rest, tol)
     if len(joined) != (2 if sb is sa else 1) or not all(c.IsClosed for c in joined):
-        return u"деталь не замкнулась"
-    if sb is sa:  # рамка замкнулась: внутрішній контур (= край панелі) не потрібен, лишається зовнішній
+        return u"part did not close"
+    if sb is sa:  # frame closed: the inner contour (= panel edge) is not needed, the outer one stays
         joined = [max(joined, key=lambda c: c.GetBoundingBox(True).Diagonal.Length)]
     return joined
 
 
 def link_of(i):
-    """(PartLink, вектор LayoutUp) повної деталі або (None, None)."""
+    """(PartLink, LayoutUp vector) of the full part or (None, None)."""
     up = rs.GetUserText(i, "LayoutUp")
     return (rs.GetUserText(i, "PartLink"), Vector3d(*[float(x) for x in up.split(",")])) if up else (None, None)
 
 
 def linked(link, markup):
-    """Об'єкти з UserText PartLink == link: розмітка (markup) або повна деталь."""
+    """Objects with UserText PartLink == link: markup or the full part."""
     return [o.Id for o in sc.doc.Objects.FindByUserString("PartLink", link, True)
             if bool(o.Attributes.GetUserString("PartMarkup")) == markup]
 
 
 def to_full(ids):
-    """Розмітку (відкрита крива з PartMarkup) замінює її повною деталлю (замкнений контур угорі)."""
+    """Replaces markup (open curve with PartMarkup) with its full part (closed contour above)."""
     out = []
     for i in ids:
         if rs.GetUserText(i, "PartMarkup"):
@@ -165,16 +165,16 @@ def moved(crv, v):
 
 
 def rebuild_markup(doc, res, parts, up, tol):
-    """Розмітка з'єднаної деталі: res (угорі) зсунуті на -up, без ребер панелі. parts — [(id контуру, PartLink)]
-    вихідних деталей (ще в документі). Стара розмітка-криві видаляються, підписи — в групу розмітки першої."""
+    """Markup of the joined part: res (above) moved by -up, without panel edges. parts — [(contour id, PartLink)]
+    of the source parts (still in the document). Old markup curves are deleted, labels go to the markup group of the first."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    sys.modules.pop("ReinfCircle", None)  # Rhino кешує модулі за сесію
+    sys.modules.pop("ReinfCircle", None)  # Rhino caches modules per session
     from ReinfCircle import off_panel
     edges, old = [], []
     for i, link in parts:
         marks = linked(link, True)
         curves = [rs.coercecurve(m) for m in marks if rs.IsCurve(m)]
-        # ребра панелі = сегменти вихідної деталі (на місці), що не лежать на її розмітці
+        # panel edges = segments of the source part (in place) that do not lie on its markup
         edges += [g for g in moved(rs.coercecurve(i), -up).DuplicateSegments()
                   if not curves or off_panel(g, curves, tol)]
         old.append(marks)
@@ -184,7 +184,7 @@ def rebuild_markup(doc, res, parts, up, tol):
     attrs = doc.Objects.FindId(first[0]).Attributes.Duplicate()
     groups = rs.ObjectGroups(first[0])
     new = [doc.Objects.AddCurve(c, attrs) for r in res for c in off_panel(moved(r, -up), edges, tol)]
-    rest = [m for marks in old[1:] for m in marks if not rs.IsCurve(m)]  # підписи розмітки другої деталі
+    rest = [m for marks in old[1:] for m in marks if not rs.IsCurve(m)]  # markup labels of the second part
     for m in rest:
         rs.RemoveObjectFromAllGroups(m)
         rs.SetUserText(m, "PartLink", parts[0][1])
@@ -196,19 +196,19 @@ def rebuild_markup(doc, res, parts, up, tol):
 def main():
     doc = sc.doc
     tol = doc.ModelAbsoluteTolerance
-    ids = rs.GetObjects(u"Виберіть деталі для з'єднання в кутах", rs.filter.curve, preselect=True) or []
+    ids = rs.GetObjects(u"Select parts to join at corners", rs.filter.curve, preselect=True) or []
     ids = to_full(ids)
     if not ids:
-        print(u"Не вибрано жодної замкненої деталі (чи розмітки з деталлю вгорі).")
+        print(u"No closed part selected (or markup with a part above).")
         return
     rs.UnselectAllObjects()
     made = []
     while True:
-        click = rs.GetPoint(u"Клікни у виріз між деталями біля кута (Enter — кінець)")
+        click = rs.GetPoint(u"Click in the notch between the parts near the corner (Enter — done)")
         if click is None:
             break
-        # пара деталей (або деталь сама з собою, j == i) зі спільною вершиною, найближчою до кліку;
-        # клік у розмітці на панелі → той самий кут угорі (+LayoutUp)
+        # pair of parts (or a part with itself, j == i) with a common vertex closest to the click;
+        # click on the markup on the panel → the same corner above (+LayoutUp)
         best = None
         segs = [list(rs.coercecurve(k).DuplicateSegments()) for k in ids]
         for i in range(len(ids)):
@@ -219,18 +219,18 @@ def main():
                     if c is not None and (best is None or c.DistanceTo(p) < best[0]):
                         best = (c.DistanceTo(p), i, j, p)
         if best is None:
-            print(u"Біля кліку немає кута, де сходяться торці деталей.")
+            print(u"No corner near the click where part ends meet.")
             continue
         _, i, j, p = best
         res = join(rs.coercecurve(ids[i]), None if i == j else rs.coercecurve(ids[j]), p, tol)
         if isinstance(res, str):
-            print(u"Пропущено: %s" % res)
+            print(u"Skipped: %s" % res)
             continue
         ia, ib = ids[i], ids[j]
         (la, up), lb = link_of(ia), link_of(ib)[0]
         if la:
             rebuild_markup(doc, res, [(ia, la)] + ([(ib, lb)] if lb and ib != ia else []), up, tol)
-        attrs = doc.Objects.FindId(ia).Attributes.Duplicate()  # шар і групи першої деталі (і PartLink)
+        attrs = doc.Objects.FindId(ia).Attributes.Duplicate()  # layer and groups of the first part (and PartLink)
         new = [doc.Objects.AddCurve(crv, attrs) for crv in res]
         ga, gb = rs.ObjectGroups(ia), rs.ObjectGroups(ib) if ib != ia else None
         rs.DeleteObjects(list(set([ia, ib])))
@@ -250,7 +250,7 @@ def main():
         doc.Views.Redraw()
     if made:
         rs.SelectObjects(made)
-    print(u"З'єднано: %d деталей (виділені)" % len(made))
+    print(u"Joined: %d parts (selected)" % len(made))
 
 
 if __name__ == "__main__":

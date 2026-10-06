@@ -5,16 +5,16 @@ import Rhino.Geometry as rg
 import math
 
 def smart_explode_ultimate():
-    # 1. Запит кривих
-    curve_ids = rs.GetObjects("Виберіть криві для 'Розумного розбиття'", rs.filter.curve, preselect=True)
+    # 1. Ask for curves
+    curve_ids = rs.GetObjects("Select curves for 'Smart split'", rs.filter.curve, preselect=True)
     if not curve_ids: return
 
-    # 2. Запит кута
-    angle_deg = rs.GetReal("Пороговий кут розбиття (в градусах)", 45.0, 0.0, 180.0)
+    # 2. Ask for the angle
+    angle_deg = rs.GetReal("Split threshold angle (degrees)", 45.0, 0.0, 180.0)
     if angle_deg is None: return
     
-    # 3. НОВИЙ ПАРАМЕТР: Довжина сміттєвих сегментів
-    noise_len = rs.GetReal("Ігнорувати 'мікро-сходинки' коротші за (в одиницях файлу)", 1.0, 0.0)
+    # 3. NEW PARAMETER: length of noise segments
+    noise_len = rs.GetReal("Ignore 'micro-steps' shorter than (file units)", 1.0, 0.0)
     if noise_len is None: return
 
     threshold_rad = math.radians(angle_deg)
@@ -28,29 +28,29 @@ def smart_explode_ultimate():
         segments = crv.DuplicateSegments()
         if not segments or len(segments) <= 1: continue
             
-        # --- ФІЛЬТРАЦІЯ МІКРО-ШУМУ ---
-        # Залишаємо тільки ті сегменти, які довші за заданий поріг
+        # --- MICRO-NOISE FILTERING ---
+        # Keep only segments longer than the given threshold
         valid_segments = []
         for seg in segments:
             if seg.GetLength() > noise_len:
                 valid_segments.append(seg)
                 
-        # Якщо після очистки не залишилось що аналізувати - пропускаємо
+        # If nothing is left to analyse after cleaning — skip
         if len(valid_segments) <= 1: continue
             
         split_params = []
         start_index = 0 if crv.IsClosed else 1
         
-        # Аналізуємо лише стабільні, довгі сегменти
+        # Analyse only stable, long segments
         for i in range(start_index, len(valid_segments)):
             prev_seg = valid_segments[i - 1] 
             curr_seg = valid_segments[i]
             
-            # Беремо вектори на кінці попереднього і початку наступного ВАЛІДНОГО сегмента
+            # Take vectors at the end of the previous and the start of the next VALID segment
             v1 = prev_seg.TangentAt(prev_seg.Domain.Max)
             v2 = curr_seg.TangentAt(curr_seg.Domain.Min)
             
-            # Захист: якщо вектор нульовий, беремо загальний напрямок відрізка
+            # Guard: if the vector is zero, use the overall segment direction
             if v1.IsZero: v1 = prev_seg.PointAtEnd - prev_seg.PointAtStart
             if v2.IsZero: v2 = curr_seg.PointAtEnd - curr_seg.PointAtStart
             
@@ -58,18 +58,18 @@ def smart_explode_ultimate():
                 
             angle = rg.Vector3d.VectorAngle(v1, v2)
             
-            # Якщо глобальний кут перевищує поріг
+            # If the global angle exceeds the threshold
             if angle > (threshold_rad + 1e-5):
-                # Знаходимо точку розбиття
+                # Find the split point
                 rc, t = crv.ClosestPoint(curr_seg.PointAtStart)
                 if rc:
-                    # Захист для відкритих кривих від розрізу на кінцях
+                    # Guard for open curves against splitting at the ends
                     if not crv.IsClosed:
                         if abs(t - crv.Domain.Min) < 1e-5 or abs(t - crv.Domain.Max) < 1e-5:
                             continue
                     split_params.append(t)
         
-        # Фізичне розбиття
+        # Actual split
         if split_params:
             split_params = list(set(split_params))
             split_results = crv.Split(split_params)

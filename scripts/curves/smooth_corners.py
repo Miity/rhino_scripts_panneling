@@ -2,14 +2,14 @@
 """
 smooth_corners.py
 
-Заокруглює (fillet дугою) кути виділених полілайнів там, де кут відхилення
-від прямої більший за заданий поріг. Решта кутів лишаються гострими.
+Rounds (fillets with an arc) the corners of selected polylines where the deviation angle
+from a straight line is larger than the given threshold. The other corners stay sharp.
 
-Конвенція кута: 0 град = сегменти продовжують один одного (пряма),
-180 град = повний розворот. Тобто "гострий кут" = ВЕЛИКЕ значення.
+Angle convention: 0 deg = segments continue each other (straight),
+180 deg = full reversal. So a "sharp corner" = a LARGE value.
 
-Rhino 6/7/8. Сумісно з IronPython 2.7 і CPython 3.
-Запуск: _EditPythonScript / _ScriptEditor -> Run.
+Rhino 6/7/8. Compatible with IronPython 2.7 and CPython 3.
+Run: _EditPythonScript / _ScriptEditor -> Run.
 """
 
 import math
@@ -18,14 +18,14 @@ try:
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
     import Rhino
-except ImportError:                 # запуск поза Rhino -> доступна лише самоперевірка
+except ImportError:                 # run outside Rhino -> only the self-check is available
     rs = sc = Rhino = None
 
 TOL = 1e-9
-FILL = 0.999   # яку частку сегмента дозволено з'їсти двом сусіднім дотичним
+FILL = 0.999   # share of a segment that two neighbouring tangents may consume
 
 
-# ---------- геометрія без залежності від Rhino (щоб можна було тестувати) ----------
+# ---------- geometry without Rhino dependency (so it can be tested) ----------
 
 def _sub(a, b):
     return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
@@ -41,7 +41,7 @@ def _unit(v):
 
 
 def turn_angle(p_prev, p, p_next):
-    """Кут відхилення від прямої в градусах. 0 = пряма, 180 = розворот."""
+    """Deviation angle from a straight line in degrees. 0 = straight, 180 = reversal."""
     a = _unit(_sub(p, p_prev))
     b = _unit(_sub(p_next, p))
     if a is None or b is None:
@@ -51,17 +51,17 @@ def turn_angle(p_prev, p, p_next):
 
 
 def _clamp(pts, closed, t):
-    """Стискає довжини дотичних, щоб дві сусідні не перекрилися на сегменті.
+    """Shrinks tangent lengths so that two neighbours do not overlap on a segment.
 
-    Один прохід: кожен кут отримує пропорційну частку довжини сегмента.
-    Оскільки частки двох кінців сегмента в сумі дають L*FILL, перекриття
-    неможливе після одного проходу — ітерації не потрібні.
+    One pass: each corner gets a proportional share of the segment length.
+    Since the shares of the two ends of a segment sum to L*FILL, overlap
+    is impossible after one pass — no iterations needed.
     """
     n = len(pts)
     segs = [(i, (i + 1) % n) for i in range(n if closed else n - 1)]
     capped = list(t)
-    # ponytail: трохи консервативно (кут, обрізаний з одного боку, не повертає
-    # запас сусідові з іншого). Точний перерозподіл — лише якщо буде видно на око.
+    # ponytail: slightly conservative (a corner trimmed on one side does not return
+    # the slack to the neighbour on the other). Exact redistribution — only if visible by eye.
     for i, j in segs:
         s = t[i] + t[j]
         if s <= TOL:
@@ -74,12 +74,12 @@ def _clamp(pts, closed, t):
 
 
 def tangent_lengths(pts, closed, radius, min_angle):
-    """Для кожної вершини — відстань від вершини до точки дотику дуги (0 = не гнути)."""
+    """For each vertex — distance from the vertex to the arc tangent point (0 = do not bend)."""
     n = len(pts)
     t = [0.0] * n
     for i in (range(n) if closed else range(1, n - 1)):
         ang = turn_angle(pts[i - 1], pts[i], pts[(i + 1) % n])
-        if ang < min_angle or ang > 179.9:      # 180 -> дуга вироджена, пропускаємо
+        if ang < min_angle or ang > 179.9:      # 180 -> degenerate arc, skip
             continue
         t[i] = radius * math.tan(math.radians(ang) / 2.0)
     return _clamp(pts, closed, t)
@@ -95,7 +95,7 @@ def _dedupe(pts):
     return out
 
 
-# ---------- побудова кривої (потребує Rhino) ----------
+# ---------- building the curve (needs Rhino) ----------
 
 def build_curve(pts, closed, t):
     n = len(pts)
@@ -117,7 +117,7 @@ def build_curve(pts, closed, t):
             arc = Rhino.Geometry.Arc(A[i], tan_in[i], B[i])
             if arc.IsValid and arc.Length > TOL:
                 pc.Append(arc)
-            else:                                # запобіжник: не лишаємо розрив
+            else:                                # safeguard: do not leave a gap
                 pc.Append(Rhino.Geometry.Line(A[i], P[i]))
                 pc.Append(Rhino.Geometry.Line(P[i], B[i]))
         if not closed and i == n - 1:
@@ -129,13 +129,13 @@ def build_curve(pts, closed, t):
 
 
 def main():
-    ids = rs.GetObjects("Виберіть полілайни", rs.filter.curve, preselect=True, select=False)
+    ids = rs.GetObjects("Select polylines", rs.filter.curve, preselect=True, select=False)
     if not ids:
         return
-    min_angle = rs.GetReal("Мін. кут відхилення від прямої, град (0=пряма, 180=розворот)", 20.0, 0.0, 179.0)
+    min_angle = rs.GetReal("Min. deviation angle from straight, deg (0=straight, 180=reversal)", 20.0, 0.0, 179.0)
     if min_angle is None:
         return
-    radius = rs.GetReal("Радіус заокруглення", 5.0, TOL)
+    radius = rs.GetReal("Fillet radius", 5.0, TOL)
     if radius is None:
         return
 
@@ -145,47 +145,47 @@ def main():
         crv = rs.coercecurve(gid)
         ok, pl = crv.TryGetPolyline() if crv else (False, None)
         if not ok or pl is None or pl.Count < 3:
-            skipped.append("не полілайн")
+            skipped.append("not a polyline")
             continue
         pts = _dedupe([(p.X, p.Y, p.Z) for p in pl])
         if len(pts) < 3:
-            skipped.append("замало вершин")
+            skipped.append("too few vertices")
             continue
         t = tangent_lengths(pts, crv.IsClosed, radius, min_angle)
         if max(t) <= TOL:
-            skipped.append("немає кутів > порогу")
+            skipped.append("no corners > threshold")
             continue
         new_crv = build_curve(pts, crv.IsClosed, t)
         if new_crv and new_crv.IsValid and sc.doc.Objects.Replace(gid, new_crv):
             done += 1
         else:
-            skipped.append("не вдалося замінити")
+            skipped.append("could not replace")
 
     sc.doc.Views.Redraw()
-    print("Заокруглено кривих: {0}, пропущено: {1}".format(done, len(skipped)))
+    print("Curves rounded: {0}, skipped: {1}".format(done, len(skipped)))
     for s in set(skipped):
-        print("  причина: {0} x{1}".format(s, skipped.count(s)))
+        print("  reason: {0} x{1}".format(s, skipped.count(s)))
 
 
-# ---------- самоперевірка (працює у звичайному Python, без Rhino) ----------
+# ---------- self-check (works in plain Python, without Rhino) ----------
 
 def _self_check():
     sq = [(0, 0, 0), (10, 0, 0), (10, 10, 0), (0, 10, 0)]
 
-    t = tangent_lengths(sq, True, 3.0, 20.0)          # 90 град -> t = r * tan45 = r
+    t = tangent_lengths(sq, True, 3.0, 20.0)          # 90 deg -> t = r * tan45 = r
     assert all(abs(x - 3.0) < 1e-9 for x in t), t
 
-    t = tangent_lengths(sq, True, 3.0, 91.0)          # поріг вище кута -> не чіпаємо
+    t = tangent_lengths(sq, True, 3.0, 91.0)          # threshold above the angle -> untouched
     assert max(t) == 0.0, t
 
-    t = tangent_lengths(sq, True, 100.0, 20.0)        # усадка під довжину сегмента
+    t = tangent_lengths(sq, True, 100.0, 20.0)        # shrink to the segment length
     assert all(x <= 10 * FILL / 2 + 1e-9 for x in t), t
 
     almost = [(0, 0, 0), (10, 0, 0), (20, 0.01, 0), (20, 10, 0), (0, 10, 0)]
-    t = tangent_lengths(almost, True, 1.0, 5.0)       # ~0.06 град -> нижче порогу
+    t = tangent_lengths(almost, True, 1.0, 5.0)       # ~0.06 deg -> below the threshold
     assert t[1] == 0.0, t
 
-    t = tangent_lengths(sq, False, 3.0, 20.0)         # відкрита: кінці не гнуться
+    t = tangent_lengths(sq, False, 3.0, 20.0)         # open: ends are not bent
     assert t[0] == 0.0 and t[-1] == 0.0, t
 
     print("self-check ok")

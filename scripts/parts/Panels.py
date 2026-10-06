@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Панелі → частини P1, P2, P3…
-Вибираєш замкнені криві (панелі). Кожна панель копіюється на те саме місце в шар Parts::Panels,
-вхідна крива (і її вирізи) видаляється. Копія отримує номер P<n>: текст усередині панелі в куті, біля якого клікнеш (Enter — правий верхній;
-розміщення як у markup/DotToPanelText.py), стиль — опція Style (запам'ятовується),
-і TextDot "P<n>" (підшар Parts::Panels::Dots) вище-зліва від краю панелі, щоб номер було видно при будь-якому зумі.
-Номер пишеться в UserText копії (Part = P<n>): повторний запуск
-пропускає криві, що вже лежать у Parts::Panels з номером. Нова панель отримує найменший вільний номер у шарі,
-тож номер видаленої панелі повертається.
-Крива, що лежить усередині іншої вибраної — виріз (отвір) цієї панелі: копіюється разом з нею
-під тим самим номером, свого номера не забирає. Копія, вирізи, текст і TextDot — одна група.
+"""Panels → parts P1, P2, P3…
+Select closed curves (panels). Each panel is copied in place to layer Parts::Panels,
+the input curve (and its holes) is deleted. The copy gets number P<n>: text inside the panel in the corner you click near (Enter — top right;
+placement as in markup/DotToPanelText.py), style — option Style (remembered),
+and a TextDot "P<n>" (sublayer Parts::Panels::Dots) above-left of the panel edge, so the number is visible at any zoom.
+The number is written to the copy's UserText (Part = P<n>): a repeated run
+skips curves already in Parts::Panels with a number. A new panel gets the smallest free number in the layer,
+so the number of a deleted panel is reused.
+A curve lying inside another selected one is a hole of that panel: it is copied together with it
+under the same number and does not take its own number. Copy, holes, text and TextDot are one group.
 """
 import os
 import re
@@ -19,25 +19,25 @@ import scriptcontext as sc
 import Rhino
 from Rhino.Geometry import Curve, RegionContainment
 
-# розміщення тексту в куті панелі та вибір стилю — з scripts/markup/DotToPanelText.py
+# text placement in a panel corner and style picking — from scripts/markup/DotToPanelText.py
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
 import DotToPanelText as D
 
 LAYER = "Parts::Panels"
-DOTS = LAYER + "::Dots"  # TextDot — окремим підшаром, усе інше в LAYER
+DOTS = LAYER + "::Dots"  # TextDot — in a separate sublayer, everything else in LAYER
 PREFIX = "P"
-KEY = "Part"  # ключ UserText з номером панелі
+KEY = "Part"  # UserText key with the panel number
 STYLE = "Panels.style"
 
 
 def bbox(crv, plane):
-    """(xmin, ymin, xmax, ymax) кривої в координатах plane."""
+    """(xmin, ymin, xmax, ymax) of the curve in plane coordinates."""
     b = crv.GetBoundingBox(plane)
     return b.Min.X, b.Min.Y, b.Max.X, b.Max.Y
 
 
 def classify(curves, plane, tol):
-    """[(i, [індекси вирізів])] — зовнішні панелі в порядку читання: рядки згори вниз, у рядку зліва направо."""
+    """[(i, [hole indices])] — outer panels in reading order: rows top to bottom, left to right within a row."""
     holes = {}
     outer = []
     for i, a in enumerate(curves):
@@ -46,14 +46,14 @@ def classify(curves, plane, tol):
             if i != j and Curve.PlanarClosedCurveRelationship(a, b, plane, tol) == RegionContainment.AInsideB:
                 if parent is None or Curve.PlanarClosedCurveRelationship(
                         curves[parent], b, plane, tol) == RegionContainment.AInsideB:
-                    parent = j  # найбільший контейнер: виріз у вирізі все одно належить зовнішній панелі
+                    parent = j  # the largest container: a hole in a hole still belongs to the outer panel
         if parent is None:
             outer.append(i)
         else:
             holes.setdefault(parent, []).append(i)
     boxes = dict((i, bbox(curves[i], plane)) for i in outer)
     order, rows = sorted(outer, key=lambda i: -boxes[i][3]), []
-    for i in order:  # новий рядок, коли верх панелі нижче за низ першої панелі поточного рядка
+    for i in order:  # new row when the panel top is below the bottom of the first panel of the current row
         if rows and boxes[i][3] > boxes[rows[-1][0]][1]:
             rows[-1].append(i)
         else:
@@ -72,13 +72,13 @@ def layer():
 
 
 def num(s):
-    """P4 → 4, інакше None."""
+    """P4 → 4, otherwise None."""
     m = re.match(PREFIX + r"(\d+)$", s or "")
     return int(m.group(1)) if m else None
 
 
 def used_numbers(lay):
-    """Зайняті номери P<n> у шарі (UserText, текст або TextDot)."""
+    """Used numbers P<n> in the layer (UserText, text or TextDot)."""
     nums = set()
     for o in rs.ObjectsByLayer(lay) or []:
         s = rs.GetUserText(o, KEY) or (rs.TextObjectText(o) if rs.IsText(o) else
@@ -89,10 +89,10 @@ def used_numbers(lay):
 
 
 def get_corner(doc, crv, name, style):
-    """Клік біля кута панелі для тексту; Enter — правий верхній; опція Style. Повертає (точка або None, стиль)."""
+    """Click near a panel corner for the text; Enter — top right; option Style. Returns (point or None, style)."""
     while True:
         gp = Rhino.Input.Custom.GetPoint()
-        gp.SetCommandPrompt(u"Клікни біля кута панелі для %s (Enter — правий верхній, стиль: %s)" % (name, style))
+        gp.SetCommandPrompt(u"Click near a panel corner for %s (Enter — top right, style: %s)" % (name, style))
         gp.AcceptNothing(True)
         opt = gp.AddOption("Style")
         res = gp.Get()
@@ -107,28 +107,28 @@ def get_corner(doc, crv, name, style):
         return None, style
 
 
-HELP = u"""Опції:
-  Style — стиль тексту номера P<n>"""  # друкується на старті — видно під полями опцій
+HELP = u"""Options:
+  Style — text style of the number P<n>"""  # printed at start — visible under the option fields
 
 
 def main():
     print(HELP)
     doc = sc.doc
-    ids = rs.GetObjects(u"Виберіть панелі (замкнені криві)", rs.filter.curve, preselect=True)
+    ids = rs.GetObjects(u"Select panels (closed curves)", rs.filter.curve, preselect=True)
     if not ids:
         return
     picked = list(ids)
     tol = doc.ModelAbsoluteTolerance
     plane = rs.ViewCPlane()
 
-    # готова панель — крива в LAYER з номером; старі мітки на кривих в інших шарах не заважають
+    # a finished panel is a curve in LAYER with a number; old tags on curves in other layers do not interfere
     done = [i for i in ids if rs.ObjectLayer(i) == LAYER and rs.GetUserText(i, KEY)]
     bad = [i for i in ids if i not in done and not (rs.IsCurveClosed(i) and rs.IsCurvePlanar(i))]
     ids = [i for i in ids if i not in done and i not in bad]
     if done:
-        print(u"Вже пронумеровані, пропущено: %d" % len(done))
+        print(u"Already numbered, skipped: %d" % len(done))
     if bad:
-        print(u"Не замкнені або не плоскі, пропущено: %d" % len(bad))
+        print(u"Not closed or not planar, skipped: %d" % len(bad))
     if not ids:
         return
 
@@ -140,23 +140,23 @@ def main():
     used = used_numbers(LAYER)
     D.pts.ensure_styles(doc)
     style = sc.sticky.get(STYLE)
-    if not style or doc.DimStyles.FindName(style) is None:  # за замовчуванням — PAT за шириною першої панелі
+    if not style or doc.DimStyles.FindName(style) is None:  # default — PAT by the width of the first panel
         x0, y0, x1, y1 = bbox(curves[0], plane)
         style = D.pts.style_name(D.pts.height_for(min(x1 - x0, y1 - y0)))
     made = 0
     for i, hole_idx in classify(curves, plane, tol):
-        n = min(k for k in range(1, len(used) + 2) if k not in used)  # найменший вільний: діра після видалення заповнюється
+        n = min(k for k in range(1, len(used) + 2) if k not in used)  # smallest free: a gap after deletion is filled
         used.add(n)
         name = u"%s%d" % (PREFIX, n)
         crv = curves[i]
         rs.UnselectAllObjects()
-        rs.SelectObject(ids[i])  # підсвітити, яку панель зараз підписуємо
+        rs.SelectObject(ids[i])  # highlight which panel is being labelled now
         click, style = get_corner(doc, crv, name, style)
         if click is None:
             break
         sc.sticky[STYLE] = style
         ds = doc.DimStyles.FindName(style)
-        # TextDot біля верхнього лівого краю панелі: найближча до кута габариту точка кривої, трохи вгору-вліво
+        # TextDot near the top-left of the panel: curve point closest to the bbox corner, slightly up-left
         x0, y0, x1, y1 = bbox(crv, plane)
         ok, t = crv.ClosestPoint(plane.PointAt(x0, y1))
         gap = 2 * ds.TextHeight * ds.DimensionScale
@@ -165,19 +165,19 @@ def main():
         tagged = attrs.Duplicate()
         tagged.SetUserString(KEY, name)
         new = [doc.Objects.AddCurve(curves[k], tagged) for k in [i] + hole_idx]
-        for k in [i] + hole_idx:  # вхідні криві видаляються (Undo повертає)
+        for k in [i] + hole_idx:  # input curves are deleted (Undo restores them)
             doc.Objects.Delete(ids[k], True)
         tid = D.place_text(doc, name, crv, click, ds, attrs, tol)
         if not tid:
-            print(u"%s: текст не влазить у панель (менший стиль — опція Style), лишився TextDot" % name)
+            print(u"%s: text does not fit in the panel (smaller style — option Style), TextDot kept" % name)
         new += [o for o in (tid, doc.Objects.AddTextDot(dot, dot_attrs)) if o]
         rs.AddObjectsToGroup(new, rs.AddGroup())
         doc.Views.Redraw()
-        print(u"%s%s" % (name, u"  (вирізів: %d)" % len(hole_idx) if hole_idx else u""))
+        print(u"%s%s" % (name, u"  (holes: %d)" % len(hole_idx) if hole_idx else u""))
         made += 1
     rs.UnselectAllObjects()
-    rs.SelectObjects([o for o in picked if rs.IsObject(o)])  # вибір як був (без видалених)
-    print(u"Панелей: %d → %s" % (made, LAYER))
+    rs.SelectObjects([o for o in picked if rs.IsObject(o)])  # selection as before (without deleted ones)
+    print(u"Panels: %d → %s" % (made, LAYER))
 
 
 if __name__ == "__main__":

@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-# Перетворює всі виділені точки на хрестики або кружечки (позначки центрів).
-# Приймає: точкові об'єкти, хмари точок, текстові маркери (TextDot).
-# Кожна позиція замінюється хрестиком (дві лінії, згруповані) або колом.
-# Сумісність: IronPython 2.7 / CPython 3 (Rhino 8).
+# Converts all selected points into crosses or circles (centre marks).
+# Accepts: point objects, point clouds, text dots (TextDot).
+# Each position is replaced by a cross (two lines, grouped) or a circle.
+# Compatibility: IronPython 2.7 / CPython 3 (Rhino 8).
 import rhinoscriptsyntax as rs
 
 
 def collect_positions(objs):
-    """Повертає список (координата, шар, id_оригіналу) з різних типів об'єктів."""
+    """Returns a list of (coordinate, layer, original_id) from different object types."""
     items = []
     for obj in objs:
         if rs.IsPoint(obj):
@@ -24,25 +24,25 @@ def collect_positions(objs):
 def points_to_crosses():
     objs = rs.SelectedObjects()
     if not objs:
-        objs = rs.GetObjects("Виберіть точки", preselect=True)
+        objs = rs.GetObjects("Select points", preselect=True)
     if not objs:
-        print("Нічого не вибрано.")
+        print("Nothing selected.")
         return
 
     items = collect_positions(objs)
     if not items:
-        rs.MessageBox("Серед вибраного немає точок / хмар точок / текстових маркерів.\n"
-                      "Вибрано об'єктів: %d" % len(objs))
+        rs.MessageBox("The selection has no points / point clouds / text dots.\n"
+                      "Objects selected: %d" % len(objs))
         return
 
-    shape = rs.GetString("Форма позначки", "Cross", ["Cross", "Circle"])
+    shape = rs.GetString("Mark shape", "Cross", ["Cross", "Circle"])
     if shape not in ("Cross", "Circle"):
         return
-    arm = rs.GetReal("Половина розміру (для кружечка — радіус), одиниці документа", 1.0, 0.001)
+    arm = rs.GetReal("Half size (for a circle — radius), document units", 1.0, 0.001)
     if arm is None:
         return
     delete_originals = rs.GetBoolean(
-        "Видалити оригінали?", [("Оригінали", "Лишити", "Видалити")], [True])
+        "Delete originals?", [("Originals", "Keep", "Delete")], [True])
     if delete_originals is None:
         return
     delete_originals = delete_originals[0]
@@ -63,8 +63,8 @@ def points_to_crosses():
                        rs.AddLine([c[0], c[1] - arm, c[2]], [c[0], c[1] + arm, c[2]])]
                 rs.AddObjectsToGroup(new, rs.AddGroup())
             if layer and rs.IsLayer(layer):
-                rs.ObjectLayer(new, layer)  # шар оригіналу
-            for g in rs.ObjectGroups(src) or []:  # лишаються в групах оригіналу
+                rs.ObjectLayer(new, layer)  # original's layer
+            for g in rs.ObjectGroups(src) or []:  # stay in the original's groups
                 rs.AddObjectsToGroup(new, g)
             created.extend(new)
             originals.add(src)
@@ -76,7 +76,7 @@ def points_to_crosses():
     finally:
         rs.CurrentLayer(prev_layer)
         rs.EnableRedraw(True)
-    print("Готово: %d позначок (%s)." % (made, shape))
+    print("Done: %d marks (%s)." % (made, shape))
 
 
 if __name__ == "__main__":

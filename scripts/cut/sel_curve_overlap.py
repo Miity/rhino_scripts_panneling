@@ -51,12 +51,12 @@ def sel_curve_overlap():
     if not ids:
         ids = rs.ObjectsByType(4, select=False) or []
     if len(ids) < 2:
-        print("Потрібно щонайменше дві криві.")
+        print("At least two curves are needed.")
         return
 
     ids, deleted = delete_exact_duplicates(ids)
     if deleted:
-        print("Видалено {} точних дублікатів.".format(deleted))
+        print("Deleted {} exact duplicates.".format(deleted))
 
     mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     hits = shorter_overlaps([rs.coercecurve(id) for id in ids], sc.doc.ModelAbsoluteTolerance,
@@ -65,9 +65,9 @@ def sel_curve_overlap():
     rs.UnselectAllObjects()
     if hits:
         rs.SelectObjects([ids[k] for k in hits])
-        print("Виділено {} коротших кривих під довшими.".format(len(hits)))
+        print("Selected {} shorter curves under longer ones.".format(len(hits)))
     else:
-        print("Коротших кривих під довшими не знайдено.")
+        print("No shorter curves under longer ones found.")
 
 
 if __name__ == "__main__":

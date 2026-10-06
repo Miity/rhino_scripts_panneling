@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Конвертує виділені текстові об'єкти в TextDot.
-Dot ставиться в центр тексту, атрибути (шар, колір тощо) копіюються, оригінал видаляється.
+"""Converts selected text objects to TextDots.
+The dot is placed at the text centre, attributes (layer, colour etc.) are copied, the original is deleted.
 """
 import rhinoscriptsyntax as rs
 
 
 def text_to_dot():
-    ids = rs.GetObjects(u"Виберіть текст для конвертації в dot", rs.filter.annotation, preselect=True)
+    ids = rs.GetObjects(u"Select text to convert to dots", rs.filter.annotation, preselect=True)
     if not ids:
         return
 
@@ -26,7 +26,7 @@ def text_to_dot():
 
     if dots:
         rs.SelectObjects(dots)
-    print(u"Конвертовано в dot: {}".format(len(dots)))
+    print(u"Converted to dots: {}".format(len(dots)))
 
 
 if __name__ == "__main__":

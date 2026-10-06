@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Bordino rinforzato: смуга-підсилення висотою H уздовж ребра панелі, всередині панелі.
-Вибираєш панель (замкнена крива) і клікаєш біля ребра (кілька підряд, Enter — кінець).
-Як CopriZip (CopriZip.flap, inward), тільки всередину: ребро від кута до кута (кут — злам дотичної
-більший за Angle) + офсет на H (типово 6 см; буває 10) всередину панелі, кінці — по сусідніх ребрах
-(сусід гостріше 30° — кінець перпендикулярний). Дві смуги в куті з'єднує JoinCorner.
-Опція SA — припуск на шов на внутрішньому краї (типово 0): різ на H + SA, лінія шва на H, у групі.
-Панель не змінюється. Деталь на місці, шар Parts::Reinforcements, підпис "RB<n>  H=…" (≈ H/10, на чверті ребра, вздовж внутрішньої лінії) у групі;
-нумерація RB продовжується між запусками.
-Опція Layout (типово Yes): на панелі — розмітка (лише внутрішня лінія H, без ребер панелі), повна деталь —
-на 10000 вгору (ReinfCircle.add_part); No — повна деталь на місці.
+"""Reinforced border: a reinforcement strip of height H along a panel edge, inside the panel.
+Select a panel (closed curve) and click near an edge (several in a row, Enter — done).
+Like ZipCover (ZipCover.flap, inward), but inward: edge corner to corner (corner — tangent break
+larger than Angle) + offset by H (default 6 cm; sometimes 10) into the panel, ends — along the neighbouring edges
+(neighbour sharper than 30° — perpendicular end). Two strips at a corner are joined by JoinCorner.
+Option SA — seam allowance on the inner edge (default 0): cut at H + SA, seam line at H, in the group.
+The panel is not changed. Part in place, layer Parts::Reinforcements, label "RB<n>  H=…" (≈ H/10, at a quarter of the edge, along the inner line) in a group;
+RB numbering continues between runs.
+Option Layout (default Yes): on the panel — markup (only the inner line H, without panel edges), full part —
+10000 up (ReinfCircle.add_part); No — full part in place.
 """
 import os
 import sys
@@ -19,18 +19,18 @@ import scriptcontext as sc
 from Rhino.Geometry import Curve
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-for _m in ("ReinfCircle", "Seam", "CopriZip"):  # Rhino тримає модулі з першого запуску за сесію
+for _m in ("ReinfCircle", "Seam", "ZipCover"):  # Rhino keeps modules from the first run for the session
     sys.modules.pop(_m, None)
-from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, text_style  # шар, нумерація, стиль PAT ≈ H/10
-from Seam import label_frame  # напрямок підпису вздовж ребра (читається зліва направо)
-from CopriZip import flap  # ребро кут–кут + офсет, кінці по сусідніх ребрах
+from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, text_style  # layer, numbering, PAT style ≈ H/10
+from Seam import label_frame  # label direction along the edge (reads left to right)
+from ZipCover import flap  # edge corner to corner + offset, ends along the neighbouring edges
 
 STICKY = "ReinfBord"
-PREFIX = "RB"  # Reinforcement Bordino
+PREFIX = "RB"  # Reinforced Border
 
 
-def bordino(panel, click, h, sa, angle, normal, tol):
-    """(різ, [лінії шва], ребро, офсет на H, к-сть перпендикулярних кінців) або рядок-помилка."""
+def border(panel, click, h, sa, angle, normal, tol):
+    """(cut, [seam lines], edge, offset by H, number of perpendicular ends) or an error string."""
     res = flap(panel, click, h + sa, angle, normal, tol, inward=True)
     if not isinstance(res, tuple) or sa <= 0:
         return res if not isinstance(res, tuple) else (res[0], [], res[1], res[2], res[3])
@@ -39,7 +39,7 @@ def bordino(panel, click, h, sa, angle, normal, tol):
     if not isinstance(strip, tuple):
         return strip
     crv, _, off, _ = strip
-    # шов — край смуги H, що не лежить на ребрі й сусідніх сторонах (тобто не на різі)
+    # seam — edge of the H strip not lying on the edge and the neighbouring sides (i.e. not on the cut)
     seams = [g for g in crv.DuplicateSegments() or []
              if any(cut.PointAt(cut.ClosestPoint(g.PointAtNormalizedLength(t))[1])
                     .DistanceTo(g.PointAtNormalizedLength(t)) > tol for t in (0.25, 0.5, 0.75))]
@@ -47,14 +47,14 @@ def bordino(panel, click, h, sa, angle, normal, tol):
 
 
 def label_place(edge, off, normal, gap):
-    """(площина, вертикальне вирівнювання) підпису: на чверті ребра, вздовж внутрішньої лінії (офсет H),
-    з боку смуги на відстані gap — посередині ребра вже підписи CopriZip / ZipStops."""
+    """(plane, vertical alignment) of the label: at a quarter of the edge, along the inner line (offset H),
+    on the strip side at distance gap — the middle of the edge already has ZipCover / ZipStops labels."""
     half = edge.Trim(edge.Domain.T0, edge.LengthParameter(edge.GetLength() / 2.0)[1]) or edge
     plane = label_frame(half, off, normal)
     ok, t = half.LengthParameter(half.GetLength() / 2.0)
     m = half.PointAt(t if ok else half.Domain.Mid)
     q = off.PointAt(off.ClosestPoint(m)[1])
-    toward = m - q  # від внутрішньої лінії до ребра, тобто в смугу
+    toward = m - q  # from the inner line to the edge, i.e. into the strip
     toward.Unitize()
     plane.Origin = q + toward * gap
     up = plane.YAxis * toward > 0
@@ -62,11 +62,11 @@ def label_place(edge, off, normal, gap):
 
 
 def ask(gp):
-    """Клік біля ребра з опціями H / SA / Angle / Layout. Точка або None (Enter / Esc)."""
+    """Click near an edge with options H / SA / Angle / Layout. A point or None (Enter / Esc)."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     h = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0 * unit), 0.001, 1e6)
     sa = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_sa", 0.0), 0.0, 1e6)
-    a = Rhino.Input.Custom.OptionDouble(sc.sticky.get("CopriZip_angle", 30.0), 1.0, 179.0)  # спільний з CopriZip
+    a = Rhino.Input.Custom.OptionDouble(sc.sticky.get("ZipCover_angle", 30.0), 1.0, 179.0)  # shared with ZipCover
     gp.AddOptionDouble("H", h)
     gp.AddOptionDouble("SA", sa)
     gp.AddOptionDouble("Angle", a)
@@ -77,23 +77,23 @@ def ask(gp):
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         sc.sticky[STICKY] = h.CurrentValue
         sc.sticky[STICKY + "_sa"] = sa.CurrentValue
-        sc.sticky["CopriZip_angle"] = a.CurrentValue
+        sc.sticky["ZipCover_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
             continue
         return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
 
-HELP = u"""Опції:
-  H — висота смуги від ребра всередину панелі
-  SA — припуск на шов на внутрішньому краї смуги (0 — без)
-  Angle — злам, більший за цей кут, = кут панелі (ребро береться від кута до кута)
-  Layout — Yes: на панелі лише розмітка, повна деталь на 10000 вгору; No: повна деталь на місці"""  # друкується на старті — видно під полями опцій
+HELP = u"""Options:
+  H — strip height from the edge into the panel
+  SA — seam allowance on the inner edge of the strip (0 — none)
+  Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
+  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place"""  # printed at start — visible under the option fields
 
 
 def main():
     print(HELP)
     doc = sc.doc
-    oid = rs.GetObject(u"Виберіть панель (замкнена крива)", rs.filter.curve, preselect=True)
+    oid = rs.GetObject(u"Select a panel (closed curve)", rs.filter.curve, preselect=True)
     if not oid:
         return
     panel = rs.coercecurve(oid)
@@ -106,15 +106,15 @@ def main():
     made = 0
     while True:
         gp = Rhino.Input.Custom.GetPoint()
-        gp.SetCommandPrompt(u"Клікни біля ребра під bordino (Enter — кінець)")
+        gp.SetCommandPrompt(u"Click near the edge for the reinforced border (Enter — done)")
         gp.AcceptNothing(True)
         click = ask(gp)
         if click is None:
             break
         h, sa = sc.sticky[STICKY], sc.sticky[STICKY + "_sa"]
-        res = bordino(panel, click, h, sa, sc.sticky["CopriZip_angle"], normal, tol)
+        res = border(panel, click, h, sa, sc.sticky["ZipCover_angle"], normal, tol)
         if not isinstance(res, tuple):
-            print(u"Пропущено: %s" % res)
+            print(u"Skipped: %s" % res)
             continue
         cut, seams, edge, off, square = res
         label = u"%s%d  H=%g" % (PREFIX, n, h)
@@ -124,14 +124,14 @@ def main():
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign
         add_part(doc, [cut] + seams, te, seams or off_panel(cut, [panel], tol), attrs,
-                 sc.sticky[STICKY + "_layout"])  # шов = лінія H на панелі
+                 sc.sticky[STICKY + "_layout"])  # seam = line H on the panel
         doc.Views.Redraw()
         print(label)
         if square:
-            print(u"Увага: %d кін. сусід гостріше 30° — кінець перпендикулярний" % square)
+            print(u"Warning: %d end(s) with a neighbour sharper than 30° — end is perpendicular" % square)
         n += 1
         made += 1
-    print(u"Bordino: %d → %s" % (made, LAYER))
+    print(u"Reinforced border: %d → %s" % (made, LAYER))
 
 
 if __name__ == "__main__":

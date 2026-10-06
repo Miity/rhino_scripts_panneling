@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""TextToCurves: текст «L» під кутами 0–355° (звичайний і після Mirror), збережений у .3dm,
-після читання з файлу → криві не дзеркальні (як на екрані з Top), а Explode — дзеркальні.
-Запуск у Rhino 8: DOTNET_ROLL_FORWARD=Major rhinocode script <цей файл>; результат — у OUT."""
+"""TextToCurves: text "L" at angles 0–355° (normal and after Mirror), saved to .3dm,
+after reading from the file → curves are not mirrored (as on screen in Top), while Explode is mirrored.
+Run in Rhino 8: DOTNET_ROLL_FORWARD=Major rhinocode script <this file>; result — in OUT."""
 import math
 import os
 import sys
@@ -21,7 +21,7 @@ try:
         reload(M)
     except NameError:
         import importlib
-        importlib.reload(M)  # rhinocode тримає старий модуль між запусками
+        importlib.reload(M)  # rhinocode keeps the old module between runs
 
     Z = rg.Vector3d.ZAxis
     o = rg.Point3d(10, 5, 0)
@@ -33,16 +33,16 @@ try:
         v = rg.Vector3d.CrossProduct(Z, u)
         for name, mirror in (("n", None), ("m", u), ("mx", v)):
             te = rg.TextEntity.Create(u"L", rg.Plane(o, u, v), doc.DimStyles.Current, False, 0, 0)
-            if mirror is not None:  # як команда Mirror: дзеркалять готовий текст
+            if mirror is not None:  # like the Mirror command: mirrors the finished text
                 te.Transform(rg.Transform.Mirror(o, mirror))
             frames[doc.Objects.AddText(te)] = (name, deg, [rg.Plane(o, u, v), rg.Plane(o, -u, -v)])
     path = os.path.join(tempfile.gettempdir(), "test_text_to_curves.3dm")
     doc.Write3dmFile(path, Rhino.FileIO.FileWriteOptions())
-    doc = Rhino.RhinoDoc.OpenHeadless(path)  # як у користувача: текст прочитаний із файлу
+    doc = Rhino.RhinoDoc.OpenHeadless(path)  # as for the user: text read from a file
     sc.doc = doc
 
     def readable(crvs, frame):
-        """'L' не дзеркальне, якщо в frame риска зліва, а горизонталь знизу."""
+        """'L' is not mirrored if in frame the stem is on the left and the bar at the bottom."""
         pts = []
         for c in crvs:
             pts.extend(frame.RemapToPlaneSpace(p)[1] for p in c.ToPolyline(0.01, 0.1, 0, 0).ToPolyline())
@@ -62,10 +62,10 @@ try:
         exploded = [g for g in obj.Geometry.Explode() if isinstance(g, rg.Curve)]
         exploded_bad += not any(readable(exploded, f) for f in fr)
     assert not bad, "mirrored: " + " ".join(bad)
-    assert exploded_bad, "Explode більше не дзеркалить — перевірка нічого не ловить"
-    res = "ok (Explode дав дзеркальних: %d із %d)" % (exploded_bad, len(frames))
+    assert exploded_bad, "Explode no longer mirrors — the check catches nothing"
+    res = "ok (Explode gave mirrored: %d of %d)" % (exploded_bad, len(frames))
 
-    # Реальний файл: у p1.3dm Explode дає дзеркальні P3, CZ 20, Can3, Z2 (звірено знімком екрана).
+    # Real file: in p1.3dm Explode gives mirrored P3, CZ 20, Can3, Z2 (verified with a screenshot).
     P1 = "/Users/dmytro/Desktop/p1.3dm"
     if os.path.exists(P1):
         doc = Rhino.RhinoDoc.OpenHeadless(P1)

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Обрізає вибрані криві з обох або одного кінця (клік біля нього) на задану відстань (у одиницях документа)."""
+"""Trims the selected curves at both ends or one end (click near it) by the given distance (in document units)."""
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
@@ -22,17 +22,17 @@ def trim_ends(crv, dist, side="Both"):
 def replace(oid, new):
     if new is None:
         return False
-    sc.doc.Objects.Replace(oid, new)  # зберігає шар і атрибути
+    sc.doc.Objects.Replace(oid, new)  # keeps layer and attributes
     return True
 
 
 def main():
-    dist = rs.GetReal("Відстань обрізки", sc.sticky.get("trim_ends_dist", 50.0), 0.0)
+    dist = rs.GetReal("Trim distance", sc.sticky.get("trim_ends_dist", 50.0), 0.0)
     if dist is None:
         return
     sc.sticky["trim_ends_dist"] = dist
-    # Опції командного рядка Rhino мають бути латиницею
-    mode = rs.GetString("Звідки обрізати (Both=обидва кінці, One=один кінець, клік біля нього)",
+    # Rhino command line options must be Latin
+    mode = rs.GetString("Where to trim (Both=both ends, One=one end, click near it)",
                         sc.sticky.get("trim_ends_mode", "Both"), ["Both", "One"])
     if mode not in ("Both", "One"):
         return
@@ -40,14 +40,14 @@ def main():
 
     skipped = 0
     if mode == "Both":
-        ids = rs.GetObjects("Виберіть криві для обрізки", rs.filter.curve, preselect=True)
+        ids = rs.GetObjects("Select curves to trim", rs.filter.curve, preselect=True)
         for oid in ids or []:
             if not replace(oid, trim_ends(rs.coercecurve(oid), dist)):
                 skipped += 1
     else:
-        # Клік по кривій ближче до кінця, який треба обрізати; Enter/Esc — завершити
+        # Click the curve closer to the end to trim; Enter/Esc — finish
         while True:
-            pick = rs.GetCurveObject("Клікніть по кривій біля кінця, який обрізати (Enter — завершити)")
+            pick = rs.GetCurveObject("Click the curve near the end to trim (Enter — finish)")
             if not pick:
                 break
             oid, t = pick[0], pick[4]
@@ -58,7 +58,7 @@ def main():
                 skipped += 1
             sc.doc.Views.Redraw()
     if skipped:
-        print("Пропущено {} кривих: закороткі для обрізки на {}".format(skipped, dist))
+        print("Skipped {} curves: too short to trim by {}".format(skipped, dist))
 
 
 if __name__ == "__main__":

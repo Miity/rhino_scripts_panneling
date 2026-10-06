@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Таблиця довжин блискавок для замовлення.
-Бере криві, позначені parts/ZipStops.py (UserText Zip = Z<n>): вибрані, або Enter — усі в документі.
-Лінії з одним номером — одна блискавка: вони діляться на дві сторони з найближчими сумами довжин
-(сторона може бути розбита на кілька панелей), замовляється довша сторона — без запасу,
-вгору до цілого сантиметра. Сторони різняться більше ніж на DIFF_MM — попередження.
-Однакові довжини зводяться в рядок «довжина × кількість». Блискавка з однією лінією — попередження (каналіна?).
-Каналіна (Can<n>, canalina / guida) — окрема секція: одна сторона, довжина = сума її ліній, вгору до 1 см.
-Результат: CSV поруч із .3dm (<файл>_zips.csv, роздільник «;» — для Excel), зведена таблиця
-в буфер обміну (через табуляцію — вставляється в Excel чи лист) і в командний рядок."""
+"""Zip length table for ordering.
+Takes curves marked by parts/ZipStops.py (UserText Zip = Z<n>): selected, or Enter — all in the document.
+Lines with one number are one zip: they are split into two sides with the closest length sums
+(a side may be split over several panels), the longer side is ordered — no allowance,
+rounded up to a whole centimetre. Sides differing by more than DIFF_MM — warning.
+Equal lengths are combined into a "length × quantity" row. A zip with one line — warning (a track?).
+Track (Trk<n>) — a separate section: one side, length = sum of its lines, rounded up to 1 cm.
+Output: CSV next to the .3dm (<file>_zips.csv, separator ";" — for Excel), a summary table
+to the clipboard (tab separated — pastes into Excel or a sheet) and to the command line."""
 import io
 import math
 import os
@@ -17,34 +17,34 @@ try:
     import Rhino
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
-except ImportError:  # для tests/test_zip_list.py поза Rhino
+except ImportError:  # for tests/test_zip_list.py outside Rhino
     Rhino = rs = sc = None
 
 KEY = "Zip"
-DIFF_MM = 5  # сторони однієї блискавки мають бути однакові — більша різниця = помилка викрійки?
+DIFF_MM = 5  # both sides of a zip should be equal — a larger difference = pattern error?
 
 
 def order_cm(length_cm):
-    """Округлення вгору до 1 см; хвіст похибки (35.0000001) не додає зайвий сантиметр."""
+    """Round up to 1 cm; a tolerance tail (35.0000001) does not add an extra centimetre."""
     return int(math.ceil(round(length_cm, 4)))
 
 
 def sides(lengths):
-    """Лінії однієї блискавки → (сторона 1, сторона 2): поділ на дві групи з найближчими сумами.
-    Одна лінія — сторона 2 = 0 (стара позначка або одностороння)."""
-    # ponytail: перебір 2^(n-1) поділів — миттєво для кількох ліній на блискавку, не для сотень
+    """Lines of one zip → (side 1, side 2): split into two groups with the closest sums.
+    One line — side 2 = 0 (old mark or one-sided)."""
+    # ponytail: tries 2^(n-1) splits — instant for a few lines per zip, not for hundreds
     if len(lengths) < 2:
         return sum(lengths), 0.0
     total, last = sum(lengths), len(lengths) - 1
-    # остання лінія завжди в стороні 2: без дзеркальних дублів; сторона 1 — непорожня підмножина решти
+    # the last line is always in side 2: no mirrored duplicates; side 1 — non-empty subset of the rest
     best = min((sum(l for k, l in enumerate(lengths[:last]) if m >> k & 1) for m in range(1, 1 << last)),
                key=lambda a: abs(total - 2 * a))
     return max(best, total - best), min(best, total - best)
 
 
 def tables(zips):
-    """zips = [(назва, довжина лінії в см)], лінії з однією назвою — одна блискавка →
-    (поштучно [(назва, ліній, сторона 1 мм, сторона 2 мм, см до замовлення)], зведено [(см, кількість)])."""
+    """zips = [(name, line length in cm)], lines with one name are one zip →
+    (per piece [(name, lines, side 1 mm, side 2 mm, cm to order)], summary [(cm, quantity)])."""
     num = lambda s: [int(p) if p.isdigit() else p for p in re.split(r"(\d+)", s)]
     lines = {}
     for name, cm in zips:
@@ -59,74 +59,74 @@ def tables(zips):
     return pieces, sorted(counts.items())
 
 
-def is_can(name):
-    return name.startswith("Can")
+def is_track(name):
+    return name.startswith("Trk")
 
 
-def can_table(cans):
-    """cans = [(назва, довжина лінії в см)] → [(назва, ліній, мм, см до замовлення)]: довжина — сума ліній."""
+def track_table(tracks):
+    """tracks = [(name, line length in cm)] → [(name, lines, mm, cm to order)]: length — sum of lines."""
     num = lambda s: [int(p) if p.isdigit() else p for p in re.split(r"(\d+)", s)]
     lines = {}
-    for name, cm in cans:
+    for name, cm in tracks:
         lines.setdefault(name, []).append(cm)
     return [(name, len(lines[name]), int(round(sum(lines[name]) * 10)), order_cm(sum(lines[name])))
             for name in sorted(lines, key=num)]
 
 
-def csv_text(pieces, summary, cans=()):
+def csv_text(pieces, summary, tracks=()):
     rows = []
     if pieces:
-        rows += [u"Блискавки — замовлення", u"Довжина, см;Кількість"]
+        rows += [u"Zips — order", u"Length, cm;Quantity"]
         rows += [u"%d;%d" % s for s in summary]
-        rows += [u"Разом;%d" % len(pieces), u""]
-    if cans:
-        rows += [u"Каналіна (canalina / guida)", u"Номер;Ліній;Довжина, мм;Замовити, см"]
-        rows += [u"%s;%d;%d;%d" % c for c in cans]
-        rows += [u"Разом, см;;;%d" % sum(c[3] for c in cans), u""]
+        rows += [u"Total;%d" % len(pieces), u""]
+    if tracks:
+        rows += [u"Track", u"Number;Lines;Length, mm;Order, cm"]
+        rows += [u"%s;%d;%d;%d" % c for c in tracks]
+        rows += [u"Total, cm;;;%d" % sum(c[3] for c in tracks), u""]
     if pieces:
-        rows += [u"Блискавки — поштучно", u"Номер;Ліній;Сторона 1, мм;Сторона 2, мм;Замовити, см"]
+        rows += [u"Zips — per piece", u"Number;Lines;Side 1, mm;Side 2, mm;Order, cm"]
         rows += [u"%s;%d;%d;%d;%d" % p for p in pieces]
     return u"\r\n".join(rows) + u"\r\n"
 
 
 def main():
-    ids = rs.GetObjects(u"Виберіть блискавки (Enter — усі в документі)", rs.filter.curve, preselect=True)
+    ids = rs.GetObjects(u"Select zips (Enter — all in the document)", rs.filter.curve, preselect=True)
     if not ids:
         ids = [o.Id for o in sc.doc.Objects.GetObjectList(Rhino.DocObjects.ObjectType.Curve)]
     ids = [i for i in ids if rs.GetUserText(i, KEY)]
     if not ids:
-        print(u"Немає кривих, позначених ZipStops (UserText Zip)")
+        print(u"No curves marked by ZipStops (UserText Zip)")
         return
     to_cm = Rhino.RhinoMath.UnitScale(sc.doc.ModelUnitSystem, Rhino.UnitSystem.Centimeters)
     lines = [(rs.GetUserText(i, KEY), rs.CurveLength(i) * to_cm) for i in ids]
-    pieces, summary = tables([z for z in lines if not is_can(z[0])])
-    cans = can_table([z for z in lines if is_can(z[0])])
+    pieces, summary = tables([z for z in lines if not is_track(z[0])])
+    tracks = track_table([z for z in lines if is_track(z[0])])
 
     path = sc.doc.Path
     if path:
         path = os.path.splitext(path)[0] + "_zips.csv"
     else:
-        path = rs.SaveFileName(u"Зберегти таблицю блискавок", "CSV (*.csv)|*.csv||", None, "zips.csv")
+        path = rs.SaveFileName(u"Save zip table", "CSV (*.csv)|*.csv||", None, "zips.csv")
         if not path:
             return
-    with io.open(path, "w", encoding="utf-8-sig", newline="") as f:  # BOM — щоб Excel не ламав кирилицю
-        f.write(csv_text(pieces, summary, cans))
+    with io.open(path, "w", encoding="utf-8-sig", newline="") as f:  # BOM — so Excel reads non-ASCII correctly
+        f.write(csv_text(pieces, summary, tracks))
 
     for p in pieces:
         if p[3] and p[2] - p[3] > DIFF_MM:
-            print(u"Увага, %s: сторони різняться на %d мм (%d / %d)" % (p[0], p[2] - p[3], p[2], p[3]))
+            print(u"Warning, %s: sides differ by %d mm (%d / %d)" % (p[0], p[2] - p[3], p[2], p[3]))
         if p[1] == 1:
-            print(u"Увага, %s: одна лінія — це каналіна? (ZipStops, Type=Can)" % p[0])
+            print(u"Warning, %s: one line — is it a track? (ZipStops, Type=Track)" % p[0])
     clip = u""
     if pieces:
-        clip += u"Блискавки, см\tКількість\n" + u"".join(u"%d\t%d\n" % s for s in summary)
-        clip += u"Разом\t%d\n" % len(pieces)
-    if cans:
-        clip += (u"\n" if clip else u"") + u"Каналіна\tсм\n" + u"".join(u"%s\t%d\n" % (c[0], c[3]) for c in cans)
-        clip += u"Разом, см\t%d\n" % sum(c[3] for c in cans)
+        clip += u"Zips, cm\tQuantity\n" + u"".join(u"%d\t%d\n" % s for s in summary)
+        clip += u"Total\t%d\n" % len(pieces)
+    if tracks:
+        clip += (u"\n" if clip else u"") + u"Track\tcm\n" + u"".join(u"%s\t%d\n" % (c[0], c[3]) for c in tracks)
+        clip += u"Total, cm\t%d\n" % sum(c[3] for c in tracks)
     rs.ClipboardText(clip)
     print(clip)
-    print(u"CSV: %s (зведена таблиця — у буфері обміну)" % path)
+    print(u"CSV: %s (summary table — in the clipboard)" % path)
 
 
 if __name__ == "__main__":

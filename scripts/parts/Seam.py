@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Припуск на шов (seam allowance / margine di cucitura) — окрема деталь зовні панелі.
-Як CopriZip: вибираєш панель (замкнена крива) і клікаєш біля ребра (кілька підряд, Enter — кінець).
-Ребро — від кута до кута (кут — злам більший за Angle); деталь — ребро + офсет на W назовні,
-кінці по продовженню сусідніх ребер (геометрія — CopriZip.flap). Деталь + підпис "SA <W>" у групі,
-шар Parts::Seam. Панель не змінюється.
-Опція Points=Yes: ще й точки шва (логіка markup/sewing_points.py: центр ± k·Step) на копії ребра
-в Parts::Seam — копія + точки в тій самій групі, що деталь.
+"""Seam allowance — a separate part outside the panel.
+Like ZipCover: select a panel (closed curve) and click near an edge (several in a row, Enter — done).
+Edge — corner to corner (corner — a break larger than Angle); part — edge + offset by W outward,
+ends along the extension of the neighbouring edges (geometry — ZipCover.flap). Part + label "SA <W>" in a group,
+layer Parts::Seam. The panel is not changed.
+Option Points=Yes: also seam points (logic of markup/sewing_points.py: centre ± k·Step) on a copy of the edge
+in Parts::Seam — copy + points in the same group as the part.
 """
 import os
 import sys
@@ -15,19 +15,19 @@ import rhinoscriptsyntax as rs
 import scriptcontext as sc
 from Rhino.Geometry import Plane, Vector3d
 
-try:  # стилі тексту PAT для лекал 1:1 (scripts/markup/PatternTextStyles.py)
+try:  # PAT text styles for 1:1 patterns (scripts/markup/PatternTextStyles.py)
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
     import PatternTextStyles
 except Exception:
     PatternTextStyles = None
-from sewing_points import sewing_lengths  # той самий markup/ у sys.path
+from sewing_points import sewing_lengths  # the same markup/ in sys.path
 
 STICKY = "Seam"
 LAYER = "Parts::Seam"
 
 
 def label_frame(crv, offset, normal):
-    """Точка посередині смуги і напрямок уздовж ребра (текст читається зліва направо)."""
+    """Point in the middle of the strip and direction along the edge (text reads left to right)."""
     ok, t = crv.LengthParameter(crv.GetLength() / 2.0)
     t = t if ok else crv.Domain.Mid
     m = crv.PointAt(t)
@@ -39,7 +39,7 @@ def label_frame(crv, offset, normal):
 
 
 def text_style(doc, w):
-    """Стиль PAT, що влазить у смугу ширини w (≈ 0.6·w)."""
+    """PAT style that fits a strip of width w (≈ 0.6·w)."""
     if PatternTextStyles is None:
         return doc.DimStyles.Current
     styles = PatternTextStyles.ensure_styles(doc)
@@ -48,11 +48,11 @@ def text_style(doc, w):
 
 
 def ask(gp):
-    """Клік біля ребра з опціями W / Angle / Points / Step / Layout. Точка або None (Enter / Esc)."""
+    """Click near an edge with options W / Angle / Points / Step / Layout. A point or None (Enter / Esc)."""
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 10.0), 0.001, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     pts = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_points", False), "No", "Yes")
-    step = Rhino.Input.Custom.OptionDouble(sc.sticky.get("sew_step", 20.0), 0.001, 1e6)  # спільний із sewing_points
+    step = Rhino.Input.Custom.OptionDouble(sc.sticky.get("sew_step", 20.0), 0.001, 1e6)  # shared with sewing_points
     gp.AddOptionDouble("W", w)
     gp.AddOptionDouble("Angle", a)
     gp.AddOptionToggle("Points", pts)
@@ -72,7 +72,7 @@ def ask(gp):
 
 
 def sewing_geometry(crv, step):
-    """Копія ребра (лінія шва) + точки шва на ній (як sewing_points) — геометрія."""
+    """Copy of the edge (seam line) + seam points on it (as sewing_points) — geometry."""
     out = [crv.DuplicateCurve()]
     for s in sewing_lengths(crv.GetLength(), step):
         ok, t = crv.LengthParameter(s)
@@ -82,25 +82,25 @@ def sewing_geometry(crv, step):
 
 
 def add_sewing_points(doc, crv, step, attrs):
-    """Копія ребра (лінія шва) + точки шва на ній, обидва з attrs (шар Parts::Seam)."""
+    """Copy of the edge (seam line) + seam points on it, both with attrs (layer Parts::Seam)."""
     return [doc.Objects.Add(g, attrs) for g in sewing_geometry(crv, step)]
 
 
-HELP = u"""Опції:
-  W — ширина припуску на шов: офсет від ребра назовні панелі
-  Angle — злам, більший за цей кут, = кут панелі (ребро береться від кута до кута)
-  Points — Yes: ще й точки шва на копії ребра
-  Step — крок точок шва (від центру ребра в обидва боки)
-  Layout — Yes: на панелі лише розмітка, повна деталь на 10000 вгору; No: повна деталь на місці"""  # друкується на старті — видно під полями опцій
+HELP = u"""Options:
+  W — seam allowance width: offset from the edge outward from the panel
+  Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
+  Points — Yes: also seam points on a copy of the edge
+  Step — seam point spacing (from the edge centre both ways)
+  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place"""  # printed at start — visible under the option fields
 
 
 def main():
     print(HELP)
-    from CopriZip import flap  # тут, а не вгорі: CopriZip сам імпортує label_frame / text_style з Seam
-    sys.modules.pop("ReinfCircle", None)  # Rhino кешує модулі за сесію
-    from ReinfCircle import add_part, off_panel  # Layout: розмітка на місці + деталь угорі
+    from ZipCover import flap  # here, not at the top: ZipCover itself imports label_frame / text_style from Seam
+    sys.modules.pop("ReinfCircle", None)  # Rhino caches modules per session
+    from ReinfCircle import add_part, off_panel  # Layout: markup in place + part above
     doc = sc.doc
-    oid = rs.GetObject(u"Виберіть панель (замкнена крива)", rs.filter.curve, preselect=True)
+    oid = rs.GetObject(u"Select a panel (closed curve)", rs.filter.curve, preselect=True)
     if not oid:
         return
     panel = rs.coercecurve(oid)
@@ -116,7 +116,7 @@ def main():
     made = n_pts = 0
     while True:
         gp = Rhino.Input.Custom.GetPoint()
-        gp.SetCommandPrompt(u"Клікни біля ребра під припуск на шов (Enter — кінець)")
+        gp.SetCommandPrompt(u"Click near the edge for the seam allowance (Enter — done)")
         gp.AcceptNothing(True)
         click = ask(gp)
         if click is None:
@@ -124,7 +124,7 @@ def main():
         w, angle = sc.sticky[STICKY], sc.sticky[STICKY + "_angle"]
         res = flap(panel, click, w, angle, normal, tol)
         if not isinstance(res, tuple):
-            print(u"Пропущено: %s" % res)
+            print(u"Skipped: %s" % res)
             continue
         crv, edge, off, square = res
         te = Rhino.Geometry.TextEntity.Create(u"SA %g" % w, label_frame(edge, off, normal),
@@ -139,11 +139,11 @@ def main():
         add_part(doc, full, te, off_panel(crv, [panel], tol), attrs, sc.sticky[STICKY + "_layout"])
         made += 1
         if square:
-            print(u"Увага: %d кін. сусід гостріше 30° — кінець перпендикулярний" % square)
+            print(u"Warning: %d end(s) with a neighbour sharper than 30° — end is perpendicular" % square)
         doc.Views.Redraw()
-    print(u"Припуск на шов: %d деталей → %s" % (made, LAYER))
+    print(u"Seam allowance: %d parts → %s" % (made, LAYER))
     if n_pts:
-        print(u"Точок шва: %d на копіях ребер у %s" % (n_pts, LAYER))
+        print(u"Seam points: %d on edge copies in %s" % (n_pts, LAYER))
 
 
 if __name__ == "__main__":

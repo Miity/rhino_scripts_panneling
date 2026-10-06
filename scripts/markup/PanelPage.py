@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Сторінка (Layout) для панелі: виділити об'єкти (контур панелі або будь-які частини) → один новий лист A4 (вертикальний)
-з одним detail (Top), наведеним на всі виділені разом (як Zoom Selected); масштаб як у Zoom Selected (виділене заповнює рамку),
-без округлення; detail не заблоковано (можна поправити). Один запуск — один лист.
-Ім'я листа: UserText Part (Panels.py) з виділених, інакше підпис P<n> у межах виділеного,
-інакше наступний вільний P<n> серед листів. Підписи й шари не чіпає.
+"""Page (Layout) for a panel: select objects (panel contour or any parts) → one new A4 sheet (portrait)
+with one detail (Top) aimed at all selected objects together (like Zoom Selected); scale as in Zoom Selected (the selection fills the frame),
+not rounded; the detail is not locked (can be adjusted). One run — one sheet.
+Sheet name: UserText Part (Panels.py) from the selection, otherwise a P<n> label within the selection,
+otherwise the next free P<n> among sheets. Labels and layers are not touched.
 """
 import re
 
-A4 = (210.0, 297.0)  # завжди вертикально: Print на Mac дає одну орієнтацію на всі листи
-MARGIN = 10.0  # мм на папері
+A4 = (210.0, 297.0)  # always portrait: Print on Mac uses one orientation for all sheets
+MARGIN = 10.0  # mm on paper
 
 
 def fit(w, h, paper=A4):
-    """(ширина листа, висота листа, N для 1:N) — як Zoom Selected: w × h (мм) заповнює рамку з запасом 5 %."""
+    """(sheet width, sheet height, N for 1:N) — like Zoom Selected: w × h (mm) fills the frame with a 5 % margin."""
     pw, ph = paper
     return pw, ph, max(w / (pw - 2 * MARGIN), h / (ph - 2 * MARGIN)) * 1.05
 
@@ -30,7 +30,7 @@ def unique(name, taken):
 
 
 def panel_name(doc, objs, bb):
-    """UserText Part з виділених, інакше текст / TextDot P<n> усередині bb (по XY)."""
+    """UserText Part from the selection, otherwise a text / TextDot P<n> inside bb (by XY)."""
     import Rhino
     for o in objs:
         part = o.Attributes.GetUserString("Part")
@@ -50,7 +50,7 @@ def panel_name(doc, objs, bb):
 
 
 def make_page(doc, objs):
-    """Лист A4 з detail на всі objs разом; повертає (ім'я, N)."""
+    """A4 sheet with a detail on all objs together; returns (name, N)."""
     import Rhino
     from Rhino.Geometry import BoundingBox, Point2d
     bb = BoundingBox.Empty
@@ -67,7 +67,7 @@ def make_page(doc, objs):
                              Rhino.Display.DefinedViewportProjection.Top)
     page.SetActiveDetail(det.Id)
     doc.Views.Redraw()
-    # порядок важливий: CommitChanges (масштаб) перезаписує камеру, тож центр — після нього, окремим commit
+    # order matters: CommitChanges (scale) overwrites the camera, so the centre goes after it, in a separate commit
     det.DetailGeometry.SetScale(n, Rhino.UnitSystem.Millimeters, 1, Rhino.UnitSystem.Millimeters)
     det.CommitChanges()
     det = [d for d in page.GetDetailViews() if d.Id == det.Id][0]
@@ -83,12 +83,12 @@ def main():
     import scriptcontext as sc
 
     go = Rhino.Input.Custom.GetObject()
-    go.SetCommandPrompt(u"Виділи об'єкти для листа (панель або її частини) — буде один лист на все виділене")
+    go.SetCommandPrompt(u"Select objects for the sheet (a panel or its parts) — one sheet for the whole selection")
     go.EnablePreSelect(True, True)
     if go.GetMultiple(1, 0) != Rhino.Input.GetResult.Object:
         return
     name, n = make_page(sc.doc, [go.Object(i).Object() for i in range(go.ObjectCount)])
-    print(u"Лист %s, масштаб 1:%.2f" % (name, n))
+    print(u"Sheet %s, scale 1:%.2f" % (name, n))
 
 
 if __name__ == "__main__":

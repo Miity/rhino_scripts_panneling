@@ -200,7 +200,7 @@ def occupancy_sides(a, b, polygons, segments, tol):
     if nearest is not None:
         step = min(step, nearest * 0.25)
     if step <= tol:
-        raise ValueError(u"Надто близькі лінії або короткий сегмент відносно допуску документа.")
+        raise ValueError(u"Lines too close or a segment too short relative to the document tolerance.")
     normal = (-(b[1] - a[1]) / length, (b[0] - a[0]) / length)
     left = (middle[0] + normal[0] * step, middle[1] + normal[1] * step)
     right = (middle[0] - normal[0] * step, middle[1] - normal[1] * step)
@@ -221,7 +221,7 @@ def classify(nodes, edges, polygons, segments, tol, closed_nodes):
         elif in_left:
             internal.append((i, j))
         else:
-            raise ValueError(u"Не вдалося визначити призначення сегмента.")
+            raise ValueError(u"Could not determine the segment role.")
     return outside, internal
 
 
@@ -231,7 +231,7 @@ def trace_boundary_loops(nodes, edges):
         adjacency.setdefault(i, []).append(j)
         adjacency.setdefault(j, []).append(i)
     if not edges or any(len(neighbors) != 2 for neighbors in adjacency.values()):
-        raise ValueError(u"Зовнішній контур має розрив або неоднозначне з'єднання.")
+        raise ValueError(u"The outer contour has a gap or an ambiguous connection.")
     unseen = set(adjacency)
     loops = []
     while unseen:
@@ -245,7 +245,7 @@ def trace_boundary_loops(nodes, edges):
             if nxt == start:
                 break
             if nxt in loop:
-                raise ValueError(u"Зовнішній контур сам себе торкається.")
+                raise ValueError(u"The outer contour touches itself.")
             loop.append(nxt)
             previous, current = current, nxt
         unseen.difference_update(loop)
@@ -263,7 +263,7 @@ def simplify_loop(nodes, loop, tol):
         if abs(cross(ab, bc)) > tol * (dist(a, b) + dist(b, c)) or dot(ab, bc) <= 0:
             result.append(index)
     if len(result) < 3:
-        raise ValueError(u"Зовнішній контур вироджений.")
+        raise ValueError(u"The outer contour is degenerate.")
     return result
 
 
@@ -272,7 +272,7 @@ def prepare(segments, tol):
     nodes, edges = canonical_edges(split_segments(segments, tol), tol)
     polygons, closed_nodes = faces(nodes, edges, tol)
     if not polygons:
-        raise ValueError(u"Лінії не утворюють жодного замкненого контуру.")
+        raise ValueError(u"The lines do not form any closed contour.")
     outside, internal = classify(nodes, edges, polygons, segments, tol, closed_nodes)
     # Every enclosed area is a face, so each outside loop is a separate panel.
     loops = [simplify_loop(nodes, loop, tol) for loop in trace_boundary_loops(nodes, outside)]
@@ -291,7 +291,7 @@ def unique_polylines(ids):
         curve = rs.coercecurve(object_id)
         ok, polyline = curve.TryGetPolyline() if curve is not None else (False, None)
         if not ok or polyline is None:
-            raise ValueError(u"У виборі є крива, яка не є полілінією або лінією.")
+            raise ValueError(u"The selection contains a curve that is not a polyline or a line.")
         curves.append((polyline.Count, curve, polyline))
     kept = []
     # ponytail: pairwise check, fine for hundreds of curves.
@@ -310,14 +310,14 @@ def get_plane_and_segments(ids, tol):
     chains = unique_polylines(ids)
     ok, plane = Rhino.Geometry.Plane.FitPlaneToPoints([p for chain in chains for p in chain])
     if ok != Rhino.Geometry.PlaneFitResult.Success:
-        raise ValueError(u"Не вдалося визначити площину фігур.")
+        raise ValueError(u"Could not determine the plane of the shapes.")
     segments = []
     for chain in chains:
         flat = []
         for point in chain:
             vector = point - plane.Origin
             if abs(vector * plane.ZAxis) > tol:
-                raise ValueError(u"Вибрані фігури не лежать в одній площині.")
+                raise ValueError(u"The selected shapes do not lie in one plane.")
             flat.append((vector * plane.XAxis, vector * plane.YAxis))
         segments.extend((a, b) for a, b in zip(flat, flat[1:]) if dist(a, b) > tol)
     return plane, segments
@@ -368,7 +368,7 @@ MARKS = 4 | 512  # rs.filter.curve | rs.filter.annotation: lines and texts
 
 
 def main():
-    ids = rs.GetObjects(u"Крок 1: виберіть лінії панелей (полілінії, лінії, смуги шва)", rs.filter.curve,
+    ids = rs.GetObjects(u"Step 1: select panel lines (polylines, lines, seam strips)", rs.filter.curve,
                         preselect=True, select=False)
     if not ids:
         return
@@ -377,17 +377,17 @@ def main():
         plane, segments = get_plane_and_segments(ids, tol)
         nodes, loops, internal, polygons = prepare(segments, tol)
     except ValueError as error:
-        print(u"Не створено розкрій: {0}".format(error))
+        print(u"Cut layout not created: {0}".format(error))
         return
 
     panel_ids = set(ids)
     picked_int = rs.GetObjects(
-        u"Крок 2: виберіть лінії для int (Enter - немає; лінії панелі тут - її внутрішні лінії на int)",
+        u"Step 2: select lines for int (Enter - none; panel lines here - its inner lines go to int)",
         MARKS, preselect=False, select=False) or []
     # Inner panel edges follow the panel lines: int only when picked in step 2.
     edge_layer = "int" if panel_ids.intersection(picked_int) else "ink"
     to_int = only_inside([i for i in picked_int if i not in panel_ids], plane, polygons, tol)
-    to_ink = rs.GetObjects(u"Крок 3: виберіть лінії для ink (Enter - усе, що залишилось у панелях)",
+    to_ink = rs.GetObjects(u"Step 3: select lines for ink (Enter - everything left in the panels)",
                            MARKS, preselect=False, select=False)
     if not to_ink:
         to_ink = rs.ObjectsByType(MARKS, select=False, state=1) or []
@@ -411,7 +411,7 @@ def main():
         for curve in Rhino.Geometry.Curve.JoinCurves(lines, tol) if lines else []:
             object_id = sc.doc.Objects.AddCurve(curve)
             if object_id == System.Guid.Empty:
-                raise RuntimeError(u"Не вдалося додати внутрішню лінію.")
+                raise RuntimeError(u"Could not add an inner line.")
             rs.ObjectLayer(object_id, edge_layer)
             created.append(object_id)
         edge_count = len(created)
@@ -420,13 +420,13 @@ def main():
             perimeter.append(perimeter[0])
             object_id = rs.AddPolyline(perimeter)
             if not object_id:
-                raise RuntimeError(u"Не вдалося додати зовнішню полілінію.")
+                raise RuntimeError(u"Could not add the outer polyline.")
             rs.ObjectLayer(object_id, "cut")
             created.append(object_id)
     except Exception as error:
         for object_id in created:
             rs.DeleteObject(object_id)
-        print(u"Не створено розкрій: {0}".format(error))
+        print(u"Cut layout not created: {0}".format(error))
         return
     for object_id in to_int:
         rs.ObjectLayer(object_id, "int")
@@ -438,9 +438,9 @@ def main():
     rs.UnselectAllObjects()
     rs.SelectObjects(created)
     sc.doc.Views.Redraw()
-    print(u"Готово: панелей (контурів на cut): {3}, внутрішніх ліній панелей на {4}: {0}, "
-          u"переміщено на int: {1}, на ink: {2}. "
-          u"Вихідні фігури приховано; результат виділено для Export Selected."
+    print(u"Done: panels (contours on cut): {3}, inner panel lines on {4}: {0}, "
+          u"moved to int: {1}, to ink: {2}. "
+          u"Source shapes hidden; result selected for Export Selected."
           .format(edge_count, len(to_int), len(to_ink), len(loops), edge_layer))
 
 

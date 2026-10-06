@@ -1,28 +1,28 @@
-# Деталі-кандидати на перемички
+# Parts that are candidates for tabs
 
-Макрос для кнопки тулбара:
+Toolbar button macro:
 
 ```text
 ! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/RecommendCutTabs.py"
 ```
 
-1. Виберіть контури деталей та запустіть скрипт.
-2. Задайте поріг площі та поріг ширини. Для міліметрового документа початкові значення — **50 мм²** та **3 мм**. Це початкові налаштування для пробного різу, а не гарантовані межі для паперу.
-3. Подивіться позначки на шарах `TABS_CHECK::Recommended` і `TABS_CHECK::Review`.
-4. Скрипт виділить цілі контури кандидатів обох рівнів. Залиште потрібні й запустіть кнопку AddCutTabs.
+1. Select part contours and run the script.
+2. Set the area threshold and the width threshold. For a millimetre document the defaults are **50 mm²** and **3 mm**. These are starting settings for a trial cut, not guaranteed limits for paper.
+3. Look at the marks on layers `TABS_CHECK::Recommended` and `TABS_CHECK::Review`.
+4. The script selects the whole contours of candidates of both levels. Keep the ones you need and run the AddCutTabs button.
 
-**Червоні позначки**: мала площа або вузька форма загалом. Показник вузької форми дорівнює `2 × площа / периметр`. Для довгої смуги він близький до її ширини, але не є вимірюванням найменшої ширини довільної деталі.
+**Red marks**: small area or narrow shape overall. The narrow shape indicator equals `2 × area / perimeter`. For a long strip it is close to its width, but it is not a measurement of the minimum width of an arbitrary part.
 
-**Помаранчеві позначки**: локальне звуження, яке варто оглянути. Скрипт шукає зближення протилежних сторін усередині контуру; коротку околицю повороту пропускає. Для NURBS використовує наближення полілінією з допуском документа. Це геометрична евристика, яка може не знайти кожен тонкий виступ.
+**Orange marks**: a local narrowing worth reviewing. The script looks for opposite sides coming close inside the contour; it skips the short neighbourhood of a turn. For NURBS it uses a polyline approximation with the document tolerance. This is a geometric heuristic that may miss some thin protrusions.
 
-У тексті позначки вказана причина й вимір. Площа — у квадратних одиницях документа, ширина — в одиницях документа. Масштаб імпортованого DXF слід перевірити.
+The mark text gives the reason and the measurement. Area — in square document units, width — in document units. Check the scale of an imported DXF.
 
-Криві збережено без зміни геометрії та атрибутів. Повторний запуск замінює попередні позначки цього скрипта. Відкриті контури, зокрема вже оброблені AddCutTabs, пропускаються. Пропущені об'єкти та причини виводяться в історії команд. Оцінка кожного замкненого контуру незалежна: площі вкладених отворів не віднімаються. Скрипт не визначає, яка сторона залишається готовим виробом.
+Curves are kept with unchanged geometry and attributes. A repeated run replaces the previous marks of this script. Open contours, including those already processed by AddCutTabs, are skipped. Skipped objects and the reasons are printed in the command history. Each closed contour is assessed independently: areas of nested holes are not subtracted. The script does not decide which side remains the finished product.
 
-Сусідство двох різних контурів і гострий кут самі по собі не спричиняють рекомендацію. Утримання залежить також від матеріалу, вакууму, ножа та порядку різання. Непозначена деталь не має гарантії стійкості.
+Two different contours being close and a sharp corner do not by themselves trigger a recommendation. Holding also depends on the material, vacuum, knife and cutting order. An unmarked part has no stability guarantee.
 
-Для наступного запуску AddCutTabs вибрані кандидати мають лежати в одній площині. Позначки не слід включати до DXF: експортуйте вибрані криві різу.
+For the following AddCutTabs run the selected candidates must lie in one plane. Do not include the marks in the DXF: export the selected cut curves.
 
-Перевірено 11 автоматичними тестами (малі деталі, довгі смуги, шийки, порожні прорізи, поворот/напрямок контуру, щільність вершин та масштаб). У Rhino 8 на Mac перевірено 5 синтетичних форм і 43 контури відкритого документа без зміни креслення.
+Checked with 11 automatic tests (small parts, long strips, necks, empty slots, contour rotation/direction, vertex density and scale). In Rhino 8 on Mac, 5 synthetic shapes and 43 contours of an open document were checked without changing the drawing.
 
-Створення та заміну позначок перевірено в окремому тимчасовому документі Rhino; повторний запуск не накопичує старі позначки.
+Creating and replacing marks was checked in a separate temporary Rhino document; a repeated run does not accumulate old marks.

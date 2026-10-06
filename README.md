@@ -1,178 +1,187 @@
-# Rhino Scripts — тулбар
+# Rhino Scripts — toolbar
 
-Набір Python-скриптів для Rhino 8 (розкрій, лекала, підготовка до різу) і 6 тулбарів-вкладок, з яких вони запускаються: **Розміри · Криві · Аналіз · Різ · Parts · Розмітка**.
+A set of Python scripts for Rhino 8 (cutting, patterns, cut preparation) and 6 toolbar tabs that launch them: **Sizes · Curves · Analysis · Cut · Parts · Markup**.
 
-| Що | Де |
+| What | Where |
 |---|---|
-| Скрипти (по підпапці на вкладку) | `scripts/sizes/` · `curves/` · `analysis/` · `cut/` · `parts/` · `markup/` |
-| Grasshopper-визначення | `Grasshoper scripts/*.gh` |
-| Файл тулбара (генерується, руками не правити) | `Scripts.rui` |
-| Збирач тулбара — **тут редагується склад кнопок** | `scripts/build_scripts_rui.py` |
-| Бекап старого тулбара `_Scripts` | `_backup_toolbar_20260930_2058/` |
+| Scripts (one subfolder per tab) | `scripts/sizes/` · `curves/` · `analysis/` · `cut/` · `parts/` · `markup/` |
+| Grasshopper definitions | `Grasshoper scripts/*.gh` |
+| Toolbar file (generated, do not edit by hand) | `Scripts.rui` |
+| Toolbar builder — **the button list is edited here** | `scripts/build_scripts_rui.py` |
+| Backup of the old `_Scripts` toolbar | `_backup_toolbar_20260930_2058/` |
+
+### Old drawings (before the English rename)
+
+All names are English since October 2026: layers `Parts::ZipCover` (was `Parts::CopriZip`) and `Parts::Track` (was `Parts::Canalina`), labels `ZC W` (was `CZ W`), `Trk<n>` (was `Can<n>`), `S<n>` (was `F<n>`), script `ZipCover.py` (was `CopriZip.py`). New scripts do not recognise the old names (numbering, ZipList, MarkReinf, Legend). Old drawings are not converted — to keep working on one, use the previous version of the scripts from the git tag `legacy-ua-it`:
+
+```bash
+git -C /Users/dmytro/Documents/Rhino worktree add ../Rhino-legacy legacy-ua-it
+```
 
 ---
 
-## 1. Як користуватися тулбаром
+## 1. Using the toolbar
 
-Кожна група — окремий тулбар, усі шість стоять **вкладками** у верхній панелі Rhino (поруч зі Standard). Клік по назві вкладки показує її кнопки.
+Each group is a separate toolbar; all six sit as **tabs** in the top Rhino panel (next to Standard). Clicking a tab name shows its buttons.
 
-| Дія | Результат |
+| Action | Result |
 |---|---|
-| **Лівий клік** по кнопці | основний скрипт |
-| **Правий клік** по кнопці | другий скрипт (лише там, де він є — див. таблицю) |
-| Навести курсор | підказка українською |
-| Потягнути вкладку | перенести її в інше місце / відірвати в окреме вікно |
+| **Left click** a button | main script |
+| **Right click** a button | second script (only where there is one — see the table) |
+| Hover | tooltip |
+| Drag a tab | move it elsewhere / tear it off into a separate window |
 
-### Склад груп
+### Groups
 
-**Розміри** — `scripts/sizes/`
-| Кнопка | Лівий клік | Правий клік |
+**Sizes** — `scripts/sizes/`
+| Button | Left click | Right click |
 |---|---|---|
-| BBoxSize | габаритний бокс по CPlane з розмірами XYZ | BBoxCenterLines — плаский бокс + дві центральні лінії |
-| LabelSizes | підписати розмір усередині кожної замкненої кривої | — |
-| Rect 1340 | прямокутник 1340 × 6658 по центру CPlane | — |
+| BBoxSize | bounding box in the CPlane with XYZ sizes | BBoxCenterLines — flat box + two centre lines |
+| LabelSizes | label the size inside each closed curve | — |
+| Rect 1340 | rectangle 1340 × 6658 centred on the CPlane | — |
 
-**Криві** — `scripts/curves/`
-| Кнопка | Лівий клік | Правий клік |
+**Curves** — `scripts/curves/`
+| Button | Left click | Right click |
 |---|---|---|
-| SplitByAngle | розбити криві в кутах, гостріших за поріг | SmoothCorners — заокруглити такі кути |
-| CrvToPolyline | криві → полілайни (шар зберігається) | — |
-| TrimEnds | обрізати кінці кривих на задану відстань | KeepEnds — вирізати середину, лишити кінці заданої довжини |
-| TrimOutside | обрізати все, що за контуром панелі | — |
-| ExactConnection | точка контакту на кривій із заданою довжиною | — |
-| MidLine | лінія від середини однієї кривої до середини іншої | — |
-| OffsetRigid | офсет без зміни форми: копія, зсунута на D по нормалі в точці кліку | — |
+| SplitByAngle | split curves at corners sharper than the threshold | SmoothCorners — round such corners |
+| CrvToPolyline | curves → polylines (layer kept) | — |
+| TrimEnds | trim curve ends by a given distance | KeepEnds — cut out the middle, keep ends of a given length |
+| TrimOutside | trim everything outside the panel contour | — |
+| ExactConnection | contact point on a curve at a given length | — |
+| MidLine | line from the midpoint of one curve to the midpoint of another | — |
+| OffsetRigid | offset without changing the shape: a copy moved by D along the normal at the clicked point | — |
 
-**Аналіз** — `scripts/analysis/`
-| Кнопка | Лівий клік |
+**Analysis** — `scripts/analysis/`
+| Button | Left click |
 |---|---|
-| SmallClosed | виділити замкнені криві, менші за мінімальну площу різу |
-| CutRisks | позначити ризиковані місця різу (геометрію не змінює) |
-| RecommendTabs | виділити контури, яким потрібні перемички |
-| CutTabs | інтерактивно додати перемички (tabs) |
+| SmallClosed | select closed curves smaller than the minimum cut area |
+| CutRisks | mark risky cut spots (geometry unchanged) |
+| RecommendTabs | select contours that need tabs |
+| CutTabs | interactively add tabs |
 
-**Різ** — `scripts/cut/`
-| Кнопка | Лівий клік |
+**Cut** — `scripts/cut/`
+| Button | Left click |
 |---|---|
-| PreparePanelCut | будь-які лінії панелей (замкнені, окремі, смуги шва, дублікати) → зовнішній контур кожної панелі на CUT, решта на INT/INK (тексти теж) |
-| SplitToMaterial | обрізати панелі по лініях матеріалу: шов 1 см, відрізані шматки відсуваються на 50 мм, пари підписані A–A, B–B… |
-| CurveOverlap | видалити точні дублікати (SelDup), виділити коротшу криву з пар, що перекриваються (серед виділених, або всі, якщо нічого не виділено) |
+| PreparePanelCut | any panel lines (closed, separate, seam strips, duplicates) → the outer contour of each panel on CUT, the rest on INT/INK (texts too) |
+| SplitToMaterial | split panels at the material lines: 1 cm seam, cut-off pieces moved by 50 mm, pairs labelled A–A, B–B… |
+| CurveOverlap | delete exact duplicates (SelDup), select the shorter curve of overlapping pairs (among selected, or all if nothing is selected) |
 
-**Parts** — скрипти, що створюють частини (фаші, підсилення…); `scripts/parts/`, результат іде в шар `Parts::…`
-| Кнопка | Лівий клік |
+**Parts** — scripts that create parts (strips, reinforcements…); `scripts/parts/`, the result goes to layer `Parts::…`
+| Button | Left click |
 |---|---|
-| Panels | вибрані замкнені криві → копія на місці в `Parts::Panels`, номер `P<n>`: текст усередині (клік, Enter — центр) + TextDot вище-зліва, UserText `Part`; пронумеровані пропускає, вкладені криві = вирізи панелі; нумерація продовжується |
-| Strips | фаші під виділені криві: висота H, довжина = довжина кривої; впритул, у `Parts::Strips`, нумерація F1, F2… продовжується між запусками |
-| Seam | припуск на шов як окрема деталь зовні панелі: панель + клік біля ребра → ребро від кута до кута + офсет на `W` назовні, кінці по продовженню сусідніх ребер (геометрія як у CopriZip); підпис `SA W`, група; у `Parts::Seam`. Опція `Points=Yes` (+ `Step`) — точки шва на копії ребра в `Parts::Seam`, у групі зі смугою (оригінал не чіпається). Опція `Layout` (типово No): Yes — на панелі лише розмітка, повна деталь — на 10000 вгору |
-| CopriZip | copri zip / copri canalina: панель (замкнена крива: лінії, полілінії, дуги) + клік біля ребра → окрема деталь: ребро від кута до кута (кут — злам > `Angle`) + офсет на `W` назовні, кінці по продовженню сусідніх ребер (сусід гостріше 30° — перпендикулярний кінець); підпис `CZ W`, група; у `Parts::CopriZip`. Панель не змінюється — до різу її склеює PreparePanelCut. Опція `Layout` (типово No): Yes — на панелі лише розмітка (клапан без ребра + підпис), повна деталь — на 10000 вгору для Layout |
-| Join Corner | з'єднати деталі в куті панелі (CopriZip + Seam, два Seam з різними `W` тощо): вибрати деталі (можна рамкою з підписами), клік **у виріз** між деталями біля кута (кілька кутів, Enter — кінець; клік вказує, які сегменти — торці) → торці в куті прибираються, зовнішні краї подовжуються до перетину (як `Connect`), одна замкнена крива; шар і група першої деталі, група другої (підпис, точки шва) переходить у неї. Останній кут рамки навколо панелі (обидва торці — одна деталь) → лишається тільки зовнішній контур (внутрішній — це край панелі, видаляється). Увігнуті кути не підтримує. Деталі з `Layout=Yes`: можна вибрати розмітку на панелі або деталь угорі, клік у кут будь-де — з'єднуються деталі вгорі, розмітка перебудовується |
-| ZipStops | позначити блискавки і каналіну (canalina / guida): опція `Type` на виборі ліній — `Zip` (обидві сторони, `Z<n>`, шар `Parts::Zip`) або `Can` (одна сторона, `Can<n>`, шар `Parts::Canalina`); одна блискавка/каналіна = усі її лінії на всіх панелях, по черзі, Enter — готово; номер на кожній лінії (UserText `Zip` + текст над серединою, стиль — опція `Style` у запиті довжини стопа), стопи на кінцях, група на кожну лінію; сторона розбита (Zip — ліній 3+, Can — 2+) → клік біля стику міняє стоп на риску; далі клік по лінії переносить номер на інший бік (Enter на виборі ліній — одразу до переносу); позначені пропускає, нумерація окремо для Z і Can |
-| ZipList | таблиця для замовлення: вибрані (Enter — усі позначені). Блискавки: лінії одного `Z<n>` → дві сторони з найближчими сумами, замовляється довша, вгору до 1 см; різниця > 5 мм або одна лінія — попередження; зведено «см × шт». Каналіна: `Can<n>` повною довжиною (сума ліній), вгору до 1 см, разом у см. CSV `<файл>_zips.csv` поруч із `.3dm` + таблиця в буфер обміну |
-| Mark Reinf | фаша (rinforzo) лише позначкою: вибрати підписи (рамкою, на різних панелях; панель — найближча до 20 см замкнена крива з кутами поза `Parts::` або в `Parts::Panels`, без панелі поруч — пропуск) → до тексту ` R<H>` (стара замінюється, H=0 прибирає); довжина ребра (кут–кут, найближче до підпису) — UserText `ReinfLen` |
-| RList | таблиця фаш: підписи з `Reinf` (вибрані / Enter — усі), довжина = ребро + 5 см з кожного боку, вгору до 1 см; разом по H; CSV `<файл>_reinf.csv` + буфер обміну |
-| Reinf Circle | кутове підсилення-коло: клік біля кута → сектор радіуса R між сторонами кута (панелі чи ліній), на місці, підпис `RC<n>  R=…`, група; у `Parts::Reinforcements`. Опція `Layout` (типово Yes): на панелі — лише розмітка (лінії не на краях панелі + підпис), повна деталь — на 10000 вгору по Y CPlane; `Layout=No` — повна деталь на місці |
-| Reinf D | підсилення-D під кінець кармана для труби: клік у верхній кут кармана (центр півкола) → клік у нижній кут (звідки D починається, D видно наживо); прямокутник ширини `W` (типово 100) + кінець на `R` за кутом (типово 50; W = 2R — півколо, інакше півеліпс W/2 × R); підпис `RD<n>`, група; у `Parts::Reinforcements`, по одному на кожен кінець кармана. Опція `Layout` (типово Yes): на панелі — лише розмітка (лінії не на краях панелі + підпис), повна деталь — на 10000 вгору по Y CPlane; `Layout=No` — повна деталь на місці |
-| Reinf O | підсилення-O під кінець кармана на всю ширину панелі: вибір межі (панель / лінії кута; Enter — без обрізки) → клік у верхній кут кармана (центр кола) → клік на лінії: R = відстань до кліку + `Plus` (типово 5 см; O видно наживо); з панеллю лишається лише частина кола всередині панелі; `SA` (типово 1 см) — сторони по краю панелі виходять назовні на SA, дуга лишається на R; лінія шва — ребра панелі в колі, підпис `RO<n>  R=…` уздовж дуги, група; у `Parts::Reinforcements`. Опція `Layout` (типово Yes): на панелі — лише розмітка (лінії не на краях панелі + підпис), повна деталь — на 10000 вгору по Y CPlane; `Layout=No` — повна деталь на місці |
-| Reinf Bord | bordino rinforzato: вибрана панель → клік біля ребра (від кута до кута, `Angle` як у CopriZip) → як CopriZip, але всередину: ребро + офсет на `H` (типово 6 см, буває 10) всередину панелі, кінці по сусідніх ребрах (гостріше 30° — перпендикулярний); дві смуги в куті з'єднує Join Corner (перекриття → об'єднання); `SA` (типово 0) — припуск на внутрішньому краї + лінія шва на H; панель не змінюється; підпис `RB<n>  H=…` (≈ H/10, на чверті ребра, вздовж внутрішньої лінії з боку смуги), група; у `Parts::Reinforcements`. Опція `Layout` (типово Yes): на панелі — лише розмітка (лінії не на краях панелі + підпис), повна деталь — на 10000 вгору по Y CPlane; `Layout=No` — повна деталь на місці |
-| Tube Pockets | кармани для труб у тенті: вибрана панель → клік біля ребра (від кута до кута, `Angle` як у CopriZip) → відрізок ширини W по центру ребра (0 — усе ребро), зсув на H всередину панелі, зсунута лінія коротша на `Trim` з кожного кінця (звуження), припуск `SA` назовні + лінія шва, `Hem` (типово 20) — запас на підгин торців: торець назовні на Hem, верх і низ подовжені прямо, старий торець — лінія підгину (підшар `Parts::Pockets::Fold`, у групі), опція `Notch` — мітка центру, `Rigid` — верх кармана жорстким офсетом (як OffsetRigid: форма ребра без змін, H по нормалі в центрі); підпис `TP<n>  H=…`; у `Parts::Pockets`. Опція `Layout` (типово Yes): на панелі лишається тільки розмітка (торці + верх кармана без лінії шва, SA і Hem + підпис, своя група), повна деталь — на 10000 вгору по Y CPlane, її й розкладати Layout; `Layout=No` — повна деталь на місці |
-| Update Pockets | оновити готові кармани TubePockets: вибрати будь-яку частину кармана (або вікном кілька) → нові `H` / `Trim` / `SA` / `Hem` / `Notch` / `Rigid`; карман перебудовується від своєї лінії шва на місці, той самий `TP<n>`, шар і бік; змінюється тільки змінене; можна вибрати розмітку на панелі або деталь угорі — перебудовуються обидві. Параметри в UserText `TP_*`, у старих карманах — з геометрії. Копії в Layout не оновлюються |
-| Layout | розкласти вибрані деталі для розкрою: група = деталь; копія з підписами — в ряд від точки кліку (відступ, по CPlane; Enter — продовжити ряд), у підшар `<шар>::Layout`, своя група; оригінал лишається на місці як розмітка; наступний запуск продовжує ряд, розкладені (UserText `LayoutOf`) пропускає |
+| Panels | selected closed curves → copy in place in `Parts::Panels`, number `P<n>`: text inside (click, Enter — corner) + TextDot above-left, UserText `Part`; numbered ones are skipped, nested curves = panel holes; numbering continues |
+| Strips | strips under the selected curves: height H, length = curve length; stacked touching, in `Parts::Strips`, numbering S1, S2… continues between runs |
+| Seam | seam allowance as a separate part outside the panel: panel + click near an edge → edge corner to corner + offset by `W` outward, ends along the extension of the neighbouring edges (geometry as in ZipCover); label `SA W`, group; in `Parts::Seam`. Option `Points=Yes` (+ `Step`) — seam points on a copy of the edge in `Parts::Seam`, grouped with the strip (the original is not touched). Option `Layout` (default No): Yes — only markup on the panel, the full part 10000 up |
+| ZipCover | zip cover / track cover flap: panel (closed curve: lines, polylines, arcs) + click near an edge → a separate part: edge corner to corner (corner — break > `Angle`) + offset by `W` outward, ends along the extension of the neighbouring edges (neighbour sharper than 30° — perpendicular end); label `ZC W`, group; in `Parts::ZipCover`. The panel is not changed — PreparePanelCut joins it before cutting. Option `Layout` (default No): Yes — only markup on the panel (flap without the edge + label), the full part 10000 up for Layout |
+| Join Corner | join parts at a panel corner (ZipCover + Seam, two Seams with different `W` etc.): select the parts (window with labels allowed), click **in the notch** between the parts near the corner (several corners, Enter — done; the click tells which segments are the ends) → the ends at the corner are removed, the outer edges are extended to their intersection (like `Connect`), one closed curve; layer and group of the first part, the group of the second (label, seam points) merges into it. Last corner of a frame around the panel (both ends belong to one part) → only the outer contour stays (the inner one is the panel edge, deleted). Concave corners are not supported. Parts with `Layout=Yes`: select the markup on the panel or the part above, click the corner in either — the parts above are joined, the markup is rebuilt |
+| ZipStops | mark zips and tracks: option `Type` while picking lines — `Zip` (both sides, `Z<n>`, layer `Parts::Zip`) or `Track` (one side, `Trk<n>`, layer `Parts::Track`); one zip/track = all its lines on all panels, one after another, Enter — done; a number on each line (UserText `Zip` + text above the midpoint, style — option `Style` in the stop length prompt), stops at the ends, one group per line; split side (Zip — 3+ lines, Track — 2+) → a click near the junction changes the stop to a tick; then clicking a line moves its number to the other side (Enter while picking lines — straight to flipping); marked ones are skipped, numbering separate for Z and Trk |
+| ZipList | order table: selected (Enter — all marked). Zips: lines of one `Z<n>` → two sides with the closest sums, the longer one is ordered, rounded up to 1 cm; difference > 5 mm or a single line — warning; summary "cm × pcs". Tracks: `Trk<n>` full length (sum of lines), rounded up to 1 cm, total in cm. CSV `<file>_zips.csv` next to the `.3dm` + table to the clipboard |
+| Mark Reinf | reinforcement strip as a mark only: select labels (window, on different panels; panel — the nearest closed curve with corners within 20 cm outside `Parts::` or in `Parts::Panels`, no panel nearby — skipped) → ` R<H>` appended to the text (an old one is replaced, H=0 removes it); edge length (corner to corner, closest to the label) — UserText `ReinfLen` |
+| RList | strip table: labels with `Reinf` (selected / Enter — all), length = edge + 5 cm on each side, rounded up to 1 cm; totals by H; CSV `<file>_reinf.csv` + clipboard |
+| Reinf Circle | corner reinforcement circle: click near a corner → sector of radius R between the corner sides (panel or lines), in place, label `RC<n>  R=…`, group; in `Parts::Reinforcements`. Option `Layout` (default Yes): only markup on the panel (lines not on panel edges + label), the full part 10000 up along CPlane Y; `Layout=No` — full part in place |
+| Reinf D | D reinforcement at the end of a tube pocket: click the top corner of the pocket (half-circle centre) → click the bottom corner (where the D starts, the D is shown live); rectangle of width `W` (default 100) + an end `R` past the corner (default 50; W = 2R — half-circle, otherwise half-ellipse W/2 × R); label `RD<n>`, group; in `Parts::Reinforcements`, one for each pocket end. Option `Layout` (default Yes): only markup on the panel (lines not on panel edges + label), the full part 10000 up along CPlane Y; `Layout=No` — full part in place |
+| Reinf O | O reinforcement at the end of a full-width pocket: pick a boundary (panel / corner lines; Enter — no trimming) → click the top corner of the pocket (circle centre) → click on a line: R = distance to the click + `Plus` (default 5 cm; the O is shown live); with a panel only the part of the circle inside the panel is kept; `SA` (default 1 cm) — sides along the panel edge extend outward by SA, the arc stays at R; seam line — panel edges inside the circle, label `RO<n>  R=…` along the arc, group; in `Parts::Reinforcements`. Option `Layout` (default Yes): only markup on the panel (lines not on panel edges + label), the full part 10000 up along CPlane Y; `Layout=No` — full part in place |
+| Reinf Bord | reinforced border: selected panel → click near an edge (corner to corner, `Angle` as in ZipCover) → like ZipCover, but inward: edge + offset by `H` (default 6 cm, sometimes 10) into the panel, ends along the neighbouring edges (sharper than 30° — perpendicular); two strips at a corner are joined by Join Corner (overlap → union); `SA` (default 0) — allowance on the inner edge + seam line at H; the panel is not changed; label `RB<n>  H=…` (≈ H/10, at a quarter of the edge, along the inner line on the strip side), group; in `Parts::Reinforcements`. Option `Layout` (default Yes): only markup on the panel (lines not on panel edges + label), the full part 10000 up along CPlane Y; `Layout=No` — full part in place |
+| Tube Pockets | tube pockets in a cover: selected panel → click near an edge (corner to corner, `Angle` as in ZipCover) → a segment of width W centred on the edge (0 — the whole edge), offset by H into the panel, the offset line shorter by `Trim` at each end (narrowing), allowance `SA` outward + seam line, `Hem` (default 20) — hem allowance at the ends: the end moves outward by Hem, top and bottom extended straight, the old end becomes a fold line (sublayer `Parts::Pockets::Fold`, in the group), option `Notch` — centre mark, `Rigid` — pocket top by rigid offset (like OffsetRigid: edge shape unchanged, H along the normal at the centre); label `TP<n>  H=…`; in `Parts::Pockets`. Option `Layout` (default Yes): only markup stays on the panel (ends + pocket top without seam line, SA and Hem + label, its own group), the full part 10000 up along CPlane Y, that is what Layout lays out; `Layout=No` — full part in place |
+| Update Pockets | update existing TubePockets pockets: select any part of a pocket (or several with a window) → new `H` / `Trim` / `SA` / `Hem` / `Notch` / `Rigid`; the pocket is rebuilt from its seam line in place, same `TP<n>`, layer and side; only what you changed changes; you can select the markup on the panel or the part above — both are rebuilt. Parameters in UserText `TP_*`, in old pockets — from geometry. Copies in Layout are not updated |
+| Layout | lay out the selected parts for cutting: group = part; a copy with labels — in a row from the click point (gap, along the CPlane; Enter — continue the row), in sublayer `<layer>::Layout`, its own group; the original stays in place as markup; the next run continues the row, laid out ones (UserText `LayoutOf`) are skipped |
 
-**Розмітка** — `scripts/markup/`
-| Кнопка | Лівий клік | Правий клік |
+**Markup** — `scripts/markup/`
+| Button | Left click | Right click |
 |---|---|---|
-| Crosses | точки → хрестики або кружечки | — |
-| SewingPoints | точки шва: центр кривої + рівний крок в обидва боки | SewPoints GH — стара Grasshopper-версія |
-| Linetype 400,2 | призначити тип лінії `400,2` | — |
-| TextStyles | створити/оновити стилі тексту PAT 2.5–40 mm | — |
-| TextToDot | текст → TextDot | DotToPanelText — TextDot → текст у куті панелі (INK) |
-| TextToCurves | текст → криві для програми нестингу: як `Explode`, але текст із перевернутою площиною (після Mirror, поворот 180°, інша CPlane) не дзеркалиться — криві лежать як текст на екрані у виді Top (Draw forward); шар / колір / групи оригіналу, текст без групи → літери в новій групі; оригінал видаляється | — |
-| Legend | легенда підписів (P, F, CZ, SA, Z, Can, RC, TP, A–A) — тільки ті, що є в кресленні, текстом у точці кліку; опція Lang = UA / EN / IT | — |
-| Panel Page | лист для PDF: виділені об'єкти (контур панелі або будь-які її частини) → один новий Layout A4 (завжди вертикальний — Print на Mac дає одну орієнтацію на всі листи), один detail Top, наведений на все виділене разом (як Zoom Selected), масштаб як у Zoom Selected (виділене заповнює рамку, без округлення), detail не заблоковано; ім'я — UserText `Part` / підпис `P<n>` у межах виділеного / наступний вільний `P<n>`; один запуск — один лист; підписи не чіпає | — |
+| Crosses | points → crosses or circles | — |
+| SewingPoints | seam points: curve centre + equal step both ways | SewPoints GH — old Grasshopper version |
+| Linetype 400,2 | assign linetype `400,2` | — |
+| TextStyles | create/update PAT 2.5–40 mm text styles | — |
+| TextToDot | text → TextDot | DotToPanelText — TextDot → text in the panel corner (INK) |
+| TextToCurves | text → curves for the nesting program: like `Explode`, but text with a flipped plane (after Mirror, 180° rotation, another CPlane) is not mirrored — the curves lie like the text on screen in the Top view (Draw forward); layer / colour / groups of the original, text without a group → letters in a new group; the original is deleted | — |
+| Legend | label legend (P, S, ZC, SA, Z, Trk, RC, TP, A–A) — only those present in the drawing, as text at the click point; option Lang = UA / EN / IT | — |
+| Panel Page | sheet for PDF: selected objects (panel contour or any of its parts) → one new A4 Layout (always portrait — Print on Mac uses one orientation for all sheets), one Top detail aimed at the whole selection (like Zoom Selected), scale as in Zoom Selected (the selection fills the frame, not rounded), the detail is not locked; name — UserText `Part` / label `P<n>` within the selection / the next free `P<n>`; one run — one sheet; labels are not touched | — |
 
-Поза тулбаром навмисно лишені: `BoundingBoxWithSize.py` (стара версія), `GH_SplitCurveByAngle.py` (код для GHPython-компонента), `PatternTextStyles_check.py` (перевірка), `build_scripts_rui.py` (збирач).
+Deliberately left off the toolbar: `BoundingBoxWithSize.py` (old version), `GH_SplitCurveByAngle.py` (code for a GHPython component), `PatternTextStyles_check.py` (check), `build_scripts_rui.py` (builder).
 
 ---
 
-## 2. Де знайти тулбар
+## 2. Where to find the toolbar
 
-Вкладки **Розміри / Криві / Аналіз / Різ / Parts / Розмітка** — у верхній панелі тулбарів.
+Tabs **Sizes / Curves / Analysis / Cut / Parts / Markup** — in the top toolbar panel.
 
-**Вкладка зникла** — у Rhino: меню **Window → Toolbars** (або команда `Toolbar`), знайти бібліотеку **Scripts**, увімкнути потрібний тулбар. Він з'явиться плаваючим вікном — перетягнути його за вкладку у верхню панель.
+**A tab disappeared** — in Rhino: menu **Window → Toolbars** (or the `Toolbar` command), find the **Scripts** library, enable the toolbar you need. It appears as a floating window — drag it by its tab into the top panel.
 
-**Rhino взагалі не знає про тулбар** (новий комп'ютер, скинуті налаштування) — `Scripts.rui` у git немає, спершу зібрати його (`python3 scripts/build_scripts_rui.py`), потім відкрити один раз. Найнадійніше через `_ScriptEditor` → новий Python-скрипт → Run:
+**Rhino does not know the toolbar at all** (new computer, reset settings) — `Scripts.rui` is not in git, build it first (`python3 scripts/build_scripts_rui.py`), then open it once. The most reliable way is via `_ScriptEditor` → new Python script → Run:
 
 ```python
 import Rhino
 Rhino.RhinoApp.ToolbarFiles.Open("/Users/dmytro/Documents/Rhino/Scripts.rui")
 ```
 
-Потім показати тулбари, як описано вище. Rhino запам'ятає файл і відкриватиме його сам.
+Then show the toolbars as described above. Rhino remembers the file and opens it itself.
 
 ---
 
-## 3. Як додати скрипт
+## 3. Adding a script
 
-1. Покласти файл у підпапку вкладки, наприклад `scripts/curves/MyNewScript.py`.
-2. Відкрити `scripts/build_scripts_rui.py` і в списку `GROUPS`, у потрібній групі, дописати рядок:
+1. Put the file in its tab's subfolder, e.g. `scripts/curves/MyNewScript.py`.
+2. Open `scripts/build_scripts_rui.py` and in the `GROUPS` list, in the right group, add a line:
 
    ```python
-   (u"MyNew", u"Що робить скрипт — підказка", py("curves/MyNewScript.py"), None),
+   (u"MyNew", u"What the script does — tooltip", py("curves/MyNewScript.py"), None),
    ```
 
-   - `u"MyNew"` — текст на кнопці (коротко).
-   - `u"Що робить…"` — підказка при наведенні.
-   - `py("curves/MyNewScript.py")` — шлях до файлу від `scripts/`. Файл кладеться в підпапку своєї вкладки: `sizes/` (Розміри), `curves/` (Криві), `analysis/` (Аналіз), `cut/` (Різ), `parts/` (Parts), `markup/` (Розмітка).
-   - `None` — на правому кліку нічого. Щоб повісити туди другий скрипт:
+   - `u"MyNew"` — button text (short).
+   - `u"What the script does…"` — tooltip on hover.
+   - `py("curves/MyNewScript.py")` — path to the file from `scripts/`. The file goes in its tab's subfolder: `sizes/` (Sizes), `curves/` (Curves), `analysis/` (Analysis), `cut/` (Cut), `parts/` (Parts), `markup/` (Markup).
+   - `None` — nothing on right click. To put a second script there:
      ```python
-     (u"MyNew", u"Підказка", py("curves/MyNewScript.py"),
-      (u"MyNew 2", u"Підказка другого", py("Other.py"))),
+     (u"MyNew", u"Tooltip", py("curves/MyNewScript.py"),
+      (u"MyNew 2", u"Second tooltip", py("Other.py"))),
      ```
-   - Порядок рядків = порядок кнопок.
-   - Для Grasshopper-файлу замість `py(...)` пишеться макрос рядком, як `GH_SEW` у тому ж файлі.
+   - Line order = button order.
+   - For a Grasshopper file write the macro as a string instead of `py(...)`, like `GH_SEW` in the same file.
 
-3. **Закрити Rhino** і перезібрати тулбар (збирає тільки користувач — Claude лише редагує `GROUPS`, сам збирач не запускає):
+3. **Close Rhino** and rebuild the toolbar (only the user builds it — Claude only edits `GROUPS` and does not run the builder):
 
    ```bash
    python3 /Users/dmytro/Documents/Rhino/scripts/build_scripts_rui.py
    ```
 
-   Має вивести `OK -> …/Scripts.rui`. Якщо якогось файлу немає — зупиниться з `Немає файлів: …` і нічого не зіпсує.
+   It should print `OK -> …/Scripts.rui`. If a file is missing it stops with `Missing files: …` and breaks nothing.
 
-4. Запустити Rhino — кнопка на місці.
+4. Start Rhino — the button is there.
 
-**Нова група** — додати в `GROUPS` ще один блок за зразком існуючих: `(u"Назва", u"Опис групи", [ ...рядки кнопок... ]),`. Назва групи = назва вкладки. Нову вкладку після першого запуску треба показати й перетягнути у верхню панель (розділ 2).
-
----
-
-## 4. Як прибрати скрипт з тулбара
-
-1. У `scripts/build_scripts_rui.py` видалити його рядок із `GROUPS`.
-   - Якщо скрипт висить на **правому** кліку — замінити весь блок `(u"...", u"...", py("..."))` на `None`.
-   - Щоб прибрати **всю групу** — видалити її блок цілком.
-2. Закрити Rhino, запустити `python3 scripts/build_scripts_rui.py`, відкрити Rhino.
-
-Сам файл скрипта при цьому лишається в `scripts/`. Якщо файл видаляєш з диска — **спочатку** прибери його рядок, інакше збирач зупиниться з `Немає файлів`.
-
-**Перейменування / переміщення файлу** — оновити ім'я в `py("...")`, перезібрати. **Переміщення кнопки між групами** — перенести рядок в іншу групу, перезібрати.
+**New group** — add another block to `GROUPS` following the existing ones: `(u"Name", u"Group description", [ ...button lines... ]),`. Group name = tab name. After the first run the new tab must be shown and dragged into the top panel (section 2).
 
 ---
 
-## 5. Важливо
+## 4. Removing a script from the toolbar
 
-- **Редагувати тільки `build_scripts_rui.py`, не `Scripts.rui`.** `Scripts.rui` перезаписується при кожній збірці.
-- **Збирати тулбар при закритому Rhino.** Відкритий Rhino тримає свою копію тулбара в пам'яті й при виході може записати її поверх нової — і щойно додані кнопки зникнуть.
-- Розташування тулбара не збивається при перезбірці: ідентифікатори кнопок і груп стабільні (залежать від назв). Але якщо **перейменувати** кнопку або групу, Rhino вважатиме її новою.
-- Шлях до скриптів береться з розташування папки проєкту. Якщо папку `Rhino` перемістити — перезібрати тулбар і відкрити `Scripts.rui` заново (розділ 2).
-- Сумісність скриптів: IronPython 2.7 і CPython 3 (Rhino 8), одиниці й допуски — з документа.
+1. In `scripts/build_scripts_rui.py` delete its line from `GROUPS`.
+   - If the script is on the **right** click — replace the whole `(u"...", u"...", py("..."))` block with `None`.
+   - To remove **a whole group** — delete its block entirely.
+2. Close Rhino, run `python3 scripts/build_scripts_rui.py`, open Rhino.
+
+The script file itself stays in `scripts/`. If you delete the file from disk — remove its line **first**, otherwise the builder stops with `Missing files`.
+
+**Renaming / moving a file** — update the name in `py("...")`, rebuild. **Moving a button between groups** — move the line to the other group, rebuild.
 
 ---
 
-## 6. Якщо щось не так
+## 5. Important
 
-| Симптом | Що робити |
+- **Edit only `build_scripts_rui.py`, not `Scripts.rui`.** `Scripts.rui` is overwritten on every build.
+- **Build the toolbar with Rhino closed.** An open Rhino keeps its own copy of the toolbar in memory and may write it over the new one on exit — and the newly added buttons disappear.
+- The toolbar position survives a rebuild: button and group ids are stable (derived from the names). But if you **rename** a button or a group, Rhino treats it as new (that is why the tabs renamed to English in October 2026 had to be placed again).
+- The script path comes from the project folder location. If the `Rhino` folder is moved — rebuild the toolbar and open `Scripts.rui` again (section 2).
+- Script compatibility: IronPython 2.7 and CPython 3 (Rhino 8), units and tolerances — from the document.
+
+---
+
+## 6. Troubleshooting
+
+| Symptom | What to do |
 |---|---|
-| Вкладки немає на екрані | Розділ 2. |
-| Кнопка нічого не робить / «файл не знайдено» в командному рядку | Файл перейменовано або переміщено — виправити `py("...")` і перезібрати. |
-| Після виходу з Rhino зникли нові кнопки | Збирали при відкритому Rhino. Закрити Rhino і перезібрати ще раз. |
-| Потрібен старий тулбар `_Scripts` | При закритому Rhino скопіювати вміст `_backup_toolbar_20260930_2058/Scheme__Default/` у `~/Library/Application Support/McNeel/Rhinoceros/8.0/settings/Scheme__Default/`. Увага: старі кнопки посилаються на старі імена файлів (`SplitCrvByAngle copy.py`, `sel_curve_overlap.py` у корені). |
+| A tab is not on screen | Section 2. |
+| A button does nothing / "file not found" in the command line | The file was renamed or moved — fix `py("...")` and rebuild. |
+| New buttons disappeared after quitting Rhino | It was built with Rhino open. Close Rhino and rebuild. |
+| Old tabs (Розміри / Криві / …) still show next to the new ones | They come from the previous build: Window → Toolbars, turn them off (or close and reopen `Scripts.rui`). |
+| Need the old `_Scripts` toolbar | With Rhino closed copy the contents of `_backup_toolbar_20260930_2058/Scheme__Default/` to `~/Library/Application Support/McNeel/Rhinoceros/8.0/settings/Scheme__Default/`. Note: the old buttons point to old file names (`SplitCrvByAngle copy.py`, `sel_curve_overlap.py` in the root). |

@@ -30,11 +30,11 @@ def tab_intervals(length, centers, width, tolerance):
     """
     values = [length, width, tolerance] + list(centers)
     if any(math.isnan(v) or math.isinf(v) for v in values):
-        raise ValueError(u'Розміри повинні бути скінченними числами.')
+        raise ValueError(u'Sizes must be finite numbers.')
     if tolerance <= 0 or width <= 2 * tolerance:
-        raise ValueError(u'Ширина має бути більшою за подвійний допуск документа.')
+        raise ValueError(u'Width must be larger than twice the document tolerance.')
     if length <= width + tolerance:
-        raise ValueError(u'Перемичка завелика для цього контуру.')
+        raise ValueError(u'The tab is too large for this contour.')
     if not centers:
         return [(0.0, length)], []
     locations = sorted(c % length for c in centers)
@@ -42,7 +42,7 @@ def tab_intervals(length, centers, width, tolerance):
         following = locations[(i + 1) % len(locations)]
         separation = following - c if i + 1 < len(locations) else following + length - c
         if separation - width <= tolerance:
-            raise ValueError(u'Перемички перекриваються або залишають надто короткий різ.')
+            raise ValueError(u'Tabs overlap or leave a cut that is too short.')
     half = width * 0.5
     gaps = [((c - half) % length, (c + half) % length) for c in locations]
     cuts = []
@@ -64,7 +64,7 @@ def parameter_at_length(curve, length):
         return curve.Domain.T1
     success, parameter = curve.LengthParameter(length)
     if not success:
-        raise ValueError(u'Не вдалося відміряти довжину вздовж кривої.')
+        raise ValueError(u'Could not measure the length along the curve.')
     return parameter
 
 
@@ -78,7 +78,7 @@ def trim_arc(curve, interval, tolerance):
             abs(part.GetLength() - expected) > tolerance):
         if part is not None:
             part.Dispose()
-        raise ValueError(u'Не вдалося точно розділити контур. Оригінал збережено.')
+        raise ValueError(u'Could not split the contour precisely. The original is kept.')
     return part
 
 
@@ -193,12 +193,12 @@ def edit_tabs(records, plane, width, tolerance):
         while True:
             count = sum(len(items) for items in centers)
             if select_move:
-                prompt = u'Клікніть помаранчеву перемичку для переміщення (Enter — назад)'
+                prompt = u'Click an orange tab to move it (Enter — back)'
             elif moving is not None:
-                prompt = u'Клікніть нове місце перемички (Enter — назад)'
+                prompt = u'Click the new tab position (Enter — back)'
             else:
-                prompt = (u'Перемичок: %d, ширина: %g. Клік — додати/прибрати; '
-                          u'Enter — застосувати; Esc — скасувати' % (count, width))
+                prompt = (u'Tabs: %d, width: %g. Click — add/remove; '
+                          u'Enter — apply; Esc — cancel' % (count, width))
             gp = Rhino.Input.Custom.GetPoint()
             gp.SetCommandPrompt(prompt)
             gp.AcceptNothing(True)
@@ -233,14 +233,14 @@ def edit_tabs(records, plane, width, tolerance):
                     if count:
                         select_move = True
                     else:
-                        print(u'Спочатку додайте перемичку.')
+                        print(u'Add a tab first.')
                 elif option == 'Width':
-                    new_width = rs.GetReal(u'Ширина перемички вздовж контуру (одиниці документа)',
+                    new_width = rs.GetReal(u'Tab width along the contour (document units)',
                                            width, 2.0 * tolerance)
                     if new_width is not None:
                         try:
                             if new_width <= 2.0 * tolerance:
-                                raise ValueError(u'Ширина має перевищувати подвійний допуск.')
+                                raise ValueError(u'Width must exceed twice the tolerance.')
                             validate_all(records, centers, new_width, tolerance)
                             preview.rebuild(records, centers, new_width, tolerance)
                             history.append(snapshot(centers, width))
@@ -261,12 +261,12 @@ def edit_tabs(records, plane, width, tolerance):
             viewport = view.ActiveViewport if view is not None else sc.doc.Views.ActiveView.ActiveViewport
             location = closest_location(records, point, viewport)
             if location is None:
-                print(u'Клікніть ближче до одного з вибраних контурів.')
+                print(u'Click closer to one of the selected contours.')
                 continue
             tab = existing_tab(records, centers, location, width, tolerance)
             if select_move:
                 if tab is None:
-                    print(u'Клікніть помаранчеву ділянку.')
+                    print(u'Click an orange section.')
                 else:
                     moving, select_move = tab, False
                 continue
@@ -321,11 +321,11 @@ def commit_tabs(records, centers, width, tolerance):
             for part, attrs in prepared:
                 object_id = sc.doc.Objects.AddCurve(part, attrs)
                 if object_id == System.Guid.Empty:
-                    raise RuntimeError(u'Не вдалося додати ділянку різу.')
+                    raise RuntimeError(u'Could not add a cut section.')
                 added.append(object_id)
             for source_id in changed:
                 if not sc.doc.Objects.Hide(source_id, True):
-                    raise RuntimeError(u'Не вдалося приховати оригінал.')
+                    raise RuntimeError(u'Could not hide the original.')
                 hidden.append(source_id)
             selected.extend(added)
             rs.UnselectAllObjects()
@@ -345,16 +345,16 @@ def commit_tabs(records, centers, width, tolerance):
         sc.doc.Views.Redraw()
 
 
-HELP = u"""Опції:
-  Move — перемістити перемичку
-  Width — ширина перемички
-  Undo — скасувати останню дію
-  Clear — прибрати всі перемички"""  # друкується на старті — видно під полями опцій
+HELP = u"""Options:
+  Move — move a tab
+  Width — tab width
+  Undo — undo the last action
+  Clear — remove all tabs"""  # printed at start — visible under the option fields
 
 
 def main():
     print(HELP)
-    ids = rs.GetObjects(u'Виберіть замкнені контури для перемичок',
+    ids = rs.GetObjects(u'Select closed contours for tabs',
                         rs.filter.curve, preselect=True)
     if not ids:
         return
@@ -366,51 +366,51 @@ def main():
         for object_id in ids:
             source = sc.doc.Objects.FindId(object_id)
             if source is None or source.IsLocked or source.IsReference:
-                raise ValueError(u'Виберіть звичайні редаговані криві.')
+                raise ValueError(u'Select regular editable curves.')
             curve = rs.coercecurve(object_id).DuplicateCurve()
             records.append({'id': object_id, 'curve': curve, 'length': curve.GetLength()})
             if not curve.IsValid or not curve.IsClosed or not curve.IsPlanar(tolerance):
-                raise ValueError(u'Потрібні коректні замкнені плоскі криві.')
+                raise ValueError(u'Valid closed planar curves are needed.')
             if plane is None:
                 success, plane = curve.TryGetPlane(tolerance)
                 if not success:
-                    raise ValueError(u'Не вдалося визначити площину контуру.')
+                    raise ValueError(u'Could not determine the contour plane.')
             if not curve.IsInPlane(plane, tolerance):
-                raise ValueError(u'Усі вибрані контури мають лежати в одній площині.')
+                raise ValueError(u'All selected contours must lie in one plane.')
         if sc.doc.ModelUnitSystem == getattr(Rhino.UnitSystem, 'None'):
             default_width = max(tolerance * 10.0, 1.0)
-            print(u'Документ без одиниць: ширину буде виміряно в одиницях креслення.')
+            print(u'Document has no units: width is measured in drawing units.')
         else:
             # 0.5 mm is only an editable starting value, not a material prescription.
             factor = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters,
                                                sc.doc.ModelUnitSystem)
             default_width = max(0.5 * factor, tolerance * 10.0)
-        width = rs.GetReal(u'Ширина перемички вздовж контуру (одиниці документа)',
+        width = rs.GetReal(u'Tab width along the contour (document units)',
                            default_width, tolerance * 2.0)
         if width is None:
             return
         if width <= tolerance * 2.0:
-            raise ValueError(u'Ширина має перевищувати подвійний допуск документа.')
+            raise ValueError(u'Width must exceed twice the document tolerance.')
         rs.UnselectAllObjects()
-        print(u'Помаранчеве — не різати. Зелене — нова перемичка. '
-              u'Move — перемістити; Width — ширина; Undo — назад; Clear — очистити.')
+        print(u'Orange — do not cut. Green — new tab. '
+              u'Move — move; Width — width; Undo — back; Clear — clear.')
         result = edit_tabs(records, plane, width, tolerance)
         if result is None:
-            print(u'Скасовано.')
+            print(u'Cancelled.')
             return
         centers, width = result
         summary = commit_tabs(records, centers, width, tolerance)
         if summary is None:
-            print(u'Перемичок немає; контури не змінено.')
+            print(u'No tabs; contours unchanged.')
             return
         completed = True
-        print(u'Створено перемичок: %d; оброблено контурів: %d; ділянок різу: %d.' %
+        print(u'Tabs created: %d; contours processed: %d; cut sections: %d.' %
               (sum(len(items) for items in centers), summary[0], summary[1]))
-        print(u'Результат вибрано разом із рештою початково вибраних контурів. '
-              u'Експортуйте вибране. Оригінали оброблених кривих приховані; '
-              u'Undo скасовує операцію, Show повертає оригінали (вони накладатимуться на різ).')
+        print(u'Result selected together with the rest of the initially selected contours. '
+              u'Export the selection. Originals of processed curves are hidden; '
+              u'Undo reverts the operation, Show restores the originals (they will overlap the cut).')
     except Exception as error:
-        print(u'Перемички: %s' % error)
+        print(u'Tabs: %s' % error)
     finally:
         if not completed:
             rs.UnselectAllObjects()

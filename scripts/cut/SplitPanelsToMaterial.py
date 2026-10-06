@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Нарізка панелей під ширину рулону матеріалу.
+"""Split panels to the material roll width.
 
-1. Виберіть панелі (замкнені криві, зазвичай CUT).
-2. Виберіть матеріал: замкнений прямокутник (Origin) або дві його лінії — верх і низ.
-3. Enter на запитах = відступ 50 і шов 10 (одиниці документа, мм).
+1. Select panels (closed curves, usually CUT).
+2. Select the material: a closed rectangle (Origin) or two of its lines — top and bottom.
+3. Enter at the prompts = gap 50 and seam 10 (document units, mm).
 
-Для кожної панелі, що вилазить за лінію матеріалу:
-- основна панель обрізається рівно по лінії матеріалу і закривається нею;
-- шматок, що вилазить, відрізається на `шов` всередині матеріалу, отримує ще `шов` припуску
-  (разом 2 × шов перекриття) і відсувається на `відступ` — вище верхньої або нижче нижньої лінії;
-- лінія шва (на `шов` від лінії матеріалу) малюється на INK і на панелі, і на відрізаному шматку;
-- внутрішні об'єкти відрізаного шматка (INK/INT: лінії, точки, текст) ріжуться по шву і їдуть разом із ним;
-- кожна пара шматків підписується біля шва однаковою літерою: A і A, B і B, … Z, AA, AB …
-  Лічильник зберігається у файлі, тож наступний запуск продовжує з наступної літери.
-Сумісність: IronPython 2.7 / CPython 3 (Rhino 8).
+For each panel that crosses a material line:
+- the main panel is trimmed exactly at the material line and closed by it;
+- the piece that sticks out is cut `seam` inside the material, gets another `seam` of allowance
+  (2 × seam overlap in total) and is moved by `gap` — above the top or below the bottom line;
+- the seam line (at `seam` from the material line) is drawn on INK on both the panel and the cut-off piece;
+- inner objects of the cut-off piece (INK/INT: lines, points, text) are cut at the seam and move with it;
+- each pair of pieces is labelled near the seam with the same letter: A and A, B and B, … Z, AA, AB …
+  The counter is stored in the file, so the next run continues with the next letter.
+Compatibility: IronPython 2.7 / CPython 3 (Rhino 8).
 """
 import os
 import sys
@@ -25,7 +25,7 @@ import scriptcontext as sc
 from Rhino.Geometry import (Curve, Interval, LineCurve, Plane, PointContainment,
                             Rectangle3d, Transform, Vector3d)
 
-try:  # стилі тексту PAT для лекал 1:1 (scripts/markup/PatternTextStyles.py)
+try:  # PAT text styles for 1:1 patterns (scripts/markup/PatternTextStyles.py)
     sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
     import PatternTextStyles
 except Exception:
@@ -46,7 +46,7 @@ def letters(i):
 
 
 def text_style(doc, chord_len, room):
-    """Стиль PAT: літера ≈ ¼ довжини шва, але влазить у відрізаний шматок (room) і не більше 20 мм."""
+    """PAT style: letter ≈ ¼ of the seam length, but fits in the cut-off piece (room) and no more than 20 mm."""
     if PatternTextStyles is None:
         return doc.DimStyles.Current
     styles = PatternTextStyles.ensure_styles(doc)
@@ -56,7 +56,7 @@ def text_style(doc, chord_len, room):
 
 def make_label(text, pt, u, style):
     if u.X < -1e-9 or (abs(u.X) < 1e-9 and u.Y < 0):
-        u = -u  # текст читається зліва направо, площина не дзеркальна
+        u = -u  # text reads left to right, the plane is not mirrored
     te = Rhino.Geometry.TextEntity.Create(text, Plane(pt, u, Vector3d.CrossProduct(Vector3d.ZAxis, u)),
                                           style, False, 0, 0)
     te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
@@ -65,7 +65,7 @@ def make_label(text, pt, u, style):
 
 
 def label_is_free(doc, bb, region, ignore, tol):
-    """Рамка підпису всередині шматка і не зачіпає інших об'єктів (текст, точки, лінії)."""
+    """The label frame is inside the piece and does not touch other objects (text, points, lines)."""
     corners = [bb.Corner(x, y, True) for x in (True, False) for y in (True, False)]
     if any(region.Contains(c, Plane.WorldXY, tol) != PointContainment.Inside for c in corners):
         return False
@@ -85,22 +85,22 @@ def label_is_free(doc, bb, region, ignore, tol):
 
 
 def add_label(doc, text, chord, shift, u, style, region, ignore, attrs, tol):
-    """Ставить підпис біля шва: спершу по центру, далі зсуває вздовж шва, поки не знайде вільне місце."""
+    """Places the label near the seam: first at the centre, then shifts along the seam until a free spot is found."""
     for t in (0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9):
         te = make_label(text, chord.PointAtNormalizedLength(t) + shift, u, style)
         if label_is_free(doc, te.GetBoundingBox(True), region, ignore, tol):
             break
-    else:  # ponytail: вільного місця на шві немає — лишаємо по центру; далі від шва не шукаємо.
+    else:  # ponytail: no free spot on the seam — keep it at the centre; we do not search farther from the seam.
         te = make_label(text, chord.PointAtNormalizedLength(0.5) + shift, u, style)
     return doc.Objects.AddText(te, attrs)
 
 
 def label_pair(doc, text, piece, comp, chords, plane, to_local, seam, move, ignore, attrs, tol):
-    """Однакова літера біля шва: на основній панелі (piece) і на відрізаному шматку (comp, ще до зсуву)."""
+    """The same letter near the seam: on the main panel (piece) and on the cut-off piece (comp, before moving)."""
     if not chords:
         return []
     chord = max(chords, key=lambda c: c.GetLength())
-    room = seam - comp.GetBoundingBox(to_local).Min.Y  # глибина шматка від шва до краю
+    room = seam - comp.GetBoundingBox(to_local).Min.Y  # depth of the piece from the seam to the edge
     style = text_style(doc, chord.GetLength(), room)
     th = style.TextHeight * style.DimensionScale
     n = plane.YAxis
@@ -114,14 +114,14 @@ def label_pair(doc, text, piece, comp, chords, plane, to_local, seam, move, igno
 def boolean_and(a, b, tol):
     try:
         res = Curve.CreateBooleanIntersection(a, b, tol)
-    except TypeError:  # Rhino 6: без допуску
+    except TypeError:  # Rhino 6: no tolerance
         res = Curve.CreateBooleanIntersection(a, b)
     return list(res or [])
 
 
 def material_frames(curves):
-    """Дві лінії матеріалу → [(plane, to_local)]; вісь Y площини дивиться всередину матеріалу."""
-    if len(curves) == 1:  # прямокутник матеріалу: беремо дві найдовші сторони
+    """Two material lines → [(plane, to_local)]; the plane's Y axis points into the material."""
+    if len(curves) == 1:  # material rectangle: take the two longest sides
         ok, poly = curves[0].TryGetPolyline()
         if not ok:
             return None
@@ -149,7 +149,7 @@ def rect(plane, u0, u1, h0, h1):
 
 
 def inside_pieces(crv, region, tol):
-    """Шматки кривої всередині замкненого регіону."""
+    """Pieces of a curve inside a closed region."""
     params = []
     for e in Rhino.Geometry.Intersect.Intersection.CurveCurve(crv, region, tol, tol) or []:
         params.append(e.ParameterA)
@@ -171,24 +171,24 @@ def merge(intervals):
 
 
 def cut_panel(panel, plane, to_local, seam, tol):
-    """Ріже панель по одній лінії матеріалу.
-    Повертає None (не вилазить) або (основні шматки, [(відрізаний шматок, [лінії шва])])."""
-    bb = panel.GetBoundingBox(to_local)  # x — уздовж лінії, y — від лінії всередину матеріалу
-    eps = max(10 * tol, 0.1 * seam)  # виліт до 1 мм — шум оцифровки, не ріжемо
+    """Cuts a panel along one material line.
+    Returns None (does not stick out) or (main pieces, [(cut-off piece, [seam lines])])."""
+    bb = panel.GetBoundingBox(to_local)  # x — along the line, y — from the line into the material
+    eps = max(10 * tol, 0.1 * seam)  # overhang up to 1 mm — digitising noise, not cut
     if bb.Min.Y > -eps:
         return None
     u0, u1, h0, h1 = bb.Min.X - 1, bb.Max.X + 1, bb.Min.Y - 1, bb.Max.Y + 1
     over = [c for c in boolean_and(panel, rect(plane, u0, u1, h0, 0), tol)
             if c.GetBoundingBox(to_local).Min.Y < -eps]
-    # ponytail: шматок ріжеться смугою вздовж лінії шириною = його габарит ± 2×шов; на дуже
-    # похилих боках (>45°) край припуску стає прямим, а не продовжує бік панелі.
+    # ponytail: the piece is cut by a band along the line of width = its extent ± 2×seam; on very
+    # slanted sides (>45°) the allowance edge becomes straight instead of continuing the panel side.
     spans = merge([(b.Min.X - 2 * seam, b.Max.X + 2 * seam)
                    for b in (c.GetBoundingBox(to_local) for c in over)])
     offs = []
     for a, b in spans:
         for comp in boolean_and(panel, rect(plane, a, b, h0, 2 * seam), tol):
             if comp.GetBoundingBox(to_local).Min.Y > -eps:
-                continue  # у смугу потрапив лише шматок у межах матеріалу
+                continue  # the band caught only a piece within the material
             chord = LineCurve(plane.PointAt(a - 1, seam), plane.PointAt(b + 1, seam))
             offs.append((comp, inside_pieces(chord, comp, tol)))
     if not offs:
@@ -198,7 +198,7 @@ def cut_panel(panel, plane, to_local, seam, tol):
 
 
 def carry_objects(doc, region, chords, plane, seam, move, skip, tol):
-    """Ріже внутрішні об'єкти по шву і посуває те, що в `region` за швом (ближче до краю)."""
+    """Cuts inner objects at the seam and moves what is in `region` beyond the seam (closer to the edge)."""
     rb = region.GetBoundingBox(True)
     xf = Transform.Translation(move)
 
@@ -249,7 +249,7 @@ def seam_attributes(doc):
 
 
 def run(doc, panel_ids, frames, gap, seam):
-    """Ріже панелі; повертає (кількість розрізаних панелей, кількість відсунутих шматків)."""
+    """Cuts panels; returns (number of cut panels, number of moved pieces)."""
     tol = doc.ModelAbsoluteTolerance
     seam_attrs = seam_attributes(doc)
     skip = set(panel_ids)
@@ -293,22 +293,22 @@ def run(doc, panel_ids, frames, gap, seam):
 
 
 def main():
-    panel_ids = rs.GetObjects("Виберіть панелі (замкнені криві)", rs.filter.curve, preselect=True)
+    panel_ids = rs.GetObjects("Select panels (closed curves)", rs.filter.curve, preselect=True)
     if not panel_ids:
         return
     panel_ids = [i for i in panel_ids if rs.IsCurveClosed(i) and rs.IsCurvePlanar(i)]
-    mat_ids = rs.GetObjects("Виберіть матеріал: прямокутник або дві лінії (верх і низ)",
+    mat_ids = rs.GetObjects("Select the material: a rectangle or two lines (top and bottom)",
                             rs.filter.curve, minimum_count=1, maximum_count=2)
     if not mat_ids:
         return
     frames = material_frames([rs.coercecurve(i) for i in mat_ids])
     if not frames:
-        print("Матеріал: потрібен прямокутник-полілайн або дві прямі лінії")
+        print("Material: a rectangle polyline or two straight lines are needed")
         return
-    gap = rs.GetReal("Відсунути відрізані шматки на", 50.0, 0.0)
+    gap = rs.GetReal("Move cut-off pieces by", 50.0, 0.0)
     if gap is None:
         return
-    seam = rs.GetReal("Шов / припуск від лінії матеріалу", 10.0, 0.0)
+    seam = rs.GetReal("Seam / allowance from the material line", 10.0, 0.0)
     if seam is None:
         return
     panel_ids = [i for i in panel_ids if i not in mat_ids]
@@ -318,7 +318,7 @@ def main():
         n_panels, n_offs = run(sc.doc, panel_ids, frames, gap, seam)
     finally:
         rs.EnableRedraw(True)
-    print("Розрізано панелей: {}, відсунуто шматків: {}".format(n_panels, n_offs))
+    print("Panels cut: {}, pieces moved: {}".format(n_panels, n_offs))
 
 
 if __name__ == "__main__":

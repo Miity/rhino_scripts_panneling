@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Обрізає 2D-криві по замкненому контуру панелі: все, що поза панеллю, видаляється.
-Шматки, що лежать точно на контурі панелі, залишаються."""
+"""Trims 2D curves by a closed panel contour: everything outside the panel is deleted.
+Pieces lying exactly on the panel contour are kept."""
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
@@ -9,7 +9,7 @@ Outside = Rhino.Geometry.PointContainment.Outside
 
 
 def trim_to_panel(crv, panel, plane, tol):
-    """Повертає список шматків усередині панелі (або None, якщо крива вся всередині)."""
+    """Returns a list of pieces inside the panel (or None if the whole curve is inside)."""
     params = []
     for e in Rhino.Geometry.Intersect.Intersection.CurveCurve(crv, panel, tol, tol) or []:
         params.append(e.ParameterA)
@@ -26,16 +26,16 @@ def trim_to_panel(crv, panel, plane, tol):
 
 
 def main():
-    ids = rs.GetObjects("Виберіть криві для обрізки", rs.filter.curve, preselect=True)
+    ids = rs.GetObjects("Select curves to trim", rs.filter.curve, preselect=True)
     if not ids:
         return
-    panel_id = rs.GetObject("Виберіть панель (замкнений контур)", rs.filter.curve)
+    panel_id = rs.GetObject("Select a panel (closed contour)", rs.filter.curve)
     if not panel_id:
         return
     panel = rs.coercecurve(panel_id)
     ok, plane = panel.TryGetPlane()
     if not (panel.IsClosed and ok):
-        print("Панель має бути замкненою пласкою кривою")
+        print("The panel must be a closed planar curve")
         return
     tol = sc.doc.ModelAbsoluteTolerance
 
@@ -47,13 +47,13 @@ def main():
         inside = trim_to_panel(rs.coercecurve(oid), panel, plane, tol)
         if inside is None:
             continue
-        attrs = sc.doc.Objects.FindId(oid).Attributes  # шар, колір, тип лінії
+        attrs = sc.doc.Objects.FindId(oid).Attributes  # layer, colour, linetype
         for p in inside:
             sc.doc.Objects.AddCurve(p, attrs)
         sc.doc.Objects.Delete(oid, True)
         changed += 1
     rs.EnableRedraw(True)
-    print("Обрізано / видалено кривих: {}".format(changed))
+    print("Curves trimmed / deleted: {}".format(changed))
 
 
 if __name__ == "__main__":

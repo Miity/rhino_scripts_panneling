@@ -94,27 +94,27 @@ def choose_style():
     names = rs.DimStyleNames(sort=True) or []
     if not names:
         return None
-    selected = rs.ListBox(names, u"Виберіть стиль тексту для написів розмірів",
-                          u"Стиль написів", sc.doc.DimStyles.Current.Name)
+    selected = rs.ListBox(names, u"Select the text style for size labels",
+                          u"Label style", sc.doc.DimStyles.Current.Name)
     return sc.doc.DimStyles.FindName(selected) if selected else None
 
 
 def add_label(curve_id, cplane, tolerance, precision, style):
     curve = rs.coercecurve(curve_id)
     if curve is None or not curve.IsClosed:
-        return False, u"не є замкненою кривою"
+        return False, u"is not a closed curve"
     plane = drawing_plane(curve, cplane, tolerance)
     if plane is None:
-        return False, u"крива не є плоскою"
+        return False, u"the curve is not planar"
 
     curve_box = rs.BoundingBox(curve_id, plane)
     if not curve_box:
-        return False, u"не вдалося виміряти криву"
+        return False, u"could not measure the curve"
     left, bottom, right, top = xy_bounds(curve_box, plane)
     width, height = right - left, top - bottom
     small_side = min(width, height)
     if small_side <= 2.0 * tolerance:
-        return False, u"крива надто мала"
+        return False, u"the curve is too small"
 
     label = u"{0} x {1}".format(number_string(width, precision),
                                number_string(height, precision))
@@ -129,17 +129,17 @@ def add_label(curve_id, cplane, tolerance, precision, style):
     for text_plane, prefer_bottom in text_planes:
         entity = rg.TextEntity.Create(label, text_plane, style, False, 0.0, 0.0)
         if entity is None:
-            return False, u"не вдалося створити текст"
+            return False, u"could not create the text"
         entity.DimensionStyleId = style.Id
         entity.ClearPropertyOverrides()
         text_id = sc.doc.Objects.AddText(entity)
         if text_id == System.Guid.Empty:
-            return False, u"не вдалося додати текст у документ"
+            return False, u"could not add the text to the document"
         placed = False
         try:
             text_box = rs.BoundingBox(text_id, plane)
             if not text_box:
-                return False, u"не вдалося виміряти текст"
+                return False, u"could not measure the text"
             text_left, text_bottom, text_right, text_top = xy_bounds(text_box, plane)
             text_width = text_right - text_left
             text_depth = text_top - text_bottom
@@ -153,27 +153,27 @@ def add_label(curve_id, cplane, tolerance, precision, style):
                 displacement = plane.XAxis * (x - text_left)
                 displacement += plane.YAxis * (y - text_top)
                 if not rs.MoveObject(text_id, displacement):
-                    return False, u"не вдалося пересунути текст"
+                    return False, u"could not move the text"
                 rs.ObjectLayer(text_id, LAYER_NAME)
                 if rs.ObjectLayer(text_id) != LAYER_NAME:
-                    return False, u"не вдалося призначити шар INK"
+                    return False, u"could not assign layer INK"
                 placed = True
                 return True, label
         finally:
             # Failed candidates leave no temporary text in the document.
             if not placed and rs.IsObject(text_id):
                 rs.DeleteObject(text_id)
-    return False, u"напис у вибраному стилі не вміщується всередині"
+    return False, u"the label in the selected style does not fit inside"
 
 
 def main():
-    ids = rs.GetObjects(u"Виберіть замкнені плоскі контури для написів розмірів",
+    ids = rs.GetObjects(u"Select closed planar contours for size labels",
                         rs.filter.curve, preselect=True, select=False)
     if not ids:
         return
     view = sc.doc.Views.ActiveView
     if view is None:
-        print(u"Немає активного виду Rhino.")
+        print(u"No active Rhino view.")
         return
     cplane = view.ActiveViewport.ConstructionPlane()
     tolerance = sc.doc.ModelAbsoluteTolerance
@@ -201,9 +201,9 @@ def main():
     finally:
         rs.EnableRedraw(True)
         sc.doc.Views.Redraw()
-    print(u"Написи на шарі INK: {0} з {1}.".format(completed, len(ids)))
+    print(u"Labels on layer INK: {0} of {1}.".format(completed, len(ids)))
     for item in skipped:
-        print(u"Пропущено контур {0}".format(item))
+        print(u"Skipped contour {0}".format(item))
 
 
 if __name__ == "__main__":

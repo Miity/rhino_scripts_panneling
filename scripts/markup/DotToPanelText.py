@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# Вибрані TextDot -> текст всередині найближчої панелі (замкненої кривої), у її правому верхньому куті.
-# Стиль тексту вибирається зі списку при запуску. Шар INK, dot видаляється.
-# Сумісність: IronPython 2.7 / CPython 3 (Rhino 8).
+# Selected TextDots -> text inside the nearest panel (closed curve), in its top-right corner.
+# The text style is picked from a list at start. Layer INK, the dot is deleted.
+# Compatibility: IronPython 2.7 / CPython 3 (Rhino 8).
 import os
 import sys
 import System
@@ -17,7 +17,7 @@ LAYER = "INK"
 
 
 def spans(poly, y):
-    """Відрізки [x0, x1], де горизонталь y всередині полігону."""
+    """Intervals [x0, x1] where the horizontal line y is inside the polygon."""
     xs = []
     for i in range(len(poly) - 1):
         a, b = poly[i], poly[i + 1]
@@ -38,17 +38,17 @@ def cut(A, B):
 
 
 def find_spot(poly, tx, ty, width, hgt, row, down, ymin, ymax):
-    """Прямокутник width x hgt всередині полігону, найближчий до бажаного правого-верхнього кута (tx, ty).
-    Смуги йдуть від ty вглиб панелі (down — вниз, інакше вгору); у першій смузі, де є місце,
-    береться x, найближчий до tx. Повертає (x_right, y_top) або None.
-    Межі полігону між вершинами лінійні, тож досить перевірити краї смуги і рівні вершин у ній — точно, без перебору."""
+    """A width x hgt rectangle inside the polygon, closest to the desired top-right corner (tx, ty).
+    Bands go from ty into the panel (down — downwards, otherwise upwards); in the first band with room,
+    the x closest to tx is taken. Returns (x_right, y_top) or None.
+    Polygon edges are linear between vertices, so checking the band edges and vertex levels inside it is enough — exact, no brute force."""
     ys = sorted(set(p.Y for p in poly))
     y = min(max(ty, ymin + hgt), ymax)
     while ymin + hgt <= y <= ymax:
         levels = [y, y - hgt] + [v for v in ys if y - hgt < v < y]
         free = None
         for lv in levels:
-            eps = 1e-6 * (1 if lv < y else -1)  # не на самій вершині
+            eps = 1e-6 * (1 if lv < y else -1)  # not exactly on the vertex
             free = spans(poly, lv + eps) if free is None else cut(free, spans(poly, lv + eps))
             if not free:
                 break
@@ -64,17 +64,17 @@ STICKY = "DotToPanelText.style"
 
 def pick_style(doc, current):
     names = sorted(ds.Name for ds in doc.DimStyles if not ds.IsDeleted and not ds.IsChild)
-    return rs.ListBox(names, u"Стиль тексту", u"Dot -> текст", current) or current
+    return rs.ListBox(names, u"Text style", u"Dot -> text", current) or current
 
 
 def get_one(doc, name, geom, prompt, closed=False):
-    """Вибір одного об'єкта з опцією Style. Повертає (ObjRef або None, назва стилю)."""
+    """Pick one object with the Style option. Returns (ObjRef or None, style name)."""
     while True:
         go = Rhino.Input.Custom.GetObject()
         go.GeometryFilter = geom
         if closed:
             go.GeometryAttributeFilter = Rhino.Input.Custom.GeometryAttributeFilter.ClosedCurve
-        go.SetCommandPrompt(u"%s (стиль: %s)" % (prompt, name))
+        go.SetCommandPrompt(u"%s (style: %s)" % (prompt, name))
         opt = go.AddOption("Style")
         res = go.Get()
         if res == Rhino.Input.GetResult.Option and go.OptionIndex() == opt:
@@ -87,9 +87,9 @@ def get_one(doc, name, geom, prompt, closed=False):
 
 
 def get_corner(crv):
-    """Клік біля кута панелі, куди ставити текст. Enter — правий верхній кут."""
+    """Click near the panel corner where the text goes. Enter — top-right corner."""
     gp = Rhino.Input.Custom.GetPoint()
-    gp.SetCommandPrompt(u"Клікни біля кута панелі для тексту (Enter — правий верхній)")
+    gp.SetCommandPrompt(u"Click near a panel corner for the text (Enter — top right)")
     gp.AcceptNothing(True)
     res = gp.Get()
     if res == Rhino.Input.GetResult.Point:
@@ -100,11 +100,11 @@ def get_corner(crv):
 
 
 def place_text(doc, text, crv, click, style, attr, tol):
-    """Текст усередині панелі crv у куті, найближчому до click. Повертає id або None (не влазить)."""
+    """Text inside panel crv in the corner closest to click. Returns id or None (does not fit)."""
     h = style.TextHeight * style.DimensionScale
     pb = crv.GetBoundingBox(True)
     c = pb.Center
-    right, top = click.X >= c.X, click.Y >= c.Y  # який кут: за положенням кліку відносно центру панелі
+    right, top = click.X >= c.X, click.Y >= c.Y  # which corner: by the click position relative to the panel centre
     A = Rhino.DocObjects
     te = rg.TextEntity()
     te.PlainText = text
@@ -116,8 +116,8 @@ def place_text(doc, text, crv, click, style, attr, tol):
     if tid == System.Guid.Empty:
         return None
     tb = doc.Objects.FindId(tid).Geometry.GetBoundingBox(True)
-    w, hg = tb.Max.X - tb.Min.X + 2 * h, tb.Max.Y - tb.Min.Y + 2 * h  # текст + відступ h з усіх боків
-    pc = crv.ToPolyline(tol * 10, 0.05, 0, 0)  # дуга -> ламана з точністю 10*tol
+    w, hg = tb.Max.X - tb.Min.X + 2 * h, tb.Max.Y - tb.Min.Y + 2 * h  # text + margin h on all sides
+    pc = crv.ToPolyline(tol * 10, 0.05, 0, 0)  # arc -> polyline with 10*tol accuracy
     ok, poly = pc.TryGetPolyline() if pc else (False, None)
     spot = find_spot(poly, click.X if right else click.X + w, click.Y if top else click.Y + hg,
                      w, hg, h / 4.0, top, pb.Min.Y, pb.Max.Y) if ok else None
@@ -135,19 +135,19 @@ def place(doc, dot_id, crv, click, style, attr, tol):
         doc.Objects.Delete(dot_id, True)
         doc.Views.Redraw()
     else:
-        print(u"'%s': текст не влазить у панель, dot залишено" % text)
+        print(u"'%s': text does not fit in the panel, dot kept" % text)
     return tid
 
 
-HELP = u"""Опції:
-  Style — стиль тексту"""  # друкується на старті — видно під полями опцій
+HELP = u"""Options:
+  Style — text style"""  # printed at start — visible under the option fields
 
 
 def main():
     print(HELP)
     doc = sc.doc
     tol = doc.ModelAbsoluteTolerance
-    pts.ensure_styles(doc)  # щоб PAT-стилі були в списку і у файлах з DXF
+    pts.ensure_styles(doc)  # so PAT styles are in the list also in files from DXF
     name = sc.sticky.get(STICKY)
     if not name or doc.DimStyles.FindName(name) is None:
         name = doc.DimStyles.Current.Name
@@ -158,14 +158,14 @@ def main():
     rs.UnselectAllObjects()
     made = []
 
-    # «dot -> панель -> кут» по колу, Enter/Esc — вихід.
+    # "dot -> panel -> corner" in a loop, Enter/Esc — exit.
     while True:
-        dot, name = get_one(doc, name, Rhino.DocObjects.ObjectType.TextDot, u"Вибери dot")
+        dot, name = get_one(doc, name, Rhino.DocObjects.ObjectType.TextDot, u"Select a dot")
         if dot is None:
             break
         rs.UnselectAllObjects()
         panel, name = get_one(doc, name, Rhino.DocObjects.ObjectType.Curve,
-                              u"Вибери панель для '%s'" % dot.TextDot().Text, closed=True)
+                              u"Select the panel for '%s'" % dot.TextDot().Text, closed=True)
         if panel is None:
             break
         rs.UnselectAllObjects()
@@ -178,7 +178,7 @@ def main():
             made.append(tid)
 
     if made:
-        rs.SelectObjects(made)  # на виході виділено все створене
+        rs.SelectObjects(made)  # everything created is selected on exit
 
 
 if __name__ == "__main__":

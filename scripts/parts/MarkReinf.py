@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Позначка фаші (rinforzo / fascia) на наявному підписі — без деталі.
-Вибираєш підписи (CZ / SA / RB…, можна рамкою, на різних панелях): до тексту дописується
-" R<H>" (стара R-позначка замінюється, H=0 — прибирає). Панель для кожного підпису — найближча (до NEAR_MM) замкнена
-крива поза Parts:: (або в Parts::Panels), на якій є ребро (кут–кут, CopriZip.pick_edge): кола-позначки
-без кутів пропускаються; смуги Seam / CZ — ні (не те ребро). Немає панелі поруч — підпис пропускається; ребро — найближче до підпису — його довжина пишеться в UserText ReinfLen (см), H — у Reinf.
-Таблицю для замовлення робить parts/RList.py. Шар, група, положення підпису не змінюються.
+"""Reinforcement strip mark on an existing label — without a part.
+Select labels (ZC / SA / RB…, window selection allowed, on different panels): " R<H>" is appended
+to the text (an old R mark is replaced, H=0 — removes it). The panel for each label is the nearest (within NEAR_MM) closed
+curve outside Parts:: (or in Parts::Panels) that has an edge (corner to corner, ZipCover.pick_edge): marker circles
+without corners are skipped; Seam / ZC strips too (wrong edge). No panel nearby — the label is skipped; edge — the one closest to the label — its length is written to UserText ReinfLen (cm), H — to Reinf.
+The order table is made by parts/RList.py. Layer, group and label position are not changed.
 """
 import os
 import re
@@ -14,22 +14,22 @@ try:
     import Rhino
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
-except ImportError:  # для tests/test_reinf_list.py поза Rhino
+except ImportError:  # for tests/test_reinf_list.py outside Rhino
     Rhino = rs = sc = None
 
 STICKY = "MarkReinf"
-NEAR_MM = 200  # панель у цьому радіусі від підпису — перевага над деталлю (підпис стоїть на W/2 від ребра)
+NEAR_MM = 200  # a panel within this radius of the label wins over a part (the label sits W/2 from the edge)
 MARK = re.compile(r"\s+R[\d.]+$")
 
 
 def relabel(text, h):
-    """'CZ 30 R45', 60 → 'CZ 30 R60'; h=0 — позначку прибрати."""
+    """'ZC 30 R45', 60 → 'ZC 30 R60'; h=0 — remove the mark."""
     text = MARK.sub(u"", text.rstrip())
     return text + (u" R%g" % h if h else u"")
 
 
 def ask(go):
-    """Вибір підписів з опціями H / Angle → список id або None."""
+    """Label picking with options H / Angle → list of ids or None."""
     h = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0), 0.0, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     go.AddOptionDouble("H", h)
@@ -44,7 +44,7 @@ def ask(go):
 
 
 def closed_curves(doc):
-    """[(крива, групи, деталь?)] — усі замкнені криві документа; деталь = шар Parts::*, крім Parts::Panels."""
+    """[(curve, groups, part?)] — all closed curves in the document; part = layer Parts::*, except Parts::Panels."""
     out = []
     for o in doc.Objects.GetObjectList(Rhino.DocObjects.ObjectType.Curve):
         if o.Geometry.IsClosed:
@@ -54,19 +54,19 @@ def closed_curves(doc):
     return out
 
 
-HELP = u"""Опції:
-  H — висота фаші (R<H> у підписі); 0 — прибрати позначку
-  Angle — злам, більший за цей кут, = кут панелі (ребро під фашею — від кута до кута)"""
+HELP = u"""Options:
+  H — reinforcement strip height (R<H> in the label); 0 — remove the mark
+  Angle — a break larger than this angle = panel corner (the edge under the strip — corner to corner)"""
 
 
 def main():
     print(HELP)
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from CopriZip import pick_edge
+    from ZipCover import pick_edge
     tol = sc.doc.ModelAbsoluteTolerance
     to_cm = Rhino.RhinoMath.UnitScale(sc.doc.ModelUnitSystem, Rhino.UnitSystem.Centimeters)
     go = Rhino.Input.Custom.GetObject()
-    go.SetCommandPrompt(u"Виберіть підписи ребер під фашею")
+    go.SetCommandPrompt(u"Select labels of edges that get a reinforcement strip")
     go.GeometryFilter = Rhino.DocObjects.ObjectType.Annotation
     ids = ask(go)
     if not ids:
@@ -79,22 +79,22 @@ def main():
         p = rs.TextObjectPoint(tid)
         d = lambda c: c.PointAt(c.ClosestPoint(p)[1]).DistanceTo(p)
         groups = set(rs.coercerhinoobject(tid).Attributes.GetGroupList() or [])
-        # ponytail: сортування всіх замкнених кривих на кожен підпис — ок для сотень, не для десятків тисяч
-        # лише панелі поруч: смуга Seam / CZ теж замкнена, але її ребро — не те; без панелі — пропуск, не хибна довжина
+        # ponytail: sorting all closed curves for every label — ok for hundreds, not for tens of thousands
+        # only panels nearby: a Seam / ZC strip is closed too, but its edge is the wrong one; no panel — skip, not a wrong length
         near = sorted((d(c), k) for k, (c, g, part) in enumerate(cands) if not part and not g & groups and d(c) <= lim)
         res = next((r for r in (pick_edge(cands[k][0], p, angle, tol) for _, k in near) if isinstance(r, tuple)),
-                   u"панелі (замкненої кривої з кутами поза Parts::, або Parts::Panels) немає ближче %g мм" % NEAR_MM)
+                   u"no panel (closed curve with corners outside Parts::, or Parts::Panels) closer than %g mm" % NEAR_MM)
         if not isinstance(res, tuple):
-            print(u"Пропущено %s: %s" % (rs.TextObjectText(tid), res))
+            print(u"Skipped %s: %s" % (rs.TextObjectText(tid), res))
             continue
         cm = res[3].GetLength() * to_cm
         rs.TextObjectText(tid, relabel(rs.TextObjectText(tid), h))
         rs.SetUserText(tid, "Reinf", ("%g" % h) if h else None)
         rs.SetUserText(tid, "ReinfLen", ("%.2f" % cm) if h else None)
         made += 1
-        print(u"%s: ребро %.1f см" % (rs.TextObjectText(tid), cm))
+        print(u"%s: edge %.1f cm" % (rs.TextObjectText(tid), cm))
     sc.doc.Views.Redraw()
-    print(u"Позначено підписів: %d" % made)
+    print(u"Labels marked: %d" % made)
 
 
 if __name__ == "__main__":

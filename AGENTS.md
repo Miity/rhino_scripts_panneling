@@ -1,15 +1,23 @@
 # agent.md
 
-## Про проєкт
+## About the project
 
-Основна задача цього проєкту — **скрипти для Rhinoceros (RhinoScript / rhinoscriptsyntax на Python) та компоненти для Grasshopper**.
-Це не застосунок і не бібліотека для збірки — це набір інструментів computational design, які запускаються всередині Rhino 6/7/8
-(редактор `_ScriptEditor` / `_EditPythonScript`) або вставляються у GHPython-компоненти Grasshopper.
+The main purpose of this project is **scripts for Rhinoceros (RhinoScript / rhinoscriptsyntax in Python) and Grasshopper components**.
+It is not an application or a library to build — it is a set of computational design tools that run inside Rhino 6/7/8
+(the `_ScriptEditor` / `_EditPythonScript` editor) or are pasted into GHPython components in Grasshopper.
 
-Прикладна область — розкрій та підготовка викрійок (зокрема шкіряні гаманці, патерни), робота з кривими, полілайнами,
-bounding box, типами ліній та розбиттям кривих за кутом.
+Domain — cutting and pattern preparation (boat covers, leather wallets, patterns), work with curves, polylines,
+bounding boxes, linetypes and splitting curves by angle.
 
-Сумісність коду: IronPython 2.7 і CPython 3 (Rhino 8). Багато скриптів мають українськомовні підказки в діалогах `rs.Get*`.
+Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
+
+## Language
+
+- **Everything is in English**: prompts in `rs.Get*` / `SetCommandPrompt`, `print` messages, `HELP`, comments, docstrings,
+  layer names, labels / prefixes, UserText keys, file names, toolbar tabs and tooltips, README.
+- The only exception is `markup/Legend.py`: its output text has an `UA / EN / IT` option on purpose (printed legends).
+- Old drawings with UA/IT names (`Parts::CopriZip`, `Parts::Canalina`, labels `CZ`, `Can<n>`, `F<n>`) are not supported by the
+  current scripts — the version for them is the git tag `legacy-ua-it`.
 
 ## Rhino Scripts
 
@@ -21,42 +29,42 @@ bounding box, типами ліній та розбиттям кривих за 
 - Scripts with command options (`AddOption*`): a `HELP` string right before `main()` explaining every option letter ("W — …"), printed as the first line of `main()` — on Mac the command history shows under the option fields.
 - Syntax-checking is not verification. At the end, state clearly which scripts were NOT run in Rhino and give a 3-step manual test for each.
 
-## Директорії
+## Directories
 
-- **`scripts/`** — Python-скрипти для Rhino (`rhinoscriptsyntax` / `Rhino.Geometry`), розкладені по підпапках = вкладках тулбара:
-  - **`sizes/`** (вкладка «Розміри»): `BoundingBoxWithSize_Rhino8_CPlane.py` (ghosted bbox з підписами XYZ; `BoundingBoxWithSize.py` — стара версія), `BoundingBoxCenterLines.py`, `LabelClosedCurveSizes.py`, `draw_centered_rectangle.py` (прямокутник заданого розміру по центру CPlane).
-  - **`curves/`** («Криві»): `SplitCrvByAngle.py`, `smooth_corners.py`, `GH_SplitCurveByAngle.py` (розбиття / заокруглення за кутом), `CrvToPolyline.py`, `TrimCrvEnds.py`, `KeepCrvEnds.py`, `TrimOutsidePanel.py`, `find_exact_connection.py` (точка контакту із фіксованою довжиною), `OffsetRigid.py` (копія без зміни форми, зсув на D по нормалі в точці кліку).
-  - **`cut/`** («Різ»): `PreparePanelCut.py`, `SplitPanelsToMaterial.py` (панелі за лініями матеріалу: обрізка, шов 1 см, шматок відсувається на 50 мм, пари A–A, B–B…), `sel_curve_overlap.py` (дублікати / перекриття: виділені криві або всі).
-  - **`analysis/`** («Аналіз»): аналіз панелі та різу — `SelectSmallClosedCurves.py`, `CheckTangentialCutRisks.py`, `RecommendCutTabs.py`, `AddCutTabs.py` (+ `.md` описи).
-  - **`parts/`** («Parts», результат у шар `Parts::<Назва>`): `Panels.py` — панелі: копія замкненої кривої на місці в `Parts::Panels` (вхідна крива видаляється), номер `P<n>` (текст усередині за кліком + TextDot вище-зліва в підшарі `Parts::Panels::Dots`, UserText `Part`), вкладені криві — вирізи панелі; номер — найменший вільний (номер видаленої панелі повертається). `StripsFromCurves.py` — фаші (bordatura / rinforzo): кожна вибрана крива → прямокутник висотою H і довжиною кривої (+ запас); стовпчиком впритул у шар `Parts::Strips`, підписи `F<n>  L=… × H` + TextDot `F<n>` на кривій; нумерація продовжується з найбільшого `F<n>` у шарі. `Seam.py` — припуск на шов як окрема деталь: панель + клік біля ребра → як CopriZip (бере `CopriZip.flap`, імпорт усередині `main`, бо CopriZip імпортує з Seam), підпис `SA W`, група; шар `Parts::Seam`; опція `Points=Yes` бере `sewing_lengths` з `markup/sewing_points.py` — точки шва на копії ребра в `Parts::Seam`, у групі зі смугою (оригінал не чіпається). `CopriZip.py` — клапан над блискавкою: окрема деталь на ребрі панелі (кут–кут), офсет W назовні, кінці по продовженню сусідніх ребер; шар `Parts::CopriZip`, підпис `CZ W`. `JoinCorner.py` — дві деталі в куті (CopriZip / Seam, різні W) → одна: вибір деталей + клік біля кута, торці геть, зовнішні краї до перетину; торці — два сегменти в куті, між якими клік (без панелі деталі симетричні, тож лише клік); шар/група першої, група другої зливається в неї; кут, де деталь сходиться сама з собою (рамка), → лише зовнішній контур (внутрішній видаляється). `ZipStops.py` — блискавки й каналіна: опція `Type` = `Zip` (обидві сторони, `Z<n>`, `Parts::Zip`) / `Can` (canalina / guida, одна сторона, `Can<n>`, `Parts::Canalina`); одна блискавка/каналіна = усі її лінії на всіх панелях (вибір по черзі); кожна лінія → свій шар, номер (UserText `Zip` + текст, опція `Style`), стопи на кінцях, група на лінію; сторона розбита (Zip 3+ ліній, Can 2+) → клік біля стику міняє стоп на риску; потім етап переносу номера на інший бік кривої. `ZipList.py` — таблиця для замовлення: блискавки — лінії одного номера → дві сторони з найближчими сумами, замовляється довша, вгору до 1 см, різниця > 5 мм або одна лінія — попередження, зведено «см × шт»; каналіна — повна довжина (сума ліній) окремою секцією; CSV `<файл>_zips.csv` поруч із `.3dm` + буфер обміну. `ReinfCircle.py` — кутове підсилення-коло: клік біля кута → сектор радіуса R між сторонами, на місці, підпис `RC<n>  R=…`, шар `Parts::Reinforcements` (інші форми — свої префікси RS, RT…). `ReinfD.py` — підсилення-D під кінець кармана: клік верхній кут (центр кінця) → нижній кут, ширина W + виступ R (півколо / півеліпс), `RD<n>`, той самий шар (бере `layer` / `next_number` / `text_style` з ReinfCircle). `ReinfO.py` — підсилення-O під карман на всю ширину: межа (панель) → клік центр (верхній кут кармана) → клік на лінії, R = відстань + Plus (5 см), лише всередині панелі, припуск SA (1 см) по краю панелі (дуга без шва), `RO<n>`, той самий шар (бере `piece` з ReinfCircle). `ReinfBord.py` — bordino rinforzato: панель + клік біля ребра → `CopriZip.flap(..., inward=True)`: смуга H (6 см) всередину, кінці по сусідніх ребрах; JoinCorner з'єднує дві смуги в куті (перекриття → BooleanUnion), SA (0) на внутрішньому краї, `RB<n>  H=…`, той самий шар. `LayoutParts.py` — розкладка для розкрою: копія кожної вибраної деталі (група цілком) в ряд від точки кліку (Enter — продовжити ряд), у підшар `<шар>::Layout`; оригінал лишається розміткою, UserText `LayoutOf` на копії.
-  - **`markup/`** («Розмітка»): `PointsToCrosses.py` (точки / хмари / TextDot → хрестик або коло), `sewing_points.py`, `line_type.py` + `linetype.gh` (тип лінії `400,2`), `PatternTextStyles.py` (+ `_check.py`), `TextToDot.py`, `DotToPanelText.py`, `TextToCurves.py` (текст → криві для нестингу, перевернутий текст не дзеркалиться — як Draw forward на екрані), `Legend.py` (легенда підписів скриптів — лише наявні позначки, текст у точці кліку, Lang = UA / EN / IT), `PanelPage.py` (виділене → один новий Layout A4 `P<n>`, detail Top, як Zoom Selected на все виділене; один запуск — один лист).
-  - `build_scripts_rui.py` — збирач тулбара `Scripts.rui` (6 вкладок: Розміри / Криві / Аналіз / Різ / Parts / Розмітка).
-  - `tests/` — перевірки (частина запускається в Rhino 8 через `rhinocode`).
-  - Імпорт між папками — через `sys.path` від `__file__` (напр. `cut/SplitPanelsToMaterial.py` бере `markup/PatternTextStyles.py`).
+- **`scripts/`** — Python scripts for Rhino (`rhinoscriptsyntax` / `Rhino.Geometry`), in subfolders = toolbar tabs:
+  - **`sizes/`** (tab "Sizes"): `BoundingBoxWithSize_Rhino8_CPlane.py` (ghosted bbox with XYZ labels; `BoundingBoxWithSize.py` — old version), `BoundingBoxCenterLines.py`, `LabelClosedCurveSizes.py`, `draw_centered_rectangle.py` (rectangle of a given size centred on the CPlane).
+  - **`curves/`** ("Curves"): `SplitCrvByAngle.py`, `smooth_corners.py`, `GH_SplitCurveByAngle.py` (split / round by angle), `CrvToPolyline.py`, `TrimCrvEnds.py`, `KeepCrvEnds.py`, `TrimOutsidePanel.py`, `find_exact_connection.py` (contact point at a fixed length), `MidLine.py`, `OffsetRigid.py` (copy without changing shape, moved by D along the normal at the clicked point).
+  - **`cut/`** ("Cut"): `PreparePanelCut.py`, `SplitPanelsToMaterial.py` (panels at material lines: trimming, 1 cm seam, the piece moves by 50 mm, pairs A–A, B–B…), `sel_curve_overlap.py` (duplicates / overlaps: selected curves or all).
+  - **`analysis/`** ("Analysis"): panel and cut analysis — `SelectSmallClosedCurves.py`, `CheckTangentialCutRisks.py`, `RecommendCutTabs.py`, `AddCutTabs.py` (+ `.md` descriptions).
+  - **`parts/`** ("Parts", result in layer `Parts::<Name>`): `Panels.py` — panels: copy of a closed curve in place in `Parts::Panels` (the input curve is deleted), number `P<n>` (text inside at a click + TextDot above-left in sublayer `Parts::Panels::Dots`, UserText `Part`), nested curves — panel holes; number — the smallest free one (a deleted panel's number is reused). `StripsFromCurves.py` — strips (binding / reinforcement): each selected curve → rectangle of height H and the curve's length (+ allowance); stacked in layer `Parts::Strips`, labels `S<n>  L=… × H` + TextDot `S<n>` on the curve; numbering continues from the largest `S<n>` in the layer. `Seam.py` — seam allowance as a separate part: panel + click near an edge → like ZipCover (uses `ZipCover.flap`, imported inside `main`, because ZipCover imports from Seam), label `SA W`, group; layer `Parts::Seam`; option `Points=Yes` uses `sewing_lengths` from `markup/sewing_points.py` — seam points on a copy of the edge in `Parts::Seam`, grouped with the strip (the original is not touched). `ZipCover.py` — flap over a zip: a separate part on a panel edge (corner to corner), offset W outward, ends along the extension of the neighbouring edges; layer `Parts::ZipCover`, label `ZC W`. `JoinCorner.py` — two parts at a corner (ZipCover / Seam, different W) → one: select parts + click near the corner, ends removed, outer edges to their intersection; ends — the two segments at the corner with the click between them (without the panel the parts are symmetric, so only the click tells); layer/group of the first, the second's group merges into it; a corner where a part meets itself (frame) → only the outer contour (the inner one is deleted). `ZipStops.py` — zips and tracks: option `Type` = `Zip` (both sides, `Z<n>`, `Parts::Zip`) / `Track` (one side, `Trk<n>`, `Parts::Track`); one zip/track = all its lines on all panels (picked one after another); each line → its layer, number (UserText `Zip` + text, option `Style`), stops at the ends, a group per line; split side (Zip 3+ lines, Track 2+) → a click near the junction changes the stop to a tick; then a step to flip the number to the other side of the curve. `ZipList.py` — order table: zips — lines of one number → two sides with the closest sums, the longer one is ordered, rounded up to 1 cm, difference > 5 mm or a single line — warning, summary "cm × pcs"; tracks — full length (sum of lines) in a separate section; CSV `<file>_zips.csv` next to the `.3dm` + clipboard. `MarkReinf.py` — reinforcement strip as ` R<H>` on an existing label (edge length in UserText); `RList.py` — strip table. `ReinfCircle.py` — corner reinforcement circle: click near a corner → sector of radius R between the sides, in place, label `RC<n>  R=…`, layer `Parts::Reinforcements` (other shapes — their own prefixes RS, RT…). `ReinfD.py` — D reinforcement at the end of a pocket: click top corner (centre of the end) → bottom corner, width W + extension R (half-circle / half-ellipse), `RD<n>`, same layer (uses `layer` / `next_number` / `text_style` from ReinfCircle). `ReinfO.py` — O reinforcement at a full-width pocket: boundary (panel) → click centre (top corner of the pocket) → click on a line, R = distance + Plus (5 cm), only inside the panel, allowance SA (1 cm) along the panel edge (arc without a seam), `RO<n>`, same layer (uses `piece` from ReinfCircle). `ReinfBord.py` — reinforced border: panel + click near an edge → `ZipCover.flap(..., inward=True)`: strip H (6 cm) inward, ends along the neighbouring edges; JoinCorner joins two strips at a corner (overlap → BooleanUnion), SA (0) on the inner edge, `RB<n>  H=…`, same layer. `TubePockets.py` / `UpdateTubePockets.py` — tube pockets `TP<n>` in `Parts::Pockets`. `LayoutParts.py` — layout for cutting: a copy of each selected part (whole group) in a row from the click point (Enter — continue the row), in sublayer `<layer>::Layout`; the original stays as markup, UserText `LayoutOf` on the copy.
+  - **`markup/`** ("Markup"): `PointsToCrosses.py` (points / clouds / TextDot → cross or circle), `sewing_points.py`, `line_type.py` + `linetype.gh` (linetype `400,2`), `PatternTextStyles.py` (+ `_check.py`), `TextToDot.py`, `DotToPanelText.py`, `TextToCurves.py` (text → curves for nesting, upside-down text is not mirrored — like Draw forward on screen), `Legend.py` (legend of script labels — only marks present, text at the click point, Lang = UA / EN / IT), `PanelPage.py` (selection → one new A4 Layout `P<n>`, detail Top, like Zoom Selected on the whole selection; one run — one sheet).
+  - `build_scripts_rui.py` — builder of the `Scripts.rui` toolbar (6 tabs: Sizes / Curves / Analysis / Cut / Parts / Markup).
+  - `tests/` — checks (some run in Rhino 8 via `rhinocode`).
+  - Imports between folders — via `sys.path` from `__file__` (e.g. `cut/SplitPanelsToMaterial.py` uses `markup/PatternTextStyles.py`).
 
-- **`Grasshoper scripts/`** — визначення Grasshopper (`.gh`): `bounding_dimensions.gh`, `Len_dimentions.gh`,
-  `polyline.gh`, `drag.gh`, `sew points.gh`, `divanno_v1.gh`.
+- **`Grasshoper scripts/`** — Grasshopper definitions (`.gh`): `bounding_dimensions.gh`, `Len_dimentions.gh`,
+  `polyline.gh`, `drag.gh`, `sew points.gh`, `divanno_v1.gh`, `autonest.gh`.
 
-- **`Patterns/`** — вихідні викрійки та матеріали для розкрою (`.3dm`, `.dxf`, `.pdf`): гаманці, тоут, origami-шаблони.
+- **`Patterns/`** — source patterns and cutting material (`.3dm`, `.dxf`, `.pdf`): wallets, tote, origami templates.
 
-- Кореневий `allalunga.3dm` — робочий файл Rhino.
+- The root `allalunga.3dm` — Rhino working file.
 
-## Робота з кодом
+## Working with code
 
-- Нові скрипти класти в підпапку `scripts/<вкладка>/` (sizes / curves / analysis / cut / parts / markup) або `Grasshoper scripts/` (`.gh`); у `GROUPS` — `py("<папка>/<Script>.py")`.
-- Тримати сумісність з IronPython 2.7 та CPython 3, якщо явно не сказано інше.
-- Одиниці та допуски брати з документа (`sc.doc.ModelAbsoluteTolerance`), не хардкодити.
-- Скрипти, що **створюють частини** (фаші, підсилення тощо), лежать у `scripts/parts/`, кладуть результат у шар `Parts::<Назва>` і йдуть у вкладку тулбара **Parts** (`py("parts/<Script>.py")`).
+- Put new scripts in a subfolder `scripts/<tab>/` (sizes / curves / analysis / cut / parts / markup) or `Grasshoper scripts/` (`.gh`); in `GROUPS` — `py("<folder>/<Script>.py")`.
+- Keep IronPython 2.7 and CPython 3 compatibility unless explicitly told otherwise.
+- Take units and tolerances from the document (`sc.doc.ModelAbsoluteTolerance`), do not hardcode them.
+- Scripts that **create parts** (strips, reinforcements etc.) live in `scripts/parts/`, put the result in layer `Parts::<Name>` and go to the **Parts** toolbar tab (`py("parts/<Script>.py")`).
 
-## Тулбар (`Scripts.rui`)
+## Toolbar (`Scripts.rui`)
 
-- Новий скрипт → дописати рядок у `GROUPS` у `scripts/build_scripts_rui.py` (і в таблицю в `README.md`).
-- **Збирач `build_scripts_rui.py` НЕ запускати** — користувач перезбирає `Scripts.rui` сам (при закритому Rhino). Наприкінці відповіді нагадати команду збірки.
-- Після кожного створеного / зміненого скрипта відповідь закінчувати повним макросом для кнопки:
-  `!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/<підпапка/><Script>.py"`
+- New script → add a line to `GROUPS` in `scripts/build_scripts_rui.py` (and to the table in `README.md`).
+- **Do NOT run the builder `build_scripts_rui.py`** — the user rebuilds `Scripts.rui` themselves (with Rhino closed). Remind them of the build command at the end of the reply.
+- After every created / changed script, end the reply with the full button macro:
+  `!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/<subfolder/><Script>.py"`
 
 ## Git
 
-- Репозиторій: https://github.com/Miity/rhino_scripts_panneling (публічний, гілка `main`).
-- Після кожної завершеної зміни — коміт і пуш: `git add -A && git commit -m "<що змінено>" && git push`.
-- `Patterns/` і `*.3dm` у `.gitignore` (сторонні викрійки / робочі файли) — не додавати в репозиторій.
+- Repository: https://github.com/Miity/rhino_scripts_panneling (public, branch `main`).
+- After every finished change — commit and push: `git add -A && git commit -m "<what changed>" && git push`.
+- `Patterns/` and `*.3dm` are in `.gitignore` (third-party patterns / working files) — do not add them to the repository.

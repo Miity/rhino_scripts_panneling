@@ -10,74 +10,74 @@ import rhinoscriptsyntax as rs
 import scriptcontext as sc
 
 def find_exact_connection():
-    # 1. Отримуємо допуск документа (System Absolute Tolerance)
+    # 1. Get the document tolerance (System Absolute Tolerance)
     tolerance = sc.doc.ModelAbsoluteTolerance
     
-    # 2. Вибір цільової кривої
-    curve_id = rs.GetCurveObject("Виберіть цільову криву для другого з'єднання", preselect=False)
+    # 2. Pick the target curve
+    curve_id = rs.GetCurveObject("Select the target curve for the second connection", preselect=False)
     if not curve_id: 
-        print("Помилка: Криву не вибрано.")
+        print("Error: no curve selected.")
         return
     curve_geom = rs.coercecurve(curve_id[0])
     
-    # 3. Вибір першої фіксованої точки (P1)
-    point_id = rs.GetObject("Виберіть точку першого з'єднання (P1)", filter=1, preselect=False)
+    # 3. Pick the first fixed point (P1)
+    point_id = rs.GetObject("Select the first connection point (P1)", filter=1, preselect=False)
     if not point_id:
-        # Якщо точку не вибрано в документі, пропонуємо її просто вказати кліком
-        p1 = rs.GetPoint("Точку не вибрано. Вкажіть точку P1 кліком у просторі")
+        # If no point is selected in the document, let the user just click it
+        p1 = rs.GetPoint("No point selected. Click point P1 in space")
     else:
         p1 = rs.PointCoordinates(point_id)
         
     if not p1:
-        print("Помилка: Точку P1 не визначено.")
+        print("Error: point P1 not defined.")
         return
         
-    # 4. Введення довжини лінії (L)
-    length = rs.GetReal("Введіть точну довжину лінії (L) в одиницях документа", minimum=0.001)
+    # 4. Enter the line length (L)
+    length = rs.GetReal("Enter the exact line length (L) in document units", minimum=0.001)
     if not length:
-        print("Помилка: Некоректна довжина.")
+        print("Error: invalid length.")
         return
 
-    # 5. Математичний розрахунок через RhinoCommon
+    # 5. Math via RhinoCommon
     p1_3d = Rhino.Geometry.Point3d(p1[0], p1[1], p1[2])
     sphere = Rhino.Geometry.Sphere(p1_3d, length)
     sphere_brep = sphere.ToBrep()
     
     if not sphere_brep:
-        print("Помилка побудови сфери обмежувача.")
+        print("Error building the limiting sphere.")
         return
         
-    # Розрахунок перетину NURBS-кривої та Brep-сфери
+    # Intersection of the NURBS curve and the Brep sphere
     rc, _, intersection_points = Rhino.Geometry.Intersect.Intersection.CurveBrep(
         curve_geom, 
         sphere_brep, 
         tolerance
     )
     
-    # 6. Генерація геометрії в документі
+    # 6. Generate geometry in the document
     if rc and intersection_points:
         sc.doc.Objects.UnselectAll()
         
-        # Вимикаємо оновлення екрану для прискорення побудови
+        # Disable screen redraw to speed up building
         rs.EnableRedraw(False)
         
         created_lines = []
         for pt in intersection_points:
-            # Додаємо точку перетину в Rhino Doc
+            # Add the intersection point to the Rhino doc
             pt_id = sc.doc.Objects.AddPoint(pt)
-            # Будуємо лінію фіксованої довжини
+            # Build the fixed-length line
             line_geom = Rhino.Geometry.Line(p1_3d, pt)
             line_id = sc.doc.Objects.AddLine(line_geom)
             
             created_lines.append(line_id)
-            # Підсвічуємо створені об'єкти
+            # Highlight the created objects
             rs.SelectObject(line_id)
             rs.SelectObject(pt_id)
             
         rs.EnableRedraw(True)
-        print("Успішно! Знайдено варіантів з'єднання: {}. Створені лінії виділено.".format(len(created_lines)))
+        print("Success! Connection options found: {}. Created lines selected.".format(len(created_lines)))
     else:
-        print("Помилка геометричного аналізу: Крива знаходиться поза радіусом досяжності {} одиниць від точки P1.".format(length))
+        print("Geometry analysis error: the curve is outside the reach radius {} units from point P1.".format(length))
 
 if __name__ == "__main__":
     find_exact_connection()
