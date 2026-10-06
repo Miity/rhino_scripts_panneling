@@ -6,7 +6,8 @@
 Цикл: кілька D підряд (обидва кінці кожного кармана), Enter — кінець. Деталь лежить на місці,
 шар Parts::Reinforcements, підпис "RD<n>  W=…  R=…" у групі; нумерація RD продовжується між запусками.
 Опції W і R — у запиті першої точки, запам'ятовуються.
-На панелі — розмітка D без низу (низ лежить на краю), повна деталь — на 10000 вгору (ReinfCircle.add_part).
+Опція Layout (типово Yes): на панелі — розмітка D без низу (низ лежить на краю), повна деталь — на 10000 вгору
+(ReinfCircle.add_part); No — повна деталь на місці.
 """
 import os
 import sys
@@ -42,7 +43,7 @@ def d_shape(top, bottom, w, r, normal, tol):
 
 
 def get_top():
-    """Перша точка з опціями W і R. (точка, w, r) або None."""
+    """Перша точка з опціями W, R, Layout. (точка, w, r) або None."""
     gp = Rhino.Input.Custom.GetPoint()
     gp.SetCommandPrompt(u"Верхній кут кармана — центр D (Enter — кінець)")
     gp.AcceptNothing(True)
@@ -50,10 +51,13 @@ def get_top():
     r = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 50.0), 0.001, 1e6)
     gp.AddOptionDouble("W", w)
     gp.AddOptionDouble("R", r)
+    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
+    gp.AddOptionToggle("Layout", lay)
     while True:
         res = gp.Get()
         sc.sticky[STICKY + "_w"] = w.CurrentValue
         sc.sticky[STICKY] = r.CurrentValue
+        sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         if res == Rhino.Input.GetResult.Option:
             continue
         return (gp.Point(), w.CurrentValue, r.CurrentValue) if res == Rhino.Input.GetResult.Point else None
@@ -103,7 +107,7 @@ def main():
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
         base = min(crv.DuplicateSegments(), key=lambda g: g.PointAtNormalizedLength(0.5).DistanceTo(bottom))  # низ D
-        add_part(doc, [crv], te, off_panel(crv, [base], tol), attrs)
+        add_part(doc, [crv], te, off_panel(crv, [base], tol), attrs, sc.sticky[STICKY + "_layout"])
         doc.Views.Redraw()
         print(label)
         n += 1

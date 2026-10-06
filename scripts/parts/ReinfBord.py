@@ -7,7 +7,8 @@
 Опція SA — припуск на шов на внутрішньому краї (типово 0): різ на H + SA, лінія шва на H, у групі.
 Панель не змінюється. Деталь на місці, шар Parts::Reinforcements, підпис "RB<n>  H=…" (≈ H/10, на чверті ребра, вздовж внутрішньої лінії) у групі;
 нумерація RB продовжується між запусками.
-На панелі — розмітка (лише внутрішня лінія H, без ребер панелі), повна деталь — на 10000 вгору (ReinfCircle.add_part).
+Опція Layout (типово Yes): на панелі — розмітка (лише внутрішня лінія H, без ребер панелі), повна деталь —
+на 10000 вгору (ReinfCircle.add_part); No — повна деталь на місці.
 """
 import os
 import sys
@@ -61,7 +62,7 @@ def label_place(edge, off, normal, gap):
 
 
 def ask(gp):
-    """Клік біля ребра з опціями H / SA / Angle. Точка або None (Enter / Esc)."""
+    """Клік біля ребра з опціями H / SA / Angle / Layout. Точка або None (Enter / Esc)."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     h = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0 * unit), 0.001, 1e6)
     sa = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_sa", 0.0), 0.0, 1e6)
@@ -69,8 +70,11 @@ def ask(gp):
     gp.AddOptionDouble("H", h)
     gp.AddOptionDouble("SA", sa)
     gp.AddOptionDouble("Angle", a)
+    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
+    gp.AddOptionToggle("Layout", lay)
     while True:
         r = gp.Get()
+        sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         sc.sticky[STICKY] = h.CurrentValue
         sc.sticky[STICKY + "_sa"] = sa.CurrentValue
         sc.sticky["CopriZip_angle"] = a.CurrentValue
@@ -111,7 +115,8 @@ def main():
         te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign
-        add_part(doc, [cut] + seams, te, seams or off_panel(cut, [panel], tol), attrs)  # шов = лінія H на панелі
+        add_part(doc, [cut] + seams, te, seams or off_panel(cut, [panel], tol), attrs,
+                 sc.sticky[STICKY + "_layout"])  # шов = лінія H на панелі
         doc.Views.Redraw()
         print(label)
         if square:

@@ -5,8 +5,9 @@
 (злам кривої, кінець лінії або перетин ліній). Від кола лишається тільки частина між
 сторонами кута. Деталь лежить на місці, у шарі Parts::Reinforcements, з підписом "RC<n>  R=…"
 у групі. Нумерація RC продовжується між запусками. Вихідні криві не змінюються.
-Як у всіх Reinf (add_part): на панелі лишається тільки розмітка — лінії деталі, що не лежать на кривих
+Опція Layout (типово Yes) — як у всіх Reinf (add_part): на панелі лишається тільки розмітка — лінії деталі, що не лежать на кривих
 панелі, + підпис; повна деталь (різ, шов, підпис) — на UP (10000) вгору по Y CPlane, її розкладати Layout.
+Layout=No — повна деталь на місці, без розмітки.
 Підсилення нашивається поверх матеріалу, тому припуску на шов немає.
 """
 import os
@@ -42,18 +43,22 @@ def off_panel(crv, curves, tol):
     return list(Curve.JoinCurves(keep, tol)) if keep else []
 
 
-def add_part(doc, full, te, markup, attrs):
-    """Повна деталь (криві full + підпис te) — на UP вгору по Y CPlane, своя група;
-    на місці — розмітка (криві markup + той самий підпис), своя група. Повертає (id повної, id розмітки)."""
-    xf = Transform.Translation(rs.ViewCPlane().YAxis * UP)
+def add_part(doc, full, te, markup, attrs, layout=True):
+    """layout: повна деталь (геометрія full + підпис te) — на UP вгору по Y CPlane, своя група;
+    на місці — розмітка (криві markup + той самий підпис), своя група. Повертає (id повної, id розмітки).
+    Без layout — повна деталь на місці, розмітки немає (id розмітки = [])."""
+    xf = Transform.Translation(rs.ViewCPlane().YAxis * (UP if layout else 0.0))
 
     def add(geo):
         geo = geo.Duplicate()
         geo.Transform(xf)
         return doc.Objects.Add(geo, attrs)
-    ids = [add(c) for c in full] + [add(te)], [doc.Objects.AddCurve(c, attrs) for c in markup] + [doc.Objects.AddText(te, attrs)]
+    ids = [add(c) for c in full] + [add(te)], []
+    if layout:
+        ids = ids[0], [doc.Objects.AddCurve(c, attrs) for c in markup] + [doc.Objects.AddText(te, attrs)]
     for g in ids:
-        rs.AddObjectsToGroup(g, rs.AddGroup())
+        if g:
+            rs.AddObjectsToGroup(g, rs.AddGroup())
     return ids
 
 
@@ -149,9 +154,17 @@ def main():
     n = next_number(LAYER)
     made = 0
     while True:
-        click = rs.GetPoint(u"Клікни біля кута, з того боку, що лишити (Enter — кінець)")
-        if click is None:
+        gp = Rhino.Input.Custom.GetPoint()
+        gp.SetCommandPrompt(u"Клікни біля кута, з того боку, що лишити (Enter — кінець)")
+        gp.AcceptNothing(True)
+        lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
+        gp.AddOptionToggle("Layout", lay)
+        while gp.Get() == Rhino.Input.GetResult.Option:
+            pass
+        sc.sticky[STICKY + "_layout"] = lay.CurrentValue
+        if gp.CommandResult() != Rhino.Commands.Result.Success or gp.Result() != Rhino.Input.GetResult.Point:
             break
+        click = gp.Point()
         center = min(cands, key=lambda p: p.DistanceTo(click))
         if center.DistanceTo(click) > r:
             print(u"Кут далі за R від кліку — клікни ближче до вершини")
@@ -167,7 +180,7 @@ def main():
         te = Rhino.Geometry.TextEntity.Create(label, tp, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
-        add_part(doc, [crv], te, off_panel(crv, curves, tol), attrs)
+        add_part(doc, [crv], te, off_panel(crv, curves, tol), attrs, lay.CurrentValue)
         doc.Views.Redraw()
         print(label)
         n += 1

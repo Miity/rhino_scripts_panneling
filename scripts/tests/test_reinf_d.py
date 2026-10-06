@@ -55,6 +55,11 @@ try:
         assert rs.ObjectGroups(full[0]) == rs.ObjectGroups(full[1]) != rs.ObjectGroups(markup[0])
     finally:
         rs.DeleteObjects(full + markup)
+    full, markup = RC.add_part(sc.doc, [c], te, mk, sc.doc.CreateDefaultAttributes(), False)  # Layout=No
+    try:
+        assert markup == [] and abs(rs.BoundingBox(full[0])[0].Y + 100) < 1e-6
+    finally:
+        rs.DeleteObjects(full)
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())

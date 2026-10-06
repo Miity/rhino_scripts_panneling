@@ -12,7 +12,8 @@ R = відстань до кліку + Plus (опція, типово 5 см, з
 SA=0 — без припуску. Plus і SA — у запиті другого кліку.
 Деталь лежить на місці,
 шар Parts::Reinforcements, підпис "RO<n>  R=…" уздовж дуги (усередині) у групі; нумерація RO продовжується між запусками.
-На панелі — розмітка (тільки дуга, без ребер панелі), повна деталь — на 10000 вгору (ReinfCircle.add_part).
+Опція Layout (типово Yes, у запиті другого кліку): на панелі — розмітка (тільки дуга, без ребер панелі),
+повна деталь — на 10000 вгору (ReinfCircle.add_part); No — повна деталь на місці.
 """
 import os
 import sys
@@ -137,12 +138,15 @@ def get_edge(curves, center, normal, tol):
     gp.DrawLineFromPoint(center, True)
     gp.AddOptionDouble("Plus", plus)
     gp.AddOptionDouble("SA", sa)
+    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
+    gp.AddOptionToggle("Layout", lay)
     gp.DynamicDraw += draw
     try:
         while True:
             res = gp.Get()
             sc.sticky[STICKY] = plus.CurrentValue
             sc.sticky[STICKY + "_sa"] = sa.CurrentValue
+            sc.sticky[STICKY + "_layout"] = lay.CurrentValue
             if res != Rhino.Input.GetResult.Option:
                 return (gp.Point(), plus.CurrentValue, sa.CurrentValue) if res == Rhino.Input.GetResult.Point else None
     finally:
@@ -183,7 +187,7 @@ def main():
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign
         fin = o_shape(curves, center, got[0], got[1], normal, tol)[0] or crv  # без SA: що видно на панелі
-        add_part(doc, [crv] + seams, te, off_panel(fin, curves, tol), attrs)
+        add_part(doc, [crv] + seams, te, off_panel(fin, curves, tol), attrs, sc.sticky[STICKY + "_layout"])
         doc.Views.Redraw()
         print(label)
         n += 1

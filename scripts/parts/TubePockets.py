@@ -14,7 +14,8 @@ Parts::Pockets, з підписом "TP<n>  H=…" у групі; нумерац
 На панелі (на місці) лишається тільки розмітка: торці + верх кармана однією відкритою кривою (без лінії шва, SA і Hem)
 + підпис, своя група (UserText TP_Markup). Повна деталь для розкрою — на UP (10000) вгору по Y CPlane
 (UserText TP_Up), її і розкладати Layout. Обидві групи пов'язані номером (UserText TP_N).
-Опції W / H / Trim / SA / Hem / Notch / Rigid / Angle — у запиті кліку, запам'ятовуються між запусками.
+Опція Layout (типово Yes): No — повна деталь на місці, без розмітки (як старі кармани).
+Опції W / H / Trim / SA / Hem / Notch / Rigid / Layout / Angle — у запиті кліку, запам'ятовуються між запусками.
 """
 import os
 import re
@@ -260,6 +261,8 @@ def ask(gp):
     gp.AddOptionDouble("Hem", hem)
     gp.AddOptionToggle("Notch", notch)
     gp.AddOptionToggle("Rigid", rigid)
+    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
+    gp.AddOptionToggle("Layout", lay)
     gp.AddOptionDouble("Angle", angle)
     while True:
         r = gp.Get()
@@ -268,6 +271,7 @@ def ask(gp):
         for k, v in zip(("_w", "_h", "_trim", "_sa", "_notch", "_rigid", "_hem"), vals):
             sc.sticky[STICKY + k] = v
         sc.sticky["CopriZip_angle"] = angle.CurrentValue
+        sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         if r == Rhino.Input.GetResult.Option:
             continue
         return (gp.Point(), vals + (angle.CurrentValue,)) if r == Rhino.Input.GetResult.Point else None
@@ -308,7 +312,7 @@ def main():
             continue
         res = res + (toward,)
         label = add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid, hem,
-                           rs.ViewCPlane().YAxis * UP)
+                           rs.ViewCPlane().YAxis * UP if sc.sticky[STICKY + "_layout"] else None)
         print(label)
         n += 1
         made += 1

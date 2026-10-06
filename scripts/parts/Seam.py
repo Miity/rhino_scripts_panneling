@@ -48,7 +48,7 @@ def text_style(doc, w):
 
 
 def ask(gp):
-    """Клік біля ребра з опціями W / Angle / Points / Step. Точка або None (Enter / Esc)."""
+    """Клік біля ребра з опціями W / Angle / Points / Step / Layout. Точка або None (Enter / Esc)."""
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 10.0), 0.001, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     pts = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_points", False), "No", "Yes")
@@ -57,8 +57,11 @@ def ask(gp):
     gp.AddOptionDouble("Angle", a)
     gp.AddOptionToggle("Points", pts)
     gp.AddOptionDouble("Step", step)
+    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", False), "No", "Yes")
+    gp.AddOptionToggle("Layout", lay)
     while True:
         r = gp.Get()
+        sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         sc.sticky[STICKY] = w.CurrentValue
         sc.sticky[STICKY + "_angle"] = a.CurrentValue
         sc.sticky[STICKY + "_points"] = pts.CurrentValue
@@ -68,18 +71,25 @@ def ask(gp):
         return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
 
-def add_sewing_points(doc, crv, step, attrs):
-    """Копія ребра (лінія шва) + точки шва на ній (як sewing_points), обидва з attrs (шар Parts::Seam)."""
-    ids = [doc.Objects.AddCurve(crv, attrs)]
+def sewing_geometry(crv, step):
+    """Копія ребра (лінія шва) + точки шва на ній (як sewing_points) — геометрія."""
+    out = [crv.DuplicateCurve()]
     for s in sewing_lengths(crv.GetLength(), step):
         ok, t = crv.LengthParameter(s)
         if ok:
-            ids.append(doc.Objects.AddPoint(crv.PointAt(t), attrs))
-    return ids
+            out.append(Rhino.Geometry.Point(crv.PointAt(t)))
+    return out
+
+
+def add_sewing_points(doc, crv, step, attrs):
+    """Копія ребра (лінія шва) + точки шва на ній, обидва з attrs (шар Parts::Seam)."""
+    return [doc.Objects.Add(g, attrs) for g in sewing_geometry(crv, step)]
 
 
 def main():
     from CopriZip import flap  # тут, а не вгорі: CopriZip сам імпортує label_frame / text_style з Seam
+    sys.modules.pop("ReinfCircle", None)  # Rhino кешує модулі за сесію
+    from ReinfCircle import add_part, off_panel  # Layout: розмітка на місці + деталь угорі
     doc = sc.doc
     oid = rs.GetObject(u"Виберіть панель (замкнена крива)", rs.filter.curve, preselect=True)
     if not oid:
@@ -112,12 +122,12 @@ def main():
                                               text_style(doc, w), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
-        new = [doc.Objects.AddCurve(crv, attrs), doc.Objects.AddText(te, attrs)]
+        full = [crv]
         if sc.sticky[STICKY + "_points"]:
-            pts = add_sewing_points(doc, edge, sc.sticky["sew_step"], attrs)
-            new += pts
+            pts = sewing_geometry(edge, sc.sticky["sew_step"])
+            full += pts
             n_pts += len(pts) - 1
-        rs.AddObjectsToGroup(new, rs.AddGroup())
+        add_part(doc, full, te, off_panel(crv, [panel], tol), attrs, sc.sticky[STICKY + "_layout"])
         made += 1
         if square:
             print(u"Увага: %d кін. сусід гостріше 30° — кінець перпендикулярний" % square)
