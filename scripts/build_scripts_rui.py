@@ -59,7 +59,7 @@ GROUPS = [
         (u"Join Corner", u"З'єднати дві деталі в куті (CopriZip / Seam, різні W): клік у виріз між деталями → торці геть, зовнішні краї до перетину, одна крива", py("parts/JoinCorner.py"), None),
         (u"ZipStops", u"Блискавки (Z<n>) і каналіна (Can<n>, опція Type): усі лінії на всіх панелях → Parts::Zip / Parts::Canalina, стопи на кінцях, риска на стику", py("parts/ZipStops.py"), None),
         (u"ZipList", u"Таблиця для замовлення: блискавки (довша сторона, см × шт) і каналіна (повна довжина); CSV поруч із .3dm + буфер обміну", py("parts/ZipList.py"), None),
-        (u"Mark Reinf", u"Фаша без деталі: панель → клік підпису (CZ / SA…) → дописати R<H>, довжина ребра в UserText", py("parts/MarkReinf.py"), None),
+        (u"Mark Reinf", u"Фаша без деталі: вибрати підписи (CZ / SA…), панель знаходиться сама → дописати R<H>, довжина ребра в UserText", py("parts/MarkReinf.py"), None),
         (u"RList", u"Таблиця фаш: ребро + 5 см з кожного боку, разом по H; CSV поруч із .3dm + буфер обміну", py("parts/RList.py"), None),
         (u"Reinf Circle", u"Кутове підсилення — коло радіуса R, обрізане сторонами кута (панеллю)", py("parts/ReinfCircle.py"), None),
         (u"Reinf D", u"Підсилення-D під кінець кармана: верхній кут → нижній кут, ширина W, виступ R", py("parts/ReinfD.py"), None),
