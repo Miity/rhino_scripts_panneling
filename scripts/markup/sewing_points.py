@@ -23,20 +23,30 @@ def main():
     if not step:
         return
     sc.sticky["sew_step"] = step
+    opt = rs.GetBoolean("Опції", [("DeleteInput", "No", "Yes")], [sc.sticky.get("sew_del", True)])
+    if opt is None:
+        return
+    delete = opt[0]
+    sc.sticky["sew_del"] = delete
 
     rs.EnableRedraw(False)
     for cid in crvs:
         crv = rs.coercecurve(cid)
         layer = rs.ObjectLayer(cid)
-        ids = [cid]
+        ids = []
         for s in sewing_lengths(crv.GetLength(), step):
             ok, t = crv.LengthParameter(s)
             if ok:
                 pid = rs.AddPoint(crv.PointAt(t))
                 rs.ObjectLayer(pid, layer)
                 ids.append(pid)
-        # одна крива + її точки = одна група
-        rs.AddObjectsToGroup(ids, rs.AddGroup())
+        if delete:
+            rs.DeleteObject(cid)
+        else:
+            ids.append(cid)
+        # точки (+ крива, якщо лишається) = одна група
+        if ids:
+            rs.AddObjectsToGroup(ids, rs.AddGroup())
     rs.EnableRedraw(True)
 
 
