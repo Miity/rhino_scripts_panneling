@@ -15,6 +15,7 @@ import scriptcontext as sc
 FONT = "SLF-RHN Architect"  # single-stroke: the plotter pen writes a letter in one pass
 SERIES = (2.5, 3.5, 5, 7, 10, 14, 20, 28, 40)  # mm, ISO 3098 series from architectural drawings
 RATIO = 15  # height ~ panel width / 15 (your 30 mm on ~430 mm strips)
+DEFAULT = 14  # mm — default label style of all scripts (option Style changes it per script)
 
 
 def style_name(h):
@@ -48,6 +49,35 @@ def ensure_styles(doc):
             doc.DimStyles.Add(ds, False)
         styles[h] = doc.DimStyles.FindName(name)
     return styles
+
+
+def label_style(doc, key):
+    """Label style of a script: the one picked with option Style (sticky key + ".style"), else PAT 14 mm."""
+    ensure_styles(doc)  # so PAT styles exist also in files from DXF
+    name = sc.sticky.get(key + ".style")
+    return (name and doc.DimStyles.FindName(name)) or doc.DimStyles.FindName(style_name(DEFAULT))
+
+
+def pick_style(doc, key):
+    """Option Style: pick a document text style from a list, remembered for the script (key)."""
+    names = sorted(ds.Name for ds in doc.DimStyles if not ds.IsDeleted and not ds.IsChild)
+    cur = label_style(doc, key).Name
+    sc.sticky[key + ".style"] = rs.ListBox(names, u"Text style", u"Text style", cur) or cur
+
+
+def get_number(prompt, default, key, lower=0.0):
+    """rs.GetReal with option Style (label style of the script key). Number or None."""
+    while True:
+        gn = Rhino.Input.Custom.GetNumber()
+        gn.SetCommandPrompt(u"%s (text style: %s)" % (prompt, label_style(sc.doc, key).Name))
+        gn.SetDefaultNumber(default)
+        gn.SetLowerLimit(lower, False)
+        opt = gn.AddOption("Style")
+        res = gn.Get()
+        if res == Rhino.Input.GetResult.Option and gn.OptionIndex() == opt:
+            pick_style(sc.doc, key)
+            continue
+        return gn.Number() if res == Rhino.Input.GetResult.Number else None
 
 
 def closed_curves(doc):

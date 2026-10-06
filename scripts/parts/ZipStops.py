@@ -6,7 +6,7 @@ A track is one side, it may also be split over several panels. The kind is the T
 Line picking repeats — Enter finishes.
 For each line: cross stops (centred, in the CPlane) Trim in from its real ends — the zip is usually a bit
 shorter than the line (option Trim, remembered per type: Zip 4 cm, Track 0) — and the number as text above
-the middle between the stops; text style — option Style (remembered, default PAT 10 mm).
+the middle between the stops; text style — option Style (remembered, default PAT 14 mm).
 If a side is split (zip — 3+ lines, track — 2+), a click near a junction end (where it continues on another
 panel) turns its stop into a tick half as long, right at the line end (no Trim there); another click — back.
 Stops and text are one group per line, in the type's layer; the line stays in its own layer and group.
@@ -27,6 +27,8 @@ from Rhino.Geometry import Plane, Vector3d
 
 # style picking and PAT styles — from scripts/markup/DotToPanelText.py
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
+for _m in ("DotToPanelText", "PatternTextStyles"):  # Rhino keeps modules from the first run for the session
+    sys.modules.pop(_m, None)
 import DotToPanelText as D
 
 # type → (prefix, layer, in the prompt, from how many lines to ask about junctions, default Trim in cm)
@@ -35,7 +37,7 @@ TYPES = {"Zip": ("Z", "Parts::Zip", u"of the zip (both sides)", 3, 4.0),
 KEY = "Zip"          # UserText on the text: number (Z<n> or Trk<n>)
 LINE = "ZipLine"     # UserText on the text: id of the marked line
 TRIM = "ZipTrim"     # UserText on the text: "start,end" — stop distance from the line ends, document units
-STYLE = "ZipStops.style"
+STYLE = "ZipStops"  # sticky key of the label style (PatternTextStyles.label_style)
 KIND = "ZipStops.kind"
 
 
@@ -152,23 +154,6 @@ def get_lines(kind, nums, last, cm):
         return None, kind, trim.CurrentValue
 
 
-def ask_size(doc, size, style):
-    """Stop length with the Style option. Returns (length or None, style)."""
-    while True:
-        gn = Rhino.Input.Custom.GetNumber()
-        gn.SetCommandPrompt(u"Stop length (text style: %s)" % style)
-        gn.SetDefaultNumber(size)
-        gn.SetLowerLimit(0.0, True)
-        opt = gn.AddOption("Style")
-        res = gn.Get()
-        if res == Rhino.Input.GetResult.Option and gn.OptionIndex() == opt:
-            style = D.pick_style(doc, style)
-            continue
-        if res == Rhino.Input.GetResult.Number:
-            return gn.Number(), style
-        return None, style
-
-
 def mark_line(doc, oid, crv, name, trim, size, normal, ds, gap, attrs):
     """Stops trim in from both ends + number text with the data; one group. The line is not touched.
     Returns [line id, curve, [stop id at start, at end], text id, trims]."""
@@ -212,7 +197,7 @@ def junction_stage(doc, name, lines, trim, size, normal, gap):
 HELP = u"""Options:
   Type — Zip: zip (both sides, Z<n>); Track: track (one side, Trk<n>)
   Trim — stops this far in from the real line ends (zip shorter than the line); remembered per type
-  Style — number text style"""  # printed at start — visible under the option fields
+  Style — number text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -226,16 +211,11 @@ def main():
     if not ids:
         flip_stage(doc)
         return
-    D.pts.ensure_styles(doc)
-    style = sc.sticky.get(STYLE)
-    if not style or doc.DimStyles.FindName(style) is None:
-        style = D.pts.style_name(10)
-    size, style = ask_size(doc, sc.sticky.get("zip_stop_size", cm), style)
-    sc.sticky[STYLE] = style
+    size = D.pts.get_number(u"Stop length", sc.sticky.get("zip_stop_size", cm), STYLE)
     if not size:
         return
     sc.sticky["zip_stop_size"] = size
-    ds = doc.DimStyles.FindName(style)
+    ds = D.pts.label_style(doc, STYLE)
     gap = 0.5 * ds.TextHeight * ds.DimensionScale
     normal = rs.ViewCPlane().ZAxis
     done = marked_lines()

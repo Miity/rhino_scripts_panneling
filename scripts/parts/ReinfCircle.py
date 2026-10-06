@@ -23,11 +23,9 @@ from Rhino.Geometry import (AreaMassProperties, ArcCurve, Circle, Continuity, Cu
                             CurveExtensionStyle, Plane, Point3d, Transform)
 from Rhino.Geometry.Intersect import Intersection
 
-try:  # PAT text styles for 1:1 patterns (scripts/markup/PatternTextStyles.py)
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
-    import PatternTextStyles
-except Exception:
-    PatternTextStyles = None
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
+sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
+from PatternTextStyles import label_style, pick_style  # label style: option Style, default PAT 14 mm
 
 STICKY = "ReinfCircle"
 LAYER = "Parts::Reinforcements"
@@ -133,18 +131,10 @@ def next_number(lay, prefix=PREFIX):
     return max(nums) + 1
 
 
-def text_style(doc, r):
-    """PAT style so that the label fits in the sector (≈ R/10)."""
-    if PatternTextStyles is None:
-        return doc.DimStyles.Current
-    styles = PatternTextStyles.ensure_styles(doc)
-    fit = [h for h in PatternTextStyles.SERIES if h <= r / 10.0]
-    return styles[fit[-1] if fit else PatternTextStyles.SERIES[0]]
-
-
 HELP = u"""Options:
   R — reinforcement circle radius (centre — panel corner)
-  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place"""  # printed at start — visible under the option fields
+  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
+  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -167,7 +157,6 @@ def main():
     normal = rs.ViewCPlane().ZAxis
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
-    style = text_style(doc, r)
     n = next_number(LAYER)
     made = 0
     while True:
@@ -176,8 +165,10 @@ def main():
         gp.AcceptNothing(True)
         lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
         gp.AddOptionToggle("Layout", lay)
+        i_style = gp.AddOption("Style")
         while gp.Get() == Rhino.Input.GetResult.Option:
-            pass
+            if gp.OptionIndex() == i_style:
+                pick_style(doc, STICKY)
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         if gp.CommandResult() != Rhino.Commands.Result.Success or gp.Result() != Rhino.Input.GetResult.Point:
             break
@@ -194,7 +185,7 @@ def main():
         amp = AreaMassProperties.Compute(crv)
         tp = Plane(rs.ViewCPlane())
         tp.Origin = amp.Centroid if amp else center
-        te = Rhino.Geometry.TextEntity.Create(label, tp, style, False, 0, 0)
+        te = Rhino.Geometry.TextEntity.Create(label, tp, label_style(doc, STICKY), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
         add_part(doc, [crv], te, off_panel(crv, curves, tol), attrs, lay.CurrentValue)

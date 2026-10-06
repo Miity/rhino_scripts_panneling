@@ -68,7 +68,7 @@ def main():
         print(u"No script labels found in the document")
         return
     lang = sc.sticky.get("Legend_lang", "UA")
-    h = Rhino.Input.Custom.OptionDouble(sc.sticky.get("Legend_h", 10), 0.1, 1e6)
+    h = Rhino.Input.Custom.OptionDouble(sc.sticky.get("Legend_h", 14), 0.1, 1e6)
     gp = Rhino.Input.Custom.GetPoint()
     gp.SetCommandPrompt(u"Click where to place the legend (top-left corner)")
     while True:

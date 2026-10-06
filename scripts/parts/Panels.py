@@ -2,7 +2,7 @@
 """Panels → parts P1, P2, P3…
 Select closed curves (panels). Each panel is copied in place to layer Parts::Panels,
 the input curve (and its holes) is deleted. The copy gets number P<n>: text inside the panel in the corner you click near (Enter — top right;
-placement as in markup/DotToPanelText.py), style — option Style (remembered),
+placement as in markup/DotToPanelText.py), style — option Style (remembered, default PAT 14 mm),
 and a TextDot "P<n>" (sublayer Parts::Panels::Dots) above-left of the panel edge, so the number is visible at any zoom.
 The number is written to the copy's UserText (Part = P<n>): a repeated run
 skips curves already in Parts::Panels with a number. A new panel gets the smallest free number in the layer,
@@ -21,13 +21,15 @@ from Rhino.Geometry import Curve, RegionContainment
 
 # text placement in a panel corner and style picking — from scripts/markup/DotToPanelText.py
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
+for _m in ("DotToPanelText", "PatternTextStyles"):  # Rhino keeps modules from the first run for the session
+    sys.modules.pop(_m, None)
 import DotToPanelText as D
 
 LAYER = "Parts::Panels"
 DOTS = LAYER + "::Dots"  # TextDot — in a separate sublayer, everything else in LAYER
 PREFIX = "P"
 KEY = "Part"  # UserText key with the panel number
-STYLE = "Panels.style"
+STYLE = "Panels"  # sticky key of the label style (PatternTextStyles.label_style)
 
 
 def bbox(crv, plane):
@@ -88,27 +90,27 @@ def used_numbers(lay):
     return nums
 
 
-def get_corner(doc, crv, name, style):
-    """Click near a panel corner for the text; Enter — top right; option Style. Returns (point or None, style)."""
+def get_corner(doc, crv, name):
+    """Click near a panel corner for the text; Enter — top right; option Style. Returns point or None."""
     while True:
         gp = Rhino.Input.Custom.GetPoint()
-        gp.SetCommandPrompt(u"Click near a panel corner for %s (Enter — top right, style: %s)" % (name, style))
+        gp.SetCommandPrompt(u"Click near a panel corner for %s (Enter — top right, style: %s)"
+                           % (name, D.pts.label_style(doc, STYLE).Name))
         gp.AcceptNothing(True)
         opt = gp.AddOption("Style")
         res = gp.Get()
         if res == Rhino.Input.GetResult.Option and gp.OptionIndex() == opt:
-            style = D.pick_style(doc, style)
-            sc.sticky[STYLE] = style
+            D.pts.pick_style(doc, STYLE)
             continue
         if res == Rhino.Input.GetResult.Point:
-            return gp.Point(), style
+            return gp.Point()
         if res == Rhino.Input.GetResult.Nothing:
-            return crv.GetBoundingBox(True).Max, style
-        return None, style
+            return crv.GetBoundingBox(True).Max
+        return None
 
 
 HELP = u"""Options:
-  Style — text style of the number P<n>"""  # printed at start — visible under the option fields
+  Style — text style of the number P<n> (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -138,11 +140,6 @@ def main():
     dot_attrs = attrs.Duplicate()
     dot_attrs.LayerIndex = doc.Layers.FindByFullPath(DOTS, -1)
     used = used_numbers(LAYER)
-    D.pts.ensure_styles(doc)
-    style = sc.sticky.get(STYLE)
-    if not style or doc.DimStyles.FindName(style) is None:  # default — PAT by the width of the first panel
-        x0, y0, x1, y1 = bbox(curves[0], plane)
-        style = D.pts.style_name(D.pts.height_for(min(x1 - x0, y1 - y0)))
     made = 0
     for i, hole_idx in classify(curves, plane, tol):
         n = min(k for k in range(1, len(used) + 2) if k not in used)  # smallest free: a gap after deletion is filled
@@ -151,11 +148,10 @@ def main():
         crv = curves[i]
         rs.UnselectAllObjects()
         rs.SelectObject(ids[i])  # highlight which panel is being labelled now
-        click, style = get_corner(doc, crv, name, style)
+        click = get_corner(doc, crv, name)
         if click is None:
             break
-        sc.sticky[STYLE] = style
-        ds = doc.DimStyles.FindName(style)
+        ds = D.pts.label_style(doc, STYLE)
         # TextDot near the top-left of the panel: curve point closest to the bbox corner, slightly up-left
         x0, y0, x1, y1 = bbox(crv, plane)
         ok, t = crv.ClosestPoint(plane.PointAt(x0, y1))

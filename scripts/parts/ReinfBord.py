@@ -21,7 +21,7 @@ from Rhino.Geometry import Curve
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ReinfCircle", "Seam", "ZipCover"):  # Rhino keeps modules from the first run for the session
     sys.modules.pop(_m, None)
-from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, text_style  # layer, numbering, PAT style ≈ H/10
+from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, label_style, pick_style  # layer, numbering, style
 from Seam import label_frame  # label direction along the edge (reads left to right)
 from ZipCover import flap  # edge corner to corner + offset, ends along the neighbouring edges
 
@@ -62,7 +62,7 @@ def label_place(edge, off, normal, gap):
 
 
 def ask(gp):
-    """Click near an edge with options H / SA / Angle / Layout. A point or None (Enter / Esc)."""
+    """Click near an edge with options H / SA / Angle / Layout / Style. A point or None (Enter / Esc)."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     h = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0 * unit), 0.001, 1e6)
     sa = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_sa", 0.0), 0.0, 1e6)
@@ -72,6 +72,7 @@ def ask(gp):
     gp.AddOptionDouble("Angle", a)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
+    i_style = gp.AddOption("Style")
     while True:
         r = gp.Get()
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
@@ -79,6 +80,8 @@ def ask(gp):
         sc.sticky[STICKY + "_sa"] = sa.CurrentValue
         sc.sticky["ZipCover_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
+            if gp.OptionIndex() == i_style:
+                pick_style(sc.doc, STICKY)
             continue
         return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
@@ -87,7 +90,8 @@ HELP = u"""Options:
   H — strip height from the edge into the panel
   SA — seam allowance on the inner edge of the strip (0 — none)
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
-  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place"""  # printed at start — visible under the option fields
+  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
+  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -118,7 +122,7 @@ def main():
             continue
         cut, seams, edge, off, square = res
         label = u"%s%d  H=%g" % (PREFIX, n, h)
-        style = text_style(doc, h)
+        style = label_style(doc, STICKY)
         plane, valign = label_place(edge, off, normal, style.TextHeight * 0.5)
         te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center

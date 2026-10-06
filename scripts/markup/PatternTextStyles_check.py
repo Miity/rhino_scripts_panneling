@@ -23,6 +23,14 @@ try:
     assert [P.height_for(w) for w in (30, 100, 2480)] == [2.5, 5, 40]
     names = [P.style_name(h) for h in P.SERIES]
     assert sorted(names) == names  # in Rhino's list (alphabetical) the styles follow by size
+    import scriptcontext as sc  # label style of a script: default PAT 14 mm, option Style overrides it
+    sc.sticky.pop("Check.style", None)
+    assert P.label_style(doc, "Check").Name == "PAT 14 mm"
+    sc.sticky["Check.style"] = "PAT 40 mm"
+    assert P.label_style(doc, "Check").Name == "PAT 40 mm"
+    sc.sticky["Check.style"] = "deleted style"
+    assert P.label_style(doc, "Check").Name == "PAT 14 mm"
+    sc.sticky.pop("Check.style")
     print("PatternTextStyles: OK")
 finally:
     doc.Dispose()

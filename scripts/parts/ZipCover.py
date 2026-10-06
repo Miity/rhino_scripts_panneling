@@ -22,7 +22,7 @@ from Rhino.Geometry import (Curve, CurveEnd, CurveExtensionStyle, CurveOffsetCor
 from Rhino.Geometry.Intersect import Intersection
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from Seam import label_frame, text_style  # label in the middle of the strip, PAT style sized to the width
+from Seam import label_frame, label_style, pick_style  # label in the middle of the strip; style — option Style
 
 STICKY = "ZipCover"
 LAYER = "Parts::ZipCover"
@@ -127,19 +127,22 @@ def flap(panel, click, w, angle, normal, tol, inward=False):
 
 
 def ask(gp):
-    """Click near an edge with options W / Angle / Layout. A point or None (Enter / Esc)."""
+    """Click near an edge with options W / Angle / Layout / Style. A point or None (Enter / Esc)."""
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 25.0), 0.001, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     gp.AddOptionDouble("W", w)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", False), "No", "Yes")
     gp.AddOptionDouble("Angle", a)
     gp.AddOptionToggle("Layout", lay)
+    i_style = gp.AddOption("Style")
     while True:
         r = gp.Get()
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         sc.sticky[STICKY] = w.CurrentValue
         sc.sticky[STICKY + "_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
+            if gp.OptionIndex() == i_style:
+                pick_style(sc.doc, STICKY)
             continue
         return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
@@ -147,7 +150,8 @@ def ask(gp):
 HELP = u"""Options:
   W — flap width: offset from the edge outward from the panel
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
-  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place"""  # printed at start — visible under the option fields
+  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
+  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -183,7 +187,7 @@ def main():
             continue
         crv, edge, off, square = res
         te = Rhino.Geometry.TextEntity.Create(u"ZC %g" % w, label_frame(edge, off, normal),
-                                              text_style(doc, w), False, 0, 0)
+                                              label_style(doc, STICKY), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
         add_part(doc, [crv], te, off_panel(crv, [panel], tol), attrs, sc.sticky[STICKY + "_layout"])

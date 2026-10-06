@@ -25,7 +25,7 @@ from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, CurveOff
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino keeps modules from the first run for the session
-from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, piece, text_style  # layer, numbering, trimming, PAT style
+from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, piece, label_style, pick_style  # layer, numbering, trimming, style
 
 STICKY = "ReinfO"
 PREFIX = "RO"  # Reinforcement O
@@ -140,6 +140,7 @@ def get_edge(curves, center, normal, tol):
     gp.AddOptionDouble("SA", sa)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
+    i_style = gp.AddOption("Style")
     gp.DynamicDraw += draw
     try:
         while True:
@@ -147,6 +148,8 @@ def get_edge(curves, center, normal, tol):
             sc.sticky[STICKY] = plus.CurrentValue
             sc.sticky[STICKY + "_sa"] = sa.CurrentValue
             sc.sticky[STICKY + "_layout"] = lay.CurrentValue
+            if res == Rhino.Input.GetResult.Option and gp.OptionIndex() == i_style:
+                pick_style(sc.doc, STICKY)
             if res != Rhino.Input.GetResult.Option:
                 return (gp.Point(), plus.CurrentValue, sa.CurrentValue) if res == Rhino.Input.GetResult.Point else None
     finally:
@@ -156,7 +159,8 @@ def get_edge(curves, center, normal, tol):
 HELP = u"""Options:
   Plus — how far the O arc extends past the line you clicked
   SA — seam allowance along the panel edges (no seam on the arc; 0 — none)
-  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place"""  # printed at start — visible under the option fields
+  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
+  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -184,7 +188,7 @@ def main():
         if got[2] > 0 and not seams:  # ponytail: SA only with a closed panel; with corner lines — no allowance
             print(u"SA skipped: a closed panel is needed")
         label = u"%s%d  R=%g" % (PREFIX, n, round(r, 1))
-        style = text_style(doc, got[1] or r)  # as RD: from the Plus strip
+        style = label_style(doc, STICKY)
         tp, valign = arc_label(crv, center, r, normal, style.TextHeight * 0.5, tol) or \
             (Plane(rs.ViewCPlane()), Rhino.DocObjects.TextVerticalAlignment.Middle)
         if valign == Rhino.DocObjects.TextVerticalAlignment.Middle:

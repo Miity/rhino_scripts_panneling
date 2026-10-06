@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Selected TextDots -> text inside the nearest panel (closed curve), in its top-right corner.
-# The text style is picked from a list at start. Layer INK, the dot is deleted.
+# Text style — option Style (default PAT 14 mm). Layer INK, the dot is deleted.
 # Compatibility: IronPython 2.7 / CPython 3 (Rhino 8).
 import os
 import sys
@@ -11,6 +11,7 @@ import rhinoscriptsyntax as rs
 import scriptcontext as sc
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
 import PatternTextStyles as pts
 
 LAYER = "INK"
@@ -59,31 +60,25 @@ def find_spot(poly, tx, ty, width, hgt, row, down, ymin, ymax):
     return None
 
 
-STICKY = "DotToPanelText.style"
+STICKY = "DotToPanelText"
 
 
-def pick_style(doc, current):
-    names = sorted(ds.Name for ds in doc.DimStyles if not ds.IsDeleted and not ds.IsChild)
-    return rs.ListBox(names, u"Text style", u"Dot -> text", current) or current
-
-
-def get_one(doc, name, geom, prompt, closed=False):
-    """Pick one object with the Style option. Returns (ObjRef or None, style name)."""
+def get_one(doc, geom, prompt, closed=False):
+    """Pick one object with the Style option. Returns ObjRef or None."""
     while True:
         go = Rhino.Input.Custom.GetObject()
         go.GeometryFilter = geom
         if closed:
             go.GeometryAttributeFilter = Rhino.Input.Custom.GeometryAttributeFilter.ClosedCurve
-        go.SetCommandPrompt(u"%s (style: %s)" % (prompt, name))
+        go.SetCommandPrompt(u"%s (style: %s)" % (prompt, pts.label_style(doc, STICKY).Name))
         opt = go.AddOption("Style")
         res = go.Get()
         if res == Rhino.Input.GetResult.Option and go.OptionIndex() == opt:
-            name = pick_style(doc, name)
-            sc.sticky[STICKY] = name
+            pts.pick_style(doc, STICKY)
             continue
         if res != Rhino.Input.GetResult.Object:
-            return None, name
-        return go.Object(0), name
+            return None
+        return go.Object(0)
 
 
 def get_corner(crv):
@@ -140,17 +135,13 @@ def place(doc, dot_id, crv, click, style, attr, tol):
 
 
 HELP = u"""Options:
-  Style — text style"""  # printed at start — visible under the option fields
+  Style — text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 
 def main():
     print(HELP)
     doc = sc.doc
     tol = doc.ModelAbsoluteTolerance
-    pts.ensure_styles(doc)  # so PAT styles are in the list also in files from DXF
-    name = sc.sticky.get(STICKY)
-    if not name or doc.DimStyles.FindName(name) is None:
-        name = doc.DimStyles.Current.Name
     if not rs.IsLayer(LAYER):
         rs.AddLayer(LAYER, (0, 0, 255))
     attr = Rhino.DocObjects.ObjectAttributes()
@@ -160,11 +151,11 @@ def main():
 
     # "dot -> panel -> corner" in a loop, Enter/Esc — exit.
     while True:
-        dot, name = get_one(doc, name, Rhino.DocObjects.ObjectType.TextDot, u"Select a dot")
+        dot = get_one(doc, Rhino.DocObjects.ObjectType.TextDot, u"Select a dot")
         if dot is None:
             break
         rs.UnselectAllObjects()
-        panel, name = get_one(doc, name, Rhino.DocObjects.ObjectType.Curve,
+        panel = get_one(doc, Rhino.DocObjects.ObjectType.Curve,
                               u"Select the panel for '%s'" % dot.TextDot().Text, closed=True)
         if panel is None:
             break
@@ -172,8 +163,7 @@ def main():
         click = get_corner(panel.Curve())
         if click is None:
             break
-        sc.sticky[STICKY] = name
-        tid = place(doc, dot.ObjectId, panel.Curve(), click, doc.DimStyles.FindName(name), attr, tol)
+        tid = place(doc, dot.ObjectId, panel.Curve(), click, pts.label_style(doc, STICKY), attr, tol)
         if tid:
             made.append(tid)
 

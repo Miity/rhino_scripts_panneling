@@ -3,7 +3,7 @@
 
 1. Select panels (closed curves, usually CUT).
 2. Select the material: a closed rectangle (Origin) or two of its lines — top and bottom.
-3. Enter at the prompts = gap 50 and seam 10 (document units, mm).
+3. Enter at the prompts = gap 50 and seam 10 (document units, mm); option Style — letter text style (PAT 14 mm).
 
 For each panel that crosses a material line:
 - the main panel is trimmed exactly at the material line and closed by it;
@@ -25,14 +25,13 @@ import scriptcontext as sc
 from Rhino.Geometry import (Curve, Interval, LineCurve, Plane, PointContainment,
                             Rectangle3d, Transform, Vector3d)
 
-try:  # PAT text styles for 1:1 patterns (scripts/markup/PatternTextStyles.py)
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
-    import PatternTextStyles
-except Exception:
-    PatternTextStyles = None
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
+sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
+import PatternTextStyles  # label style: option Style, default PAT 14 mm
 
 SEAM_LAYER = "INK"
 LABEL_KEY = ("SplitPanelsToMaterial", "next_label")
+STICKY = "SplitPanelsToMaterial"
 
 
 def letters(i):
@@ -43,15 +42,6 @@ def letters(i):
         i, r = divmod(i - 1, 26)
         s = chr(65 + r) + s
     return s
-
-
-def text_style(doc, chord_len, room):
-    """PAT style: letter ≈ ¼ of the seam length, but fits in the cut-off piece (room) and no more than 20 mm."""
-    if PatternTextStyles is None:
-        return doc.DimStyles.Current
-    styles = PatternTextStyles.ensure_styles(doc)
-    fit = [h for h in PatternTextStyles.SERIES if h <= min(chord_len / 4.0, room / 2.0, 20)]
-    return styles[fit[-1] if fit else PatternTextStyles.SERIES[0]]
 
 
 def make_label(text, pt, u, style):
@@ -101,7 +91,7 @@ def label_pair(doc, text, piece, comp, chords, plane, to_local, seam, move, igno
         return []
     chord = max(chords, key=lambda c: c.GetLength())
     room = seam - comp.GetBoundingBox(to_local).Min.Y  # depth of the piece from the seam to the edge
-    style = text_style(doc, chord.GetLength(), room)
+    style = PatternTextStyles.label_style(doc, STICKY)
     th = style.TextHeight * style.DimensionScale
     n = plane.YAxis
     moved = comp.DuplicateCurve()
@@ -292,7 +282,12 @@ def run(doc, panel_ids, frames, gap, seam):
     return n_panels, n_offs
 
 
+HELP = u"""Options:
+  Style — pair letter text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
+
+
 def main():
+    print(HELP)
     panel_ids = rs.GetObjects("Select panels (closed curves)", rs.filter.curve, preselect=True)
     if not panel_ids:
         return
@@ -308,7 +303,7 @@ def main():
     gap = rs.GetReal("Move cut-off pieces by", 50.0, 0.0)
     if gap is None:
         return
-    seam = rs.GetReal("Seam / allowance from the material line", 10.0, 0.0)
+    seam = PatternTextStyles.get_number(u"Seam / allowance from the material line", 10.0, STICKY)
     if seam is None:
         return
     panel_ids = [i for i in panel_ids if i not in mat_ids]

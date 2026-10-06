@@ -15,11 +15,9 @@ import rhinoscriptsyntax as rs
 import scriptcontext as sc
 from Rhino.Geometry import Plane, Vector3d
 
-try:  # PAT text styles for 1:1 patterns (scripts/markup/PatternTextStyles.py)
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
-    import PatternTextStyles
-except Exception:
-    PatternTextStyles = None
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
+sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
+from PatternTextStyles import label_style, pick_style  # label style: option Style, default PAT 14 mm
 from sewing_points import sewing_lengths  # the same markup/ in sys.path
 
 STICKY = "Seam"
@@ -38,17 +36,8 @@ def label_frame(crv, offset, normal):
     return Plane((m + q) / 2.0, u, Vector3d.CrossProduct(normal, u))
 
 
-def text_style(doc, w):
-    """PAT style that fits a strip of width w (≈ 0.6·w)."""
-    if PatternTextStyles is None:
-        return doc.DimStyles.Current
-    styles = PatternTextStyles.ensure_styles(doc)
-    fit = [h for h in PatternTextStyles.SERIES if h <= w * 0.6]
-    return styles[fit[-1] if fit else PatternTextStyles.SERIES[0]]
-
-
 def ask(gp):
-    """Click near an edge with options W / Angle / Points / Step / Layout. A point or None (Enter / Esc)."""
+    """Click near an edge with options W / Angle / Points / Step / Layout / Style. A point or None (Enter / Esc)."""
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 10.0), 0.001, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     pts = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_points", False), "No", "Yes")
@@ -59,6 +48,7 @@ def ask(gp):
     gp.AddOptionDouble("Step", step)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", False), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
+    i_style = gp.AddOption("Style")
     while True:
         r = gp.Get()
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
@@ -67,6 +57,8 @@ def ask(gp):
         sc.sticky[STICKY + "_points"] = pts.CurrentValue
         sc.sticky["sew_step"] = step.CurrentValue
         if r == Rhino.Input.GetResult.Option:
+            if gp.OptionIndex() == i_style:
+                pick_style(sc.doc, STICKY)
             continue
         return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
@@ -91,12 +83,13 @@ HELP = u"""Options:
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
   Points — Yes: also seam points on a copy of the edge
   Step — seam point spacing (from the edge centre both ways)
-  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place"""  # printed at start — visible under the option fields
+  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
+  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 
 def main():
     print(HELP)
-    from ZipCover import flap  # here, not at the top: ZipCover itself imports label_frame / text_style from Seam
+    from ZipCover import flap  # here, not at the top: ZipCover itself imports label_frame / label_style from Seam
     sys.modules.pop("ReinfCircle", None)  # Rhino caches modules per session
     from ReinfCircle import add_part, off_panel  # Layout: markup in place + part above
     doc = sc.doc
@@ -128,7 +121,7 @@ def main():
             continue
         crv, edge, off, square = res
         te = Rhino.Geometry.TextEntity.Create(u"SA %g" % w, label_frame(edge, off, normal),
-                                              text_style(doc, w), False, 0, 0)
+                                              label_style(doc, STICKY), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
         full = [crv]

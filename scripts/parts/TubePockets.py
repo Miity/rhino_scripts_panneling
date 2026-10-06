@@ -15,7 +15,7 @@ Only markup stays on the panel (in place): ends + pocket top as one open curve (
 + label, its own group (UserText TP_Markup). The full part for cutting — UP (10000) up along CPlane Y
 (UserText TP_Up), that is what Layout lays out. Both groups are linked by number (UserText TP_N).
 Option Layout (default Yes): No — full part in place, no markup (like old pockets).
-Options W / H / Trim / SA / Hem / Notch / Rigid / Layout / Angle — in the click prompt, remembered between runs.
+Options W / H / Trim / SA / Hem / Notch / Rigid / Layout / Angle / Style — in the click prompt, remembered between runs.
 """
 import os
 import re
@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ZipCover", "Seam"):  # Rhino keeps modules from the first run for the session — take fresh ones
     sys.modules.pop(_m, None)
 from ZipCover import pick_edge  # panel edge corner to corner near the click
-from Seam import label_frame, text_style  # the same label along the strip and PAT style
+from Seam import label_frame, label_style, pick_style  # the same label along the strip; style — option Style
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curves"))
 sys.modules.pop("OffsetRigid", None)
 from OffsetRigid import shift  # rigid offset: move along the normal at a point
@@ -172,7 +172,7 @@ def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False,
     xf = Transform.Translation(up if up is not None else Vector3d.Zero)
     te = Rhino.Geometry.TextEntity.Create(u"%s%d  H=%g" % (PREFIX, n, h),
                                           label_frame(seg, pocket_side(seg, toward, h, normal, tol, rigid), normal),
-                                          text_style(doc, h / 4.0), False, 0, 0)
+                                          label_style(doc, STICKY), False, 0, 0)
     te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
     te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
 
@@ -244,7 +244,7 @@ def inward(panel, edge, normal):
 
 
 def ask(gp):
-    """Click near an edge with options W, H, Trim, SA, Hem, Notch, Rigid, Angle. (point, values) or None."""
+    """Click near an edge with options W, H, Trim, SA, Hem, Notch, Rigid, Angle, Style. (point, values) or None."""
     get = sc.sticky.get
     w = Rhino.Input.Custom.OptionDouble(get(STICKY + "_w", 2000.0), 0.0, 1e7)
     h = Rhino.Input.Custom.OptionDouble(get(STICKY + "_h", 130.0), 0.001, 1e6)
@@ -264,6 +264,7 @@ def ask(gp):
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
     gp.AddOptionDouble("Angle", angle)
+    i_style = gp.AddOption("Style")
     while True:
         r = gp.Get()
         vals = (w.CurrentValue, h.CurrentValue, trim.CurrentValue, sa.CurrentValue, notch.CurrentValue, rigid.CurrentValue,
@@ -273,6 +274,8 @@ def ask(gp):
         sc.sticky["ZipCover_angle"] = angle.CurrentValue
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         if r == Rhino.Input.GetResult.Option:
+            if gp.OptionIndex() == i_style:
+                pick_style(sc.doc, STICKY)
             continue
         return (gp.Point(), vals + (angle.CurrentValue,)) if r == Rhino.Input.GetResult.Point else None
 
@@ -286,7 +289,8 @@ HELP = u"""Options:
   Notch — pocket centre mark (a tick across the seam line)
   Rigid — Yes: top is a copy of the edge without changing its shape; No: regular offset
   Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
-  Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)"""  # printed at start — visible under the option fields
+  Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
+  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 
 def main():

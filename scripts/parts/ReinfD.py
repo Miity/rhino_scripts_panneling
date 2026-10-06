@@ -5,7 +5,7 @@ Part: a rectangle of width W from the second point to the first + an end extendi
 (W = 2R — half-circle; otherwise a half-ellipse W/2 × R, smooth, not wider than W). While picking the second point the D is shown live.
 Loop: several D in a row (both ends of each pocket), Enter — done. The part lies in place,
 layer Parts::Reinforcements, label "RD<n>" in a group; RD numbering continues between runs.
-Options W and R — in the first point prompt, remembered.
+Options W, R and Style (label text style, default PAT 14 mm) — in the first point prompt, remembered.
 Option Layout (default Yes): on the panel — D markup without the bottom (the bottom lies on the edge), full part — 10000 up
 (ReinfCircle.add_part); No — full part in place.
 """
@@ -19,7 +19,7 @@ from Rhino.Geometry import Arc, ArcCurve, Curve, Plane, Polyline, PolylineCurve,
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino keeps modules from the first run for the session
-from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, text_style  # layer, numbering, PAT style
+from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, label_style, pick_style  # layer, numbering, style
 
 STICKY = "ReinfD"
 PREFIX = "RD"  # Reinforcement D
@@ -43,7 +43,7 @@ def d_shape(top, bottom, w, r, normal, tol):
 
 
 def get_top():
-    """First point with options W, R, Layout. (point, w, r) or None."""
+    """First point with options W, R, Layout, Style. (point, w, r) or None."""
     gp = Rhino.Input.Custom.GetPoint()
     gp.SetCommandPrompt(u"Top corner of the pocket — centre of the D (Enter — done)")
     gp.AcceptNothing(True)
@@ -53,12 +53,15 @@ def get_top():
     gp.AddOptionDouble("R", r)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
+    i_style = gp.AddOption("Style")
     while True:
         res = gp.Get()
         sc.sticky[STICKY + "_w"] = w.CurrentValue
         sc.sticky[STICKY] = r.CurrentValue
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         if res == Rhino.Input.GetResult.Option:
+            if gp.OptionIndex() == i_style:
+                pick_style(sc.doc, STICKY)
             continue
         return (gp.Point(), w.CurrentValue, r.CurrentValue) if res == Rhino.Input.GetResult.Point else None
 
@@ -83,7 +86,8 @@ def get_bottom(top, w, r, normal, tol):
 HELP = u"""Options:
   W — D width (rectangular part)
   R — how far the D end extends past the top corner (W = 2R — half-circle)
-  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place"""  # printed at start — visible under the option fields
+  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
+  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -110,7 +114,7 @@ def main():
         label = u"%s%d" % (PREFIX, n)
         tp = Plane(rs.ViewCPlane())
         tp.Origin = (top + bottom) / 2.0
-        te = Rhino.Geometry.TextEntity.Create(label, tp, text_style(doc, min(r, w / 2.0)), False, 0, 0)
+        te = Rhino.Geometry.TextEntity.Create(label, tp, label_style(doc, STICKY), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
         base = min(crv.DuplicateSegments(), key=lambda g: g.PointAtNormalizedLength(0.5).DistanceTo(bottom))  # bottom of the D

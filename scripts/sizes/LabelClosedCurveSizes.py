@@ -3,19 +3,27 @@
 
 Run in Rhino's Python editor (Rhino 6/7 IronPython 2.7 or Rhino 8 CPython 3).
 The dimensions are in document units. The current CPlane defines left/top and
-the X/Y directions. A chosen document annotation style controls text font and
-height. Tall, narrow curves get a counterclockwise 90-degree fallback in the
+the X/Y directions. A chosen document annotation style (remembered, default PAT 14 mm)
+controls text font and height. Tall, narrow curves get a counterclockwise 90-degree fallback in the
 lower-left corner when the horizontal label does not fit. No bounding-box
 geometry is added.
 """
+
+import os
+import sys
 
 import Rhino.Geometry as rg
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
 import System
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
+sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
+import PatternTextStyles  # PAT styles, default label style PAT 14 mm
+
 
 LAYER_NAME = "INK"
+STICKY = "LabelClosedCurveSizes"
 
 
 def local_xy(point, plane):
@@ -90,12 +98,12 @@ def candidate_positions(left, bottom, right, top, text_width, text_height,
 
 
 def choose_style():
-    """Select an annotation style already present in this document."""
-    names = rs.DimStyleNames(sort=True) or []
-    if not names:
-        return None
-    selected = rs.ListBox(names, u"Select the text style for size labels",
-                          u"Label style", sc.doc.DimStyles.Current.Name)
+    """Select an annotation style (remembered, default PAT 14 mm). None — cancelled."""
+    current = PatternTextStyles.label_style(sc.doc, STICKY).Name  # also creates the PAT styles
+    selected = rs.ListBox(rs.DimStyleNames(sort=True) or [], u"Select the text style for size labels",
+                          u"Label style", current)
+    if selected:
+        sc.sticky[STICKY + ".style"] = selected
     return sc.doc.DimStyles.FindName(selected) if selected else None
 
 

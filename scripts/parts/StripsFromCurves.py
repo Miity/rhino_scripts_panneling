@@ -6,12 +6,19 @@ Strips for cover edge binding or edge reinforcement — depends on the chosen he
 
 Strips are stacked in a column touching each other from the given point (along CPlane), in layer Parts::Strips; each labelled "S1  L=… × H".
 The same number is placed as a TextDot at the middle of the corresponding line, to know which strip goes where.
+Option Style (at the height prompt) — label text style, default PAT 14 mm.
 """
+import os
 import re
+import sys
 
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
+sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
+import PatternTextStyles  # label style: option Style, default PAT 14 mm
 
 STICKY = "StripsFromCurves"
 
@@ -46,12 +53,17 @@ def next_number(layer):
     return max(nums) + 1
 
 
+HELP = u"""Options:
+  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
+
+
 def main():
+    print(HELP)
     ids = rs.GetObjects(u"Select curves for strips (each curve is a separate strip)", rs.filter.curve, preselect=True)
     if not ids:
         return
     prev_h, prev_extra = sc.sticky.get(STICKY, (50.0, 0.0))
-    h = rs.GetReal(u"Strip height", prev_h, 0.001)
+    h = PatternTextStyles.get_number(u"Strip height", prev_h, STICKY, 0.001)
     if h is None:
         return
     extra = rs.GetReal(u"Length allowance (added to each strip)", prev_extra, 0.0)
@@ -67,7 +79,8 @@ def main():
         return
     plane = rs.MovePlane(rs.ViewCPlane(), base)
     layer = strips_layer()
-    txt_h = min(h * 0.4, 30.0)
+    style = PatternTextStyles.label_style(sc.doc, STICKY)
+    txt_h = style.TextHeight * style.DimensionScale
     rs.EnableRedraw(False)
     try:
         first = next_number(layer)
@@ -79,7 +92,10 @@ def main():
             rs.ObjectLayer(rect, layer)
             label = u"S%d  L=%.0f × %g" % (n, w, h)
             tp = Rhino.Geometry.Plane(p.PointAt(txt_h * 0.5, h / 2.0), p.XAxis, p.YAxis)
-            t = rs.AddText(label, tp, txt_h, justification=131073)  # left, vertical middle: stays inside the strip
+            te = Rhino.Geometry.TextEntity.Create(label, tp, style, False, 0, 0)
+            te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Left
+            te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle  # stays inside the strip
+            t = sc.doc.Objects.AddText(te)
             if t:
                 rs.ObjectLayer(t, layer)
             d = rs.AddTextDot(u"S%d" % n, mid)
