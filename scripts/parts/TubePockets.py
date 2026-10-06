@@ -10,7 +10,7 @@ Parts::Pockets, з підписом "TP<n>  H=…" у групі; нумерац
 Опція Rigid — карман жорстким офсетом (curves/OffsetRigid.py): копія відрізка без зміни форми,
 зсунута на H по нормалі в центрі кармана (Rigid=No — стандартний офсет; припуск SA завжди стандартний).
 Опція Hem — запас на підгин торців (+Hem зліва і справа): торець зсувається назовні на Hem, верх і низ
-кармана подовжуються до нього прямо; старий торець лишається в групі як лінія підгину (Hem=0 — без запасу).
+кармана подовжуються до нього прямо; старий торець лишається в групі як лінія підгину, у підшарі <шар>::Fold (Hem=0 — без запасу).
 Опції W / H / Trim / SA / Hem / Notch / Rigid / Angle — у запиті кліку, запам'ятовуються між запусками.
 """
 import os
@@ -157,7 +157,11 @@ def pocket(crv, click, w, h, trim, sa, notch, normal, tol, rigid=False, hem=0.0)
 def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False, hem=0.0):
     """Додає карман (контур, лінія шва, мітка, лінії підгину, підпис) у групу; параметри — UserText для UpdateTubePockets."""
     outline, seg, mark, folds, toward = res
-    new = [doc.Objects.AddCurve(outline, attrs)] + [doc.Objects.AddCurve(f, attrs) for f in folds]
+    new = [doc.Objects.AddCurve(outline, attrs)]
+    if folds:
+        fa = attrs.Duplicate()
+        fa.LayerIndex = fold_layer(doc, attrs.LayerIndex)
+        new += [doc.Objects.AddCurve(f, fa) for f in folds]
     if sa > 0:
         new.append(doc.Objects.AddCurve(seg, attrs))  # лінія шва
     if mark:
@@ -174,6 +178,15 @@ def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False,
     rs.AddObjectsToGroup(new, rs.AddGroup())
     doc.Views.Redraw()
     return label
+
+
+def fold_layer(doc, index):
+    """Підшар Fold (лінії підгину) під шаром кармана, той самий колір."""
+    lay = doc.Layers[index]
+    full = lay.FullPath + "::Fold"
+    if not rs.IsLayer(full):
+        rs.AddLayer("Fold", lay.Color, parent=lay.FullPath)
+    return doc.Layers.FindByFullPath(full, -1)
 
 
 def layer():

@@ -67,6 +67,21 @@ try:
             assert abs(AreaMassProperties.Compute(r[0]).Area - 63000) < 1e-3
     finally:
         rs.DeleteObjects(ids)
+    # Hem: лінії підгину в підшарі <шар>::Fold, у групі; Update бере шар контуру і Hem з UserText
+    res = M.pocket(line, toward, 600, 100, 0, 10, False, Z, tol, False, 20) + (toward,)
+    attrs = sc.doc.CreateDefaultAttributes()
+    before = set(rs.AllObjects() or [])
+    M.add_pocket(sc.doc, res, 100, 0, 10, False, 8, attrs, Z, tol, False, 20)
+    ids = [o for o in rs.AllObjects() if o not in before]
+    base = sc.doc.Layers[attrs.LayerIndex].FullPath
+    try:
+        folds = [o for o in ids if rs.ObjectLayer(o) == base + "::Fold"]
+        assert len(folds) == 2 and all(rs.ObjectGroups(o) == rs.ObjectGroups(ids[0]) for o in ids)
+        p = U.read_pocket(list(reversed(ids)), tol)
+        assert p["Hem"] == 20 and p["attrs"].LayerIndex == attrs.LayerIndex, p
+    finally:
+        rs.DeleteObjects(ids)
+        rs.DeleteLayer(base + "::Fold")
     # Rigid: дуга R1000 (45°..135°), карман до центру H 100: жорсткий — та сама довжина, центр зсунутий рівно на H;
     # стандартний — дуга R900 (коротша в 0.9)
     from Rhino.Geometry import Arc, ArcCurve

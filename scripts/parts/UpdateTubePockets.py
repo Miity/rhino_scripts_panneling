@@ -26,6 +26,7 @@ def read_pocket(ids, tol):
     curves = [(i, rs.coercecurve(i)) for i in ids if rs.IsCurve(i)]
     texts = [i for i in ids if rs.IsText(i)]
     m = re.match(TP.PREFIX + r"(\d+)\s+H=([\d.]+)", rs.TextObjectText(texts[0]) if texts else "")
+    outline_ids = [i for i, c in curves if c.IsClosed]
     outline = [c for i, c in curves if c.IsClosed]
     opened = sorted([c for i, c in curves if not c.IsClosed], key=lambda c: -c.GetLength())
     if not m or len(outline) != 1:
@@ -51,7 +52,7 @@ def read_pocket(ids, tol):
         if v:
             vals[k] = float(v)
     vals.update(n=int(m.group(1)), seg=seg, toward=toward, normal=normal, ids=ids,
-                attrs=sc.doc.Objects.FindId(rs.coerceguid(curves[0][0])).Attributes.Duplicate())
+                attrs=sc.doc.Objects.FindId(rs.coerceguid(outline_ids[0])).Attributes.Duplicate())  # шар контуру, не Fold
     return vals
 
 
