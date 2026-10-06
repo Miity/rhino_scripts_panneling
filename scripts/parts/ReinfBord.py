@@ -5,7 +5,7 @@
 більший за Angle) + офсет на H (типово 6 см; буває 10) всередину панелі, кінці — по сусідніх ребрах
 (сусід гостріше 30° — кінець перпендикулярний). Дві смуги в куті з'єднує JoinCorner.
 Опція SA — припуск на шов на внутрішньому краї (типово 0): різ на H + SA, лінія шва на H, у групі.
-Панель не змінюється. Деталь на місці, шар Parts::Reinforcements, підпис "RB<n>  H=…" (≈ H/10, на чверті ребра) у групі;
+Панель не змінюється. Деталь на місці, шар Parts::Reinforcements, підпис "RB<n>  H=…" (≈ H/10, на чверті ребра, вздовж внутрішньої лінії) у групі;
 нумерація RB продовжується між запусками.
 """
 import os
@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ReinfCircle", "Seam", "CopriZip"):  # Rhino тримає модулі з першого запуску за сесію
     sys.modules.pop(_m, None)
 from ReinfCircle import LAYER, layer, next_number, text_style  # шар, нумерація, стиль PAT ≈ H/10 (як RC)
-from Seam import label_frame  # підпис посередині смуги
+from Seam import label_frame  # напрямок підпису вздовж ребра (читається зліва направо)
 from CopriZip import flap  # ребро кут–кут + офсет, кінці по сусідніх ребрах
 
 STICKY = "ReinfBord"
@@ -42,6 +42,21 @@ def bordino(panel, click, h, sa, angle, normal, tol):
              if any(cut.PointAt(cut.ClosestPoint(g.PointAtNormalizedLength(t))[1])
                     .DistanceTo(g.PointAtNormalizedLength(t)) > tol for t in (0.25, 0.5, 0.75))]
     return cut, list(Curve.JoinCurves(seams, tol)) if seams else [], edge, off, square
+
+
+def label_place(edge, off, normal, gap):
+    """(площина, вертикальне вирівнювання) підпису: на чверті ребра, вздовж внутрішньої лінії (офсет H),
+    з боку смуги на відстані gap — посередині ребра вже підписи CopriZip / ZipStops."""
+    half = edge.Trim(edge.Domain.T0, edge.LengthParameter(edge.GetLength() / 2.0)[1]) or edge
+    plane = label_frame(half, off, normal)
+    ok, t = half.LengthParameter(half.GetLength() / 2.0)
+    m = half.PointAt(t if ok else half.Domain.Mid)
+    q = off.PointAt(off.ClosestPoint(m)[1])
+    toward = m - q  # від внутрішньої лінії до ребра, тобто в смугу
+    toward.Unitize()
+    plane.Origin = q + toward * gap
+    up = plane.YAxis * toward > 0
+    return plane, (Rhino.DocObjects.TextVerticalAlignment.Bottom if up else Rhino.DocObjects.TextVerticalAlignment.Top)
 
 
 def ask(gp):
@@ -90,11 +105,11 @@ def main():
             continue
         cut, seams, edge, off, square = res
         label = u"%s%d  H=%g" % (PREFIX, n, h)
-        # на чверті ребра: посередині ребра вже підписи CopriZip / ZipStops
-        half = edge.Trim(edge.Domain.T0, edge.LengthParameter(edge.GetLength() / 2.0)[1]) or edge
-        te = Rhino.Geometry.TextEntity.Create(label, label_frame(half, off, normal), text_style(doc, h), False, 0, 0)
+        style = text_style(doc, h)
+        plane, valign = label_place(edge, off, normal, style.TextHeight * 0.5)
+        te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
-        te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
+        te.TextVerticalAlignment = valign
         new = [doc.Objects.AddCurve(c, attrs) for c in [cut] + seams] + [doc.Objects.AddText(te, attrs)]
         rs.AddObjectsToGroup(new, rs.AddGroup())
         doc.Views.Redraw()

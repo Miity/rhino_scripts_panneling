@@ -41,6 +41,14 @@ try:
     assert cut.IsClosed and bb.Min.Y > -1e-3 and bb.Max.Y < 300 + 1e-3 and bb.Max.X < 500 + 1e-3, bb
     L = (100 ** 2 + 300 ** 2) ** 0.5
     assert abs(area(cut) - 60 * L) < 1, area(cut)  # паралелограм між горизонталями
+    # підпис: на чверті ребра, з боку смуги біля внутрішньої лінії (x=440), текст росте до ребра
+    rect = poly((0, 0), (500, 0), (500, 300), (0, 300))
+    cut, _, edge, off, _ = M.bordino(rect, Point3d(510, 150, 0), 60, 0, 30, Z, tol)
+    pl, va = M.label_place(edge, off, Z, 3)
+    assert abs(pl.Origin.X - 443) < 1e-3 and abs(pl.Origin.Y - 75) < 1e-3, pl.Origin
+    import Rhino
+    TV = Rhino.DocObjects.TextVerticalAlignment
+    assert (va == TV.Bottom) == (pl.YAxis.X > 0), (va, pl.YAxis)
     # JoinCorner: смуги на правому і верхньому ребрі перекриваються в куті → одна L-подібна деталь
     panel = poly((0, 0), (500, 0), (500, 300), (0, 300))
     a = M.bordino(panel, Point3d(510, 150, 0), 60, 0, 30, Z, tol)[0]
