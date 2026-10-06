@@ -1,24 +1,20 @@
 # -*- coding: utf-8 -*-
 """Сторінка (Layout) для панелі: виділити об'єкти (контур панелі або будь-які частини) → один новий лист A4 (вертикальний)
-з одним detail (Top), наведеним на всі виділені разом (як Zoom Selected); масштаб — найбільший круглий 1:N,
-що влазить; detail не заблоковано (можна поправити). Один запуск — один лист.
+з одним detail (Top), наведеним на всі виділені разом (як Zoom Selected); масштаб як у Zoom Selected (виділене заповнює рамку),
+без округлення; detail не заблоковано (можна поправити). Один запуск — один лист.
 Ім'я листа: UserText Part (Panels.py) з виділених, інакше підпис P<n> у межах виділеного,
 інакше наступний вільний P<n> серед листів. Підписи й шари не чіпає.
 """
 import re
 
-SCALES = (1, 2, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 200)
 A4 = (210.0, 297.0)  # завжди вертикально: Print на Mac дає одну орієнтацію на всі листи
 MARGIN = 10.0  # мм на папері
 
 
 def fit(w, h, paper=A4):
-    """(ширина листа, висота листа, N для 1:N) — N найменший, з яким w × h влазить у лист."""
+    """(ширина листа, висота листа, N для 1:N) — як Zoom Selected: w × h (мм) заповнює рамку з запасом 5 %."""
     pw, ph = paper
-    for n in SCALES:
-        if w * 1.05 / n <= pw - 2 * MARGIN and h * 1.05 / n <= ph - 2 * MARGIN:
-            return pw, ph, n
-    return pw, ph, SCALES[-1]
+    return pw, ph, max(w / (pw - 2 * MARGIN), h / (ph - 2 * MARGIN)) * 1.05
 
 
 def next_name(taken):
@@ -62,7 +58,8 @@ def make_page(doc, objs):
         bb.Union(o.Geometry.GetBoundingBox(True))
     taken = set(v.PageName for v in doc.Views.GetPageViews())
     name = unique(panel_name(doc, objs, bb) or next_name(taken), taken)
-    pw, ph, n = fit(bb.Max.X - bb.Min.X, bb.Max.Y - bb.Min.Y)
+    k = Rhino.RhinoMath.UnitScale(doc.ModelUnitSystem, Rhino.UnitSystem.Millimeters)
+    pw, ph, n = fit((bb.Max.X - bb.Min.X) * k, (bb.Max.Y - bb.Min.Y) * k)
     page = doc.Views.AddPageView(name, pw, ph)
     page.SetPageAsActive()
     doc.Views.ActiveView = page
@@ -71,7 +68,7 @@ def make_page(doc, objs):
     page.SetActiveDetail(det.Id)
     doc.Views.Redraw()
     # порядок важливий: CommitChanges (масштаб) перезаписує камеру, тож центр — після нього, окремим commit
-    det.DetailGeometry.SetScale(1, doc.ModelUnitSystem, 1.0 / n, doc.PageUnitSystem)
+    det.DetailGeometry.SetScale(n, Rhino.UnitSystem.Millimeters, 1, Rhino.UnitSystem.Millimeters)
     det.CommitChanges()
     det = [d for d in page.GetDetailViews() if d.Id == det.Id][0]
     det.Viewport.SetCameraTarget(bb.Center, True)
@@ -91,7 +88,7 @@ def main():
     if go.GetMultiple(1, 0) != Rhino.Input.GetResult.Object:
         return
     name, n = make_page(sc.doc, [go.Object(i).Object() for i in range(go.ObjectCount)])
-    print(u"Лист %s, масштаб 1:%d" % (name, n))
+    print(u"Лист %s, масштаб 1:%.2f" % (name, n))
 
 
 if __name__ == "__main__":
