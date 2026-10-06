@@ -52,8 +52,9 @@ def pick_edge(panel, click, angle, tol):
     return segs, s, e, edge
 
 
-def flap(panel, click, w, angle, normal, tol):
-    """(крива деталі, ребро, офсет, к-сть перпендикулярних кінців) або рядок-помилка."""
+def flap(panel, click, w, angle, normal, tol, inward=False):
+    """(крива деталі, ребро, офсет, к-сть перпендикулярних кінців) або рядок-помилка.
+    inward — деталь усередину панелі (ReinfBord): кінці по самих сусідніх ребрах, а не по їх продовженню."""
     res = pick_edge(panel, click, angle, tol)
     if not isinstance(res, tuple):
         return res
@@ -61,8 +62,9 @@ def flap(panel, click, w, angle, normal, tol):
     n = len(segs)
 
     cw = panel.ClosedCurveOrientation(normal) == CurveOrientation.Clockwise
-    def outward(t):  # назовні від панелі для напрямку обходу t
-        return Vector3d.CrossProduct(normal, t) if cw else Vector3d.CrossProduct(t, normal)
+    side = -1 if inward else 1
+    def outward(t):  # у бік деталі (назовні від панелі, або всередину при inward) для напрямку обходу t
+        return (Vector3d.CrossProduct(normal, t) if cw else Vector3d.CrossProduct(t, normal)) * side
 
     t0, tm = edge.TangentAtStart, edge.Domain.Mid
     offs = edge.Offset(edge.PointAt(tm) + outward(edge.TangentAt(tm)) * w, normal, w, tol, CurveOffsetCornerStyle.Sharp)
@@ -78,8 +80,8 @@ def flap(panel, click, w, angle, normal, tol):
         return u"не вдалося подовжити офсет"
 
     ends, square = [], 0
-    for corner, d, t, own in ((edge.PointAtStart, segs[(s - 1) % n].TangentAtEnd, t0, off.PointAtStart),
-                              (edge.PointAtEnd, -segs[e].TangentAtStart, edge.TangentAtEnd, off.PointAtEnd)):
+    for corner, d, t, own in ((edge.PointAtStart, segs[(s - 1) % n].TangentAtEnd * side, t0, off.PointAtStart),
+                              (edge.PointAtEnd, -segs[e].TangentAtStart * side, edge.TangentAtEnd, off.PointAtEnd)):
         k = d * outward(t)  # sin кута між продовженням сусіда і ребром (з боку деталі)
         p = None
         if k >= MIN_SIN:

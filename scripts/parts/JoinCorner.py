@@ -5,6 +5,8 @@
 (кілька кутів підряд, Enter — кінець); клік саме у виріз — він вказує, які сегменти торці. Торці обох деталей у цьому куті прибираються, зовнішні
 краї подовжуються по дотичній до перетину (як _Connect), і виходить одна замкнена крива.
 Останній кут рамки навколо панелі (обидва торці — одна деталь) → лишається тільки зовнішній контур.
+Деталі всередину панелі (ReinfBord) у куті перекриваються, а не мають вирізу → просто об'єднання
+(внутрішні краї до перетину); клік біля кута.
 Нова крива бере шар і групу першої деталі, група другої (підпис, точки шва) переходить у неї ж.
 """
 import math
@@ -12,7 +14,7 @@ import math
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import Curve, Line, LineCurve, PolylineCurve, Vector3d
+from Rhino.Geometry import AreaMassProperties, Curve, Line, LineCurve, PolylineCurve, Vector3d
 from Rhino.Geometry.Intersect import Intersection
 
 
@@ -70,6 +72,38 @@ def join(a, b, click, tol):
     c = shared_corner(sa, sb, click, tol)
     if c is None:
         return u"деталі не мають спільного кута"
+    joined = overlap(a, b, tol)
+    if joined is None:
+        joined = gap(sa, sb, c, click, tol)
+        if isinstance(joined, str):
+            return joined
+    out = []
+    for crv in joined:
+        ok, pl = crv.TryGetPolyline()  # як у CopriZip: чиста полілінія для PreparePanelCut
+        if ok:
+            pl.DeleteShortSegments(tol)
+            if hasattr(pl, "MergeColinearSegments"):
+                pl.MergeColinearSegments(1e-6, True)
+            crv = PolylineCurve(pl)
+        out.append(crv)
+    return out
+
+
+def overlap(a, b, tol):
+    """[об'єднання a і b], якщо вони перекриваються (смуги всередину панелі, ReinfBord); інакше None."""
+    # ponytail: рамка зі смуг усередину (останній кут — деталь сама з собою) не обробляється
+    if b is None:
+        return None
+    u = Curve.CreateBooleanUnion([a, b], tol)
+    if not u or len(u) != 1:
+        return None
+    area = lambda c: AreaMassProperties.Compute(c).Area
+    ua, aa, ab = area(u[0]), area(a), area(b)
+    return [u[0]] if max(aa, ab) * 1.001 < ua < 0.999 * (aa + ab) else None  # справжнє перекриття, не дотик і не та сама
+
+
+def gap(sa, sb, c, click, tol):
+    """[замкнені криві] — деталі з вирізом у куті c, торці геть, зовнішні краї до перетину; або рядок-помилка."""
     # Торці — два сегменти в куті, між якими лежить клік (у вирізі). Без панелі деталі симетричні:
     # пара «ребро + ребро» теж замикається (заповнює панель), тож відрізнити можна лише кліком.
     v = click - c
@@ -92,16 +126,7 @@ def join(a, b, click, tol):
         return u"деталь не замкнулась"
     if sb is sa:  # рамка замкнулась: внутрішній контур (= край панелі) не потрібен, лишається зовнішній
         joined = [max(joined, key=lambda c: c.GetBoundingBox(True).Diagonal.Length)]
-    out = []
-    for crv in joined:
-        ok, pl = crv.TryGetPolyline()  # як у CopriZip: чиста полілінія для PreparePanelCut
-        if ok:
-            pl.DeleteShortSegments(tol)
-            if hasattr(pl, "MergeColinearSegments"):
-                pl.MergeColinearSegments(1e-6, True)
-            crv = PolylineCurve(pl)
-        out.append(crv)
-    return out
+    return joined
 
 
 def main():

@@ -62,7 +62,7 @@ GROUPS = [
         (u"Reinf Circle", u"Кутове підсилення — коло радіуса R, обрізане сторонами кута (панеллю)", py("parts/ReinfCircle.py"), None),
         (u"Reinf D", u"Підсилення-D під кінець кармана: верхній кут → нижній кут, ширина W, виступ R", py("parts/ReinfD.py"), None),
         (u"Reinf O", u"Підсилення-O під кінець кармана на всю ширину: центр у верхньому куті → клік на лінії, R = відстань + Plus (5 см), лише всередині панелі, припуск SA (1 см) по краю панелі", py("parts/ReinfO.py"), None),
-        (u"Reinf Bord", u"Bordino rinforzato: смуга висотою H (6 / 10 см) уздовж ребра всередині панелі, обрізана іншими сторонами; SA — припуск на внутрішньому краї (типово 0)", py("parts/ReinfBord.py"), None),
+        (u"Reinf Bord", u"Bordino rinforzato: як CopriZip, але всередину: ребро (кут–кут) + офсет H (6 / 10 см) всередину, кінці по сусідніх ребрах, JoinCorner з'єднує в куті; SA — припуск на внутрішньому краї (типово 0)", py("parts/ReinfBord.py"), None),
         (u"Tube Pockets", u"Кармани для труб: панель → клік біля ребра, W по центру ребра, висота H, звуження Trim, припуск SA, запас на підгин торців Hem, мітка центру, Rigid — жорсткий офсет", py("parts/TubePockets.py"), None),
         (u"Update Pockets", u"Оновити готові кармани TP: нові H / Trim / SA / Hem / Notch / Rigid на місці, той самий номер (змінюється лише те, що змінив)", py("parts/UpdateTubePockets.py"), None),
         (u"Layout", u"Розкласти деталі: копії в ряд від точки кліку, у <шар>::Layout; оригінали лишаються розміткою", py("parts/LayoutParts.py"), None),
