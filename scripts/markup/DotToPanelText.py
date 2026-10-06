@@ -139,7 +139,12 @@ def place(doc, dot_id, crv, click, style, attr, tol):
     return tid
 
 
+HELP = u"""Опції:
+  Style — стиль тексту"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     doc = sc.doc
     tol = doc.ModelAbsoluteTolerance
     pts.ensure_styles(doc)  # щоб PAT-стилі були в списку і у файлах з DXF

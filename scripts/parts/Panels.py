@@ -107,7 +107,12 @@ def get_corner(doc, crv, name, style):
         return None, style
 
 
+HELP = u"""Опції:
+  Style — стиль тексту номера P<n>"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     doc = sc.doc
     ids = rs.GetObjects(u"Виберіть панелі (замкнені криві)", rs.filter.curve, preselect=True)
     if not ids:

@@ -142,7 +142,13 @@ def text_style(doc, r):
     return styles[fit[-1] if fit else PatternTextStyles.SERIES[0]]
 
 
+HELP = u"""Опції:
+  R — радіус кола підсилення (центр — кут панелі)
+  Layout — Yes: на панелі лише розмітка, повна деталь на 10000 вгору; No: повна деталь на місці"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     doc = sc.doc
     ids = rs.GetObjects(u"Виберіть межу: замкнену панель або лінії кута", rs.filter.curve, preselect=True)
     if not ids:

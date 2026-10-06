@@ -80,7 +80,14 @@ def get_bottom(top, w, r, normal, tol):
         gp.DynamicDraw -= draw
 
 
+HELP = u"""Опції:
+  W — ширина D (прямокутна частина)
+  R — на скільки кінець D виходить за верхній кут (W = 2R — півколо)
+  Layout — Yes: на панелі лише розмітка, повна деталь на 10000 вгору; No: повна деталь на місці"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     doc = sc.doc
     tol = doc.ModelAbsoluteTolerance
     normal = rs.ViewCPlane().ZAxis

@@ -18,6 +18,7 @@ bounding box, типами ліній та розбиттям кривих за 
 - Preserve the original layer, group membership and selection state of any object you modify or replace.
 - Prefer click-based interaction (e.g., 'click near the end to trim') over abstract options like Start/End, because the user can't tell curve direction.
 - Each new script needs: the script in its category subfolder, a toolbar button, and a README entry.
+- Scripts with command options (`AddOption*`): a `HELP` string right before `main()` explaining every option letter ("W — …"), printed as the first line of `main()` — on Mac the command history shows under the option fields.
 - Syntax-checking is not verification. At the end, state clearly which scripts were NOT run in Rhino and give a 3-step manual test for each.
 
 ## Директорії

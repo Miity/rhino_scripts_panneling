@@ -21,7 +21,12 @@ def shift(crv, t, z, pick, dist):
     return n * dist
 
 
+HELP = u"""Опції:
+  Distance — відстань зсуву по нормалі в точці кліку"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     res = rs.GetCurveObject(u"Клікніть криву в точці, по нормалі в якій зсувати")
     if not res:
         return

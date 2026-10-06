@@ -86,7 +86,16 @@ def add_sewing_points(doc, crv, step, attrs):
     return [doc.Objects.Add(g, attrs) for g in sewing_geometry(crv, step)]
 
 
+HELP = u"""Опції:
+  W — ширина припуску на шов: офсет від ребра назовні панелі
+  Angle — злам, більший за цей кут, = кут панелі (ребро береться від кута до кута)
+  Points — Yes: ще й точки шва на копії ребра
+  Step — крок точок шва (від центру ребра в обидва боки)
+  Layout — Yes: на панелі лише розмітка, повна деталь на 10000 вгору; No: повна деталь на місці"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     from CopriZip import flap  # тут, а не вгорі: CopriZip сам імпортує label_frame / text_style з Seam
     sys.modules.pop("ReinfCircle", None)  # Rhino кешує модулі за сесію
     from ReinfCircle import add_part, off_panel  # Layout: розмітка на місці + деталь угорі

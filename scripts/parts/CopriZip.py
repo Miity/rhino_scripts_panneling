@@ -144,7 +144,14 @@ def ask(gp):
         return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
 
+HELP = u"""Опції:
+  W — ширина клапана: офсет від ребра назовні панелі
+  Angle — злам, більший за цей кут, = кут панелі (ребро береться від кута до кута)
+  Layout — Yes: на панелі лише розмітка, повна деталь на 10000 вгору; No: повна деталь на місці"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     sys.modules.pop("ReinfCircle", None)  # тут, а не вгорі: Rhino кешує модулі за сесію
     from ReinfCircle import add_part, off_panel  # Layout: розмітка на місці + деталь угорі
     doc = sc.doc

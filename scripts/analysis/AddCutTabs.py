@@ -345,7 +345,15 @@ def commit_tabs(records, centers, width, tolerance):
         sc.doc.Views.Redraw()
 
 
+HELP = u"""Опції:
+  Move — перемістити перемичку
+  Width — ширина перемички
+  Undo — скасувати останню дію
+  Clear — прибрати всі перемички"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     ids = rs.GetObjects(u'Виберіть замкнені контури для перемичок',
                         rs.filter.curve, preselect=True)
     if not ids:

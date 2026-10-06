@@ -83,7 +83,15 @@ def ask(gp):
         return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
 
+HELP = u"""Опції:
+  H — висота смуги від ребра всередину панелі
+  SA — припуск на шов на внутрішньому краї смуги (0 — без)
+  Angle — злам, більший за цей кут, = кут панелі (ребро береться від кута до кута)
+  Layout — Yes: на панелі лише розмітка, повна деталь на 10000 вгору; No: повна деталь на місці"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     doc = sc.doc
     oid = rs.GetObject(u"Виберіть панель (замкнена крива)", rs.filter.curve, preselect=True)
     if not oid:

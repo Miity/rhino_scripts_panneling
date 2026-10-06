@@ -176,7 +176,13 @@ def junction_stage(doc, name, lines, size, normal):
         doc.Views.Redraw()
 
 
+HELP = u"""Опції:
+  Type — Zip: блискавка (обидві сторони, Z<n>); Can: каналіна (одна сторона, Can<n>)
+  Style — стиль тексту номера"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     doc = sc.doc
     nums = {}  # тип → наступний номер у цьому запуску
     kind = sc.sticky.get(KIND, "Zip")

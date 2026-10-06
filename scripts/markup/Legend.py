@@ -51,7 +51,13 @@ def legend_lines(texts, lang="UA"):
     return [lines[k] for rx, lines in ENTRIES if any(re.match(rx, s) for s in firsts)]
 
 
+HELP = u"""Опції:
+  Lang — мова легенди: UA / EN / IT
+  Height — висота тексту легенди"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
     import Rhino

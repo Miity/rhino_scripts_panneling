@@ -153,7 +153,14 @@ def get_edge(curves, center, normal, tol):
         gp.DynamicDraw -= draw
 
 
+HELP = u"""Опції:
+  Plus — на скільки дуга O виходить за лінію, на якій клікнув
+  SA — припуск на шов по краях панелі (на дузі шва немає; 0 — без)
+  Layout — Yes: на панелі лише розмітка, повна деталь на 10000 вгору; No: повна деталь на місці"""  # друкується на старті — видно під полями опцій
+
+
 def main():
+    print(HELP)
     doc = sc.doc
     tol = doc.ModelAbsoluteTolerance
     ids = rs.GetObjects(u"Виберіть межу: панель або лінії кута (Enter — без обрізки)", rs.filter.curve, preselect=True)
