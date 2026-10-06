@@ -80,11 +80,11 @@ def layer():
     return LAYER
 
 
-def next_number(lay):
-    """Наступний номер після найбільшого RC<n>, що вже є в шарі."""
+def next_number(lay, prefix=PREFIX):
+    """Наступний номер після найбільшого <prefix><n> (RC, RD…), що вже є в шарі."""
     nums = [0]
     for o in rs.ObjectsByLayer(lay) or []:
-        m = re.match(PREFIX + r"(\d+)\b", rs.TextObjectText(o) if rs.IsText(o) else "")
+        m = re.match(prefix + r"(\d+)\b", rs.TextObjectText(o) if rs.IsText(o) else "")
         if m:
             nums.append(int(m.group(1)))
     return max(nums) + 1
