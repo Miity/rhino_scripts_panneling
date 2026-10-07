@@ -46,7 +46,7 @@ def ask(gp):
     gp.AddOptionDouble("Angle", a)
     gp.AddOptionToggle("Points", pts)
     gp.AddOptionDouble("Step", step)
-    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", False), "No", "Yes")
+    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
     i_style = gp.AddOption("Style")
     while True:

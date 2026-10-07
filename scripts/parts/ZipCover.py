@@ -7,7 +7,7 @@ outward from the panel, ends along the extension of the neighbouring edges. If a
 from the edge (the extension would go very far) — the end is perpendicular, with a warning.
 Part + label "ZC W" in a group, layer Parts::ZipCover. The panel is not changed: before cutting
 PreparePanelCut joins it with the part (for that the edge must be a polyline / lines).
-Option Layout (toggle, default No): Yes — as in Reinf (ReinfCircle.add_part): only markup in place (flap lines
+Option Layout (toggle, default Yes): Yes — as in Reinf (ReinfCircle.add_part): only markup in place (flap lines
 not lying on the panel edge, + label), the full part — 10000 up along CPlane Y, for Layout.
 """
 import math
@@ -131,7 +131,7 @@ def ask(gp):
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 25.0), 0.001, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     gp.AddOptionDouble("W", w)
-    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", False), "No", "Yes")
+    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionDouble("Angle", a)
     gp.AddOptionToggle("Layout", lay)
     i_style = gp.AddOption("Style")
