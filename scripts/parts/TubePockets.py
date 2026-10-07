@@ -29,10 +29,9 @@ from Rhino.Geometry import (Curve, CurveEnd, CurveExtensionStyle, CurveOffsetCor
 from Rhino.Geometry.Intersect import Intersection
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-for _m in ("ZipCover", "Seam"):  # Rhino keeps modules from the first run for the session — take fresh ones
+for _m in ("ZipCover",):  # Rhino keeps modules from the first run for the session — take fresh ones
     sys.modules.pop(_m, None)
-from ZipCover import pick_edge  # panel edge corner to corner near the click
-from Seam import label_frame, label_style, pick_style  # the same label along the strip; style — option Style
+from ZipCover import label_frame, label_style, pick_edge, pick_style  # edge corner to corner; label along the strip; style
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curves"))
 sys.modules.pop("OffsetRigid", None)
 from OffsetRigid import shift  # rigid offset: move along the normal at a point

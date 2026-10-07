@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Check of ZipCover.flap in Rhino 8 (needs RhinoCommon):
+"""Check of ZipCover (flap, label, seam points, main in both modes, EditPanel) in Rhino 8 (needs RhinoCommon):
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_zip_cover.txt next to it."""
 import math
@@ -64,6 +64,48 @@ try:
 
     # sides converge upward, W too large → extensions intersect → error string
     assert not isinstance(M.flap(poly((0, 0), (100, 0), (55, 40), (45, 40)), Point3d(50, 41, 0), 50, 30, Z, tol), tuple)
+    # label inside the strip; seam points (sewing_points logic) on an edge copy
+    pan = poly((0, 0), (100, 0), (100, 60), (0, 60))
+    crv, edge, off, sq = M.flap(pan, Point3d(50, 61, 0), 10, 30, Z, tol)
+    assert 60 < M.label_frame(edge, off, Z).Origin.Y < 70
+    g = M.sewing_geometry(edge, 20)
+    assert len(g) == 6 and all(abs(p.Location.Y - 60) < 1e-6 for p in g[1:])  # copy + points at 10, 30 … 90
+
+    # main(): Points No → ZC in Parts::ZipCover, Yes → SA + points in Parts::Seam; EditPanel → panel contour grows
+    import Rhino, System
+    import rhinoscriptsyntax as rs
+    import scriptcontext as sc
+    old_doc, old_get = sc.doc, rs.GetObject
+    try:
+        for points, edit_ in ((False, False), (True, False), (False, True), (True, True)):
+            doc = Rhino.RhinoDoc.CreateHeadless(None)
+            sc.doc = doc
+            lay = doc.Layers.Add("Panels", System.Drawing.Color.Black)
+            a = doc.CreateDefaultAttributes()
+            a.LayerIndex = lay
+            pid = doc.Objects.AddCurve(poly((0, 0), (100, 0), (120, 60), (-20, 60)), a)
+            rs.GetObject = lambda *x, **k: pid
+            clicks = [Point3d(50, 61, 0), Point3d(112, 30, 0), None]  # top, then the right side (on the grown panel)
+            M.ask = lambda gp: clicks.pop(0)
+            sc.sticky.update({"ZipCover": 10.0, "ZipCover_angle": 30.0, "ZipCover_points": points,
+                              "ZipCover_edit": edit_, "sew_step": 20.0})
+            M.main()
+            name = "Parts::Seam" if points else "Parts::ZipCover"
+            objs = [o for o in doc.Objects if o.Id != pid]
+            assert all(doc.Layers[o.Attributes.LayerIndex].FullPath == name for o in objs)
+            texts = [o.Geometry.PlainText for o in objs if isinstance(o.Geometry, Rhino.Geometry.TextEntity)]
+            assert texts == [("SA 10" if points else "ZC 10")] * 2, texts
+            assert any(isinstance(o.Geometry, Rhino.Geometry.Point) for o in objs) == points
+            assert len(set(o.Attributes.GetGroupList()[0] for o in objs)) == 2  # one group per click
+            p = doc.Objects.FindId(pid)
+            area_ = AreaMassProperties.Compute(p.Geometry).Area
+            assert p.Attributes.LayerIndex == lay and p.Geometry.IsClosed
+            assert (abs(area_ - 7200) < 1e-3) != edit_, area_  # without EditPanel the panel is untouched
+            if edit_:
+                assert abs(area_ - 9371.2) < 1, area_  # 7200 + top flap 1433.3 + side strip on the grown side
+            doc.Dispose()
+    finally:
+        sc.doc, rs.GetObject = old_doc, old_get
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())

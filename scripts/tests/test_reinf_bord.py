@@ -11,7 +11,7 @@ out = open(os.path.join(HERE, "test_reinf_bord.txt"), "w")
 try:
     from Rhino.Geometry import AreaMassProperties, Point3d, Polyline, PolylineCurve, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
-    for m in ("ReinfCircle", "Seam", "ZipCover", "ReinfBord", "JoinCorner"):  # live Rhino keeps old module versions
+    for m in ("ReinfCircle", "ZipCover", "ReinfBord", "JoinCorner"):  # live Rhino keeps old module versions
         sys.modules.pop(m, None)
     import ReinfBord as M
     import JoinCorner

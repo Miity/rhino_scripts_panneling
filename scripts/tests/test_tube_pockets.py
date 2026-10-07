@@ -11,7 +11,7 @@ out = open(os.path.join(HERE, "test_tube_pockets.txt"), "w")
 try:
     from Rhino.Geometry import AreaMassProperties, LineCurve, Point3d, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
-    for m in ("ZipCover", "Seam", "OffsetRigid", "TubePockets"):  # live Rhino keeps old module versions
+    for m in ("ZipCover", "OffsetRigid", "TubePockets"):  # live Rhino keeps old module versions
         sys.modules.pop(m, None)
     import TubePockets as M
 

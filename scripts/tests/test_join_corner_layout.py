@@ -14,7 +14,7 @@ try:
     import scriptcontext as sc
     from Rhino.Geometry import Point3d, Polyline, PolylineCurve, TextEntity, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
-    for m in ("ReinfCircle", "Seam", "ZipCover", "JoinCorner"):  # live Rhino keeps old module versions
+    for m in ("ReinfCircle", "ZipCover", "JoinCorner"):  # live Rhino keeps old module versions
         sys.modules.pop(m, None)
     import ZipCover
     import JoinCorner as J

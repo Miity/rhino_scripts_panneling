@@ -19,11 +19,10 @@ import scriptcontext as sc
 from Rhino.Geometry import Curve
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-for _m in ("ReinfCircle", "Seam", "ZipCover"):  # Rhino keeps modules from the first run for the session
+for _m in ("ReinfCircle", "ZipCover"):  # Rhino keeps modules from the first run for the session
     sys.modules.pop(_m, None)
 from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, label_style, pick_style  # layer, numbering, style
-from Seam import label_frame  # label direction along the edge (reads left to right)
-from ZipCover import flap  # edge corner to corner + offset, ends along the neighbouring edges
+from ZipCover import flap, label_frame  # edge corner to corner + offset, ends along the neighbours; label along the edge
 
 STICKY = "ReinfBord"
 PREFIX = "RB"  # Reinforced Border
