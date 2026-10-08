@@ -2,7 +2,7 @@
 """End to end: Bordino part next to the panel (rectangle W × edge + Plus, outside, clear of a curved edge) and its label
 B<w> in the order Z<n> R<w> B<w> for every run order of ZipStops / Rinforzo / Bordino, also after a flip; the zip on the
 edge itself or on a zip line inside the panel (old edge after ZipCover), a zip of the neighbouring panel on the same
-line is not taken.
+line is not taken. Without a zip R<w> B<w> Pt<w> still in a row, the first of them where it was made.
 Rhino 8: DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_bordino.txt next to it."""
 import itertools
@@ -67,8 +67,13 @@ try:
         B.main()
 
     def right_of(doc, zid, rid):
-        """text rid starts just after the end of text zid along its reading direction, on the same line"""
-        xf = Transform.PlaneToPlane(doc.Objects.FindId(zid).Geometry.Plane, Plane.WorldXY)
+        """text rid starts just after the end of text zid along its reading direction as drawn (Draw forward turns
+        text near upside down 180°: its first glyph is then at the plane end), on the same line"""
+        z = doc.Objects.FindId(zid).Geometry
+        cs = z.CreateCurves(z.GetDimensionStyle(doc.DimStyles.FindId(z.DimensionStyleId)), True)  # as on screen
+        pl = z.Plane
+        read = pl.XAxis if (cs[-1].PointAtStart - cs[0].PointAtStart) * pl.XAxis > 0 else -pl.XAxis  # first → last glyph
+        xf = Transform.PlaneToPlane(Plane(pl.Origin, read, Vector3d.CrossProduct(pl.ZAxis, read)), Plane.WorldXY)
         a, b = [doc.Objects.Transform(i, xf, False) for i in (zid, rid)]
         ba, bb = [doc.Objects.FindId(i).Geometry.GetBoundingBox(True) for i in (a, b)]
         for i in (a, b):
@@ -78,8 +83,9 @@ try:
         return 0 <= gap < h and common > 0.5 * h
 
     def texts(doc):
-        """{text: id}; the Bordino label on the panel as B3.5, the one on the part as part B3.5"""
-        return {("" if o.Attributes.GetUserString("BordEdge") or not o.Geometry.PlainText.startswith(("B", "Pt"))
+        """{text: id}; the Bordino / Rinforzo label on the panel as B3.5 / R6, the one on the part as part B3.5 / part R6"""
+        a = lambda o, k: o.Attributes.GetUserString(k)
+        return {("" if a(o, "BordEdge") or a(o, "RinfLine") or not o.Geometry.PlainText.startswith(("B", "Pt", "R"))
                  else "part ") + o.Geometry.PlainText: o.Id for o in doc.Objects if rs.IsText(o.Id)}
 
     def run_pettola(doc, pid, click):
@@ -147,6 +153,34 @@ try:
     t = texts(doc)
     assert not right_of(doc, t["Z1"], t["B3.5"]), sorted(t)
     out.write("zip of the neighbour panel: B3.5 stays on its own\n")
+    # no zip: R6 B3.5 Pt10 of one edge still in a row, the first of them (in this order) stays where it was made;
+    # a rinforzo of the neighbour panel on the same line is not taken
+    for deg in (0, 95):
+        turn = Transform.Rotation(deg * 3.141592653589793 / 180, Vector3d.ZAxis, Point3d.Origin)
+        click = Point3d(250, -5, 0)
+        click.Transform(turn)
+        for order in list(itertools.permutations(("rinforzo", "bordino", "pettola"))) + [("pettola", "bordino")]:
+            doc, pid, pl, lid = fresh(turn, False)
+            made_at = {}  # label → its origin right after it was made
+            for name in order:
+                runs[name](doc, pid, click)
+                code = {"rinforzo": "R6", "bordino": "B3.5", "pettola": "Pt10"}[name]
+                made_at[code] = doc.Objects.FindId(texts(doc)[code]).Geometry.Plane.Origin
+            t = texts(doc)
+            chain = [c for c in ("R6", "B3.5", "Pt10") if c in t]
+            assert len(chain) == len(order) and all(right_of(doc, t[a], t[b]) for a, b in zip(chain, chain[1:])), \
+                (deg, order, sorted(t))
+            assert doc.Objects.FindId(t[chain[0]]).Geometry.Plane.Origin.DistanceTo(made_at[chain[0]]) < 1e-6, \
+                (deg, order, "moved")
+            out.write("no zip, %d°, %s: %s\n" % (deg, " → ".join(order), " ".join(chain)))
+    doc, pid, pl, lid = fresh(Transform.Identity, False)
+    below = doc.Objects.AddCurve(PolylineCurve(Polyline([Point3d(x, y, 0) for x, y in
+                                                         ((0, 0), (0, -200), (500, -200), (500, 0), (0, 0))])))
+    run_rinforzo(doc, below, Point3d(250, 5, 0))
+    run_bordino(doc, pid, Point3d(250, 5, 0))
+    t = texts(doc)
+    assert not right_of(doc, t["R6"], t["B3.5"]), sorted(t)
+    out.write("no zip, rinforzo of the neighbour panel: B3.5 stays on its own\n")
     # pettola on the same edge as the zip, R and B: Z1 R6 B3.5 Pt10 in any run order; own layer, W 100
     for order in (("zip", "rinforzo", "bordino", "pettola"), ("pettola", "bordino", "zip", "rinforzo"),
                   ("bordino", "pettola", "rinforzo", "zip")):

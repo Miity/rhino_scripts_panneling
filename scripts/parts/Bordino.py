@@ -11,8 +11,9 @@ up along CPlane Y, as Rinforzo's full part.
 W: 3.5 cm — bordino, 4.5 cm — bordino rinforzato. Plus (default 6 cm) — cut longer, trimmed after sewing.
 The panel is not changed, no markup lines on it — only the label "B<w>" (no number): if the edge has a ZipStops
 number it stands right after it, after R<w> if there is one ("Z20  R6  B3.5"; made before or later, follows a flip;
-the number may be on a zip line inside the panel — the old edge after ZipCover, ZipStops.bordino_near),
-else inside the panel at three quarters of the edge; on one edge B before Pt. Layer Parts::Bordino.
+the number may be on a zip line inside the panel — the old edge after ZipCover, ZipStops.bordino_near);
+no zip — right after R<w> of the edge, else inside the panel at three quarters of the edge; on one edge B before Pt
+(the first of R / B / Pt stays, the rest follow it). Layer Parts::Bordino.
 """
 import os
 import sys
@@ -28,7 +29,7 @@ for _m in ("ReinfCircle", "ZipCover", "ZipStops"):  # Rhino keeps modules from t
     sys.modules.pop(_m, None)
 from ReinfCircle import UP_KEY, add_part, up_option  # copy of the part Up up, as Rinforzo
 from ZipCover import cm, label_style, layer_attrs, pick_edge, pick_style
-from ZipStops import BORD_EDGE, BORD_LINE, bordino_near, labels_after, mid_point, point_at, zip_text
+from ZipStops import BORD_EDGE, BORD_LINE, LINE, bordino_near, labels_after, mid_point, point_at, zip_text
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
@@ -158,10 +159,9 @@ def main(kind="Bordino"):
         a.SetUserString(BORD_LINE, str(oid))
         a.SetUserString("PartMarkup", "1")  # LayoutParts: on the schema, not part of the part up
         rs.AddObjectToGroup(doc.Objects.AddText(mark, a), rs.ObjectGroups(here[0])[0])  # one group with the part
-        near = lambda q, z: bordino_near(z, q, m, oid, tol)
+        near = lambda q, z: bordino_near(rs.GetUserText(z, LINE), q, m, oid, tol)
         zid = zip_text(lambda q, z: near(q, z) is not None, near)  # the zip of this side, also on a zip line inside
-        if zid:
-            labels_after(doc, zid, m, tol, steps)  # Z<n> R<w> B<w> Pt<w>
+        labels_after(doc, zid, m, tol, steps, oid)  # Z<n> R<w> B<w> Pt<w>; no zip — after the first of R / B / Pt
         doc.Views.Redraw()
         print(u"%s  l=%s" % (label, cm(edge.GetLength() + plus)))  # length only in the command history
         made += 1

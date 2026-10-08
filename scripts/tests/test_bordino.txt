@@ -36,6 +36,21 @@
 38°, straight edge, zip on line, bordino → rinforzo → zip: OK
 no zip: ['B3.5', 'part B3.5']
 zip of the neighbour panel: B3.5 stays on its own
+no zip, 0°, rinforzo → bordino → pettola: R6 B3.5 Pt10
+no zip, 0°, rinforzo → pettola → bordino: R6 B3.5 Pt10
+no zip, 0°, bordino → rinforzo → pettola: R6 B3.5 Pt10
+no zip, 0°, bordino → pettola → rinforzo: R6 B3.5 Pt10
+no zip, 0°, pettola → rinforzo → bordino: R6 B3.5 Pt10
+no zip, 0°, pettola → bordino → rinforzo: R6 B3.5 Pt10
+no zip, 0°, pettola → bordino: B3.5 Pt10
+no zip, 95°, rinforzo → bordino → pettola: R6 B3.5 Pt10
+no zip, 95°, rinforzo → pettola → bordino: R6 B3.5 Pt10
+no zip, 95°, bordino → rinforzo → pettola: R6 B3.5 Pt10
+no zip, 95°, bordino → pettola → rinforzo: R6 B3.5 Pt10
+no zip, 95°, pettola → rinforzo → bordino: R6 B3.5 Pt10
+no zip, 95°, pettola → bordino → rinforzo: R6 B3.5 Pt10
+no zip, 95°, pettola → bordino: B3.5 Pt10
+no zip, rinforzo of the neighbour panel: B3.5 stays on its own
 pettola, zip → rinforzo → bordino → pettola: Z1 R6 B3.5 Pt10
 pettola, pettola → bordino → zip → rinforzo: Z1 R6 B3.5 Pt10
 pettola, bordino → pettola → rinforzo → zip: Z1 R6 B3.5 Pt10

@@ -17,7 +17,7 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
   docstrings, layer names, UserText keys, file names, README.
 - **Labels on the drawing are Italian codes** (customers and seamstresses are Italian), every number in a label is in **cm**
   (`PatternTextStyles.cm`; `w` width, `l` length, `h` height, `r` radius): `P<n>`, `F<w>  l=…`, `Off<w>` (ZipCover; older drawings `CZ<w>`), `C<w>`, `Z<n>`, `Can<n>`,
-  `R<w>`, `RC<n>  r=…`, `RD<n>`, `RO<n>  r=…`, `T<n>`, `B<w>`, `Pt<w>` — the table is in README ("Labels"). On the panel one edge's labels go `Z<n> R<w> B<w> Pt<w>` (`ZipStops.labels_after`).
+  `R<w>`, `RC<n>  r=…`, `RD<n>`, `RO<n>  r=…`, `T<n>`, `B<w>`, `Pt<w>` — the table is in README ("Labels"). On the panel one edge's labels go `Z<n> R<w> B<w> Pt<w>` (`ZipStops.labels_after`); without a zip the first of `R<w> B<w> Pt<w>` stays, the rest follow it.
 - **The toolbar is in Italian**: tab / button names and tooltips from `IT` in `build_scripts_rui.py`; the English ones stay in `GROUPS` (`LANG`).
 - `markup/Legend.py` output has a `UA / EN / IT` option on purpose (printed legends), default IT.
 - Old drawings are not supported by the current scripts — English labels (`ZC`, `SA`, `Trk`, `S`, `TP`, `RB`, mm): git tag `legacy-en`;
