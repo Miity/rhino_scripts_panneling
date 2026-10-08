@@ -452,7 +452,7 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
 
 
 HELP = u"""Options:
-  Type — Zip: zip (both sides, Z<n>); Track: canalina (one side, Can<n>)
+  Type — Zip: zip (both sides, Z<n>); Track: canalina (one side, Can<n>) — after Enter the console shows both sides and their difference (Warning > 5 mm)
   Trim — stops this far in from the real edge ends (zip shorter than the line); remembered per type
   Angle — a break larger than this angle = corner (the edge is taken corner to corner; shared with Battute)
   Style — number text style (default PAT 14 mm)
@@ -517,6 +517,12 @@ def main():
             marked.extend(keys)
             history.append((kind, len(lines) + 1, keys))
             print(u"%s: edges %d" % (name, len(lines)))
+            if kind == "Zip" and len(lines) > 1:
+                import ZipList  # imports ZipStops itself — here, not at the top
+                mm = Rhino.RhinoMath.UnitScale(doc.ModelUnitSystem, Rhino.UnitSystem.Millimeters)
+                a, b = ZipList.sides([(l["edge"].GetLength() - sum(l["trims"])) * mm for l in lines])
+                print(u"%s%s: sides %d / %d mm, diff %d mm" % (u"Warning, " if a - b > ZipList.DIFF_MM else u"",
+                                                              name, round(a), round(b), round(a - b)))
             lines = []
             doc.Views.Redraw()
             continue
