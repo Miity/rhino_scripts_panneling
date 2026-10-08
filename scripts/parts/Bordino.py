@@ -34,7 +34,7 @@ from click_undo import UNDO, Steps  # option Undo: take back the last click
 
 STICKY = "Bordino"
 CODE = "B"
-GAP_MM = 20.0  # part this far from the edge (outermost point of a curved edge)
+GAP_MM = 100.0  # part this far from the edge (outermost point of a curved edge)
 
 
 def readable(u, normal):
