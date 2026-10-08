@@ -20,18 +20,20 @@ try:
     from Rhino.Geometry import Plane, Point3d, Polyline, PolylineCurve, TextEntity, Transform, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
     for m in ("ReinfCircle", "ZipCover", "ZipStops", "Bordino", "Rinforzo", "LayoutParts", "LayoutStack",
-              "PatternTextStyles", "click_undo"):
+              "PatternTextStyles", "click_undo", "sewing_points", "DotToPanelText"):
         sys.modules.pop(m, None)
     import Bordino as B
     import LayoutParts as LP
     import LayoutStack as L
     import Rinforzo as R
+    import ZipStops as Z
 
     doc = Rhino.RhinoDoc.CreateHeadless(None)
     sc.doc = doc
     sc.sticky.update({"Parts_up": 10000.0, "ZipCover_angle": 30.0, "Bordino": 35.0, "Bordino_plus": 60.0,
                       "Pettola": 100.0, "Pettola_plus": 60.0, R.STICKY: 60.0, R.STICKY + "_plus": 100.0,
                       R.STICKY + "_layout": True})
+    sc.sticky[Z.ANGLE] = 30.0
     rs.ViewCPlane = lambda *a, **k: Plane.WorldXY
     turn = Transform.Rotation(math.radians(30), Vector3d.ZAxis, Point3d.Origin)
     pl = PolylineCurve(Polyline([Point3d(*p) for p in ((0, 0, 0), (500, 0, 0), (500, 300, 0), (0, 300, 0), (0, 0, 0))]))
@@ -52,7 +54,17 @@ try:
     make(B, click(250, 1), "Bordino")    # bottom edge 500 → strip 560 × 35 at 30°
     make(B, click(499, 150), "Bordino")  # right edge 300 → strip 360 × 35 at 120°
     make(B, click(250, 299), "Pettola")  # not taken
+    rs.GetObjects = lambda *a, **k: [pid]  # zip on the left edge: the rinforzo there carries it ("Z1 R6", stops, line)
+    Z.D.pts.get_number = lambda *a, **k: 10.0
+    zseq = [(click(1, 150), "Zip", 40.0), (None, "Zip", 40.0), (None, "Zip", 40.0)]
+    Z.ask_click = lambda *a, **k: zseq.pop(0)
+    Z.flip_stage = lambda doc: None
+    Z.main()
     make(R, click(1, 150))               # left edge 300 → rinforzo 400 × 60 at 120°, label Bottom / Top aligned
+    zipped = [o for o in doc.Objects if o.Attributes.LayerIndex == doc.Layers.FindByFullPath("Parts::Reinforcements", -1)
+              and isinstance(o.Geometry, Rhino.Geometry.Curve) and not o.Geometry.IsClosed
+              and not o.Attributes.GetUserString("PartMarkup")]
+    assert len(zipped) >= 2, len(zipped)  # stops + the line on the part up
     rs.CurrentLayer("Parts::Reinforcements")
     rc = [rs.AddRectangle(Plane(Point3d(0, 3000, 0), Vector3d.ZAxis), 80, 40),
           rs.AddText("RC3  r=4", Plane(Point3d(10, 3010, 0), Vector3d.ZAxis), 10)]
@@ -97,8 +109,13 @@ try:
     copies = [o for o in doc.Objects if o.Attributes.GetUserString(LP.KEY)]
     lay = set(doc.Layers[o.Attributes.LayerIndex].FullPath for o in copies)
     assert lay == {"Parts::Bordino::Layout", "Parts::Reinforcements::Layout"}, lay
-    rects = sorted([o.Geometry for o in copies if isinstance(o.Geometry, Rhino.Geometry.Curve)],
+    rects = sorted([o.Geometry for o in copies if isinstance(o.Geometry, Rhino.Geometry.Curve) and o.Geometry.IsClosed],
                    key=lambda c: -c.GetBoundingBox(True).Max.Y)
+    lines = [o.Geometry for o in copies if isinstance(o.Geometry, Rhino.Geometry.Curve) and not o.Geometry.IsClosed]
+    assert len(lines) == len(zipped), (len(lines), len(zipped))  # the zip came along
+    box = rects[0].GetBoundingBox(True)  # the rinforzo, on top
+    box.Inflate(1.0)
+    assert all(box.Contains(c.GetBoundingBox(True)) for c in lines), [c.GetBoundingBox(True).Min for c in lines]
     texts = [o.Geometry for o in copies if isinstance(o.Geometry, TextEntity)]
     assert len(rects) == 3 and len(texts) == 3, (len(rects), len(texts))
     tol = 1e-6
@@ -108,7 +125,7 @@ try:
         assert abs(bb.Min.X) < tol and abs(bb.Max.Y - y) < tol, (bb.Min, bb.Max, y)
         assert abs(bb.Max.X - bb.Min.X - length) < tol and abs(bb.Max.Y - bb.Min.Y - w) < tol, (bb.Min, bb.Max)
         y -= w + 10.0
-    assert sorted(t.PlainText for t in texts) == ["B3.5", "B3.5", "R6"], [t.PlainText for t in texts]
+    assert sorted(t.PlainText for t in texts) == ["B3.5", "B3.5", "Z1 R6"], [t.PlainText for t in texts]
     for t in texts:
         assert t.Plane.XAxis.X > 1 - tol, t.Plane.XAxis  # along X, left to right
         o = t.GetBoundingBox(True).Center

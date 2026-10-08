@@ -2,9 +2,10 @@
 """Strips on the canvas, turned along the grain: before nesting with a fixed fabric direction.
 Select objects (a window over the panels / parts up is fine), then at the click options Rinforzo (R<w> parts in
 Parts::Reinforcements; RC / RD / RO are not strips) and Bordini (Parts::Bordino) = Yes / No — what to stack, remembered.
-Only those parts are taken (the copy up; the markup on the panel is skipped). Each one is copied as LayoutParts does
-(contour + label code "B3.5 P4", sublayer <layer>::Layout, UserText LayoutOf), turned so it lies flattest along
-CPlane X (label reading left to right), and stacked one under another from the click point (top-left corner),
+Only those parts are taken (the copy up; the markup on the panel is skipped). Each one is copied whole — contour, the zip
+on a rinforzo (line, stops, ticks), full labels "Z20 R6 P4" (not shortened as in LayoutParts) — to sublayer
+<layer>::Layout with UserText LayoutOf (as LayoutParts), turned so it lies flattest along CPlane X (label reading left
+to right), and stacked one under another from the click point (top-left corner),
 Gap apart (0 — touching, as the fascia strips): Rinforzo first, then Bordini, longest first in each.
 Already laid out parts (a copy with LayoutOf exists) are skipped; to lay out again — delete the copy.
 Layout then skips them too. Option Hide=Yes — the parts laid out now and the ones of the selection laid out before are
@@ -23,7 +24,7 @@ from Rhino.Geometry import Plane, TextEntity, Transform, Vector3d
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("LayoutParts", None)  # Rhino keeps modules from the first run for the session
-from LayoutParts import KEY, is_part, outer, own, parts, place
+from LayoutParts import KEY, is_part, outer, parts, place
 
 STICKY = "LayoutStack"
 KINDS = [  # (option, layer, label code) — parts that may be turned along the grain
@@ -90,7 +91,7 @@ def stack(doc, todo, plane, start, gap):
     new = []
     for k, _, bb, rot, u in rows:
         xf = Transform.Translation(plane.XAxis * (x - bb.Min.X) + plane.YAxis * (y - bb.Max.Y)) * rot
-        geo = own(doc, u)
+        geo = [(o, o.Geometry.Duplicate()) for o in u]  # the whole part: zip line, stops, full label
         for _, g in geo:
             g.Transform(xf)
         new += place(doc, geo)
