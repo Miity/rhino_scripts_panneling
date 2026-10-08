@@ -140,6 +140,27 @@ def outer(objs):
     return max(cs, key=lambda c: c.GetBoundingBox(True).Diagonal.Length)
 
 
+def own(doc, u):
+    """What goes to the canvas from the part's own objects u: [(original object, geometry)]."""
+    return ([(o, o.Geometry.Duplicate()) for o in u if closed(o.Geometry)]
+            + [(o, g) for o in u if not closed(o.Geometry) for g in [mark(doc, o)] if g])
+
+
+def place(doc, geo):
+    """Adds geo [(original object, geometry)] to the canvas: sublayer Layout, UserText LayoutOf, one group. Ids."""
+    gi = doc.Groups.Add() if len(geo) > 1 else -1
+    new = []
+    for o, g in geo:
+        a = o.Attributes.Duplicate()
+        a.RemoveFromAllGroups()
+        if gi >= 0:
+            a.AddToGroup(gi)
+        a.LayerIndex = layout_layer(doc, o.Attributes.LayerIndex)
+        a.SetUserString(KEY, str(o.Id))
+        new.append(doc.Objects.Add(g, a))
+    return new
+
+
 def canvas(doc, ids, plane, size, tol):
     """Parts with what goes to the canvas: [(source ids, [(original object, geometry)])], number of skipped parts."""
     copied = set()
@@ -151,11 +172,7 @@ def canvas(doc, ids, plane, size, tol):
     found = [u for u in units if is_part(doc, u)]
     done = [u for u in found if any(str(o.Id) in copied or o.Attributes.GetUserString(KEY) for o in u)]
     todo = [u for u in found if u not in done]
-    out = []
-    for u in todo:
-        geo = [(o, o.Geometry.Duplicate()) for o in u if closed(o.Geometry)]
-        geo += [(o, g) for o in u if not closed(o.Geometry) for g in [mark(doc, o)] if g]
-        out.append(([o.Id for o in u], outer(u), geo))
+    out = [([o.Id for o in u], outer(u), own(doc, u)) for u in todo]
     if out:
         for u in units:
             if u in found:
@@ -201,16 +218,9 @@ def layout(doc, ids, gap, plane, start=None, size=20.0):
         for _, g in geo:
             bb.Union(g.GetBoundingBox(to_plane))
         xf = Transform.Translation(plane.XAxis * (x - bb.Min.X) + plane.YAxis * (y - bb.Min.Y))
-        gi = doc.Groups.Add() if len(geo) > 1 else -1
-        for o, g in geo:
+        for _, g in geo:
             g.Transform(xf)
-            a = o.Attributes.Duplicate()
-            a.RemoveFromAllGroups()
-            if gi >= 0:
-                a.AddToGroup(gi)
-            a.LayerIndex = layout_layer(doc, o.Attributes.LayerIndex)
-            a.SetUserString(KEY, str(o.Id))
-            new.append(doc.Objects.Add(g, a))
+        new += place(doc, geo)
         x += bb.Max.X - bb.Min.X + gap
     return new, skipped
 
