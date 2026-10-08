@@ -15,12 +15,18 @@ turn larger than Angle) nearest the click is taken as the two ends; smooth bends
 Parallel edges — skipped with a message.
 """
 import math
+import os
+import sys
 
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
 from Rhino.Geometry import Curve, CurveEnd, CurveExtensionStyle, Vector3d
 from Rhino.Geometry.Intersect import Intersection
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
+sys.modules.pop("click_undo", None)
+from click_undo import UNDO, Steps  # option Undo: take back the last click
 
 STICKY = "JoinCorner"
 
@@ -190,19 +196,23 @@ def merge_groups(keep_id, drop_id):
 
 
 def ask(gp):
-    """Click near the corner with option Angle. A point or None (Enter / Esc)."""
+    """Click near the corner with options Angle / Undo. A point, UNDO or None (Enter / Esc)."""
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     gp.AddOptionDouble("Angle", a)
+    i_undo = gp.AddOption("Undo")
     while True:
         r = gp.Get()
         sc.sticky[STICKY + "_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
+            if gp.OptionIndex() == i_undo:
+                return UNDO
             continue
         return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
 
 HELP = u"""Options:
-  Angle — a break larger than this angle = corner (an edge runs corner to corner)"""  # printed at start
+  Angle — a break larger than this angle = corner (an edge runs corner to corner)
+  Undo — take back the last join (again — the one before it)"""  # printed at start
 
 
 def main():
@@ -217,6 +227,7 @@ def main():
         print(u"No curves in the selection")
         return
     made = 0
+    steps = Steps(doc)
     while True:
         gp = Rhino.Input.Custom.GetPoint()
         gp.SetCommandPrompt(u"Click near the corner to join (Enter — done)")
@@ -224,8 +235,14 @@ def main():
         click = ask(gp)
         if click is None:
             break
+        if click == UNDO:
+            if steps.undo():
+                made -= 1
+            continue
+        steps.start()
         angle = sc.sticky[STICKY + "_angle"]
-        ends = nearest_ends(ids, click, angle, tol)
+        live = [i for i in ids if doc.Objects.FindId(i) is not None]  # joined-away curves come back on Undo
+        ends = nearest_ends(live, click, angle, tol)
         if len(ends) < 2:
             print(u"Skipped: need two curve ends or a notch of a closed curve")
             continue
@@ -238,11 +255,15 @@ def main():
         if not isinstance(res, Curve):
             print(u"Skipped: %s" % res)
             continue
+        steps.change(ia)
+        if ib != ia:
+            for g in rs.ObjectGroups(ib) or []:  # their groups change in merge_groups
+                for m in rs.ObjectsByGroup(g):
+                    steps.change(m)
         doc.Objects.Replace(ia, res)
         if ib != ia:
             merge_groups(ia, ib)
-            doc.Objects.Delete(ib, True)
-            ids.remove(ib)
+            steps.delete(ib)
         made += 1
         doc.Views.Redraw()
     print(u"Join Corner: %d corners joined" % made)

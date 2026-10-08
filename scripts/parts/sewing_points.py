@@ -19,6 +19,9 @@ from Rhino.Geometry import Curve, CurveOrientation, LineCurve, Point, Vector3d
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ZipCover", None)  # Rhino keeps modules from the first run for the session
 from ZipCover import close_panel, layer_attrs, pick_edge  # panel edge corner to corner, Parts::<name> layer
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
+sys.modules.pop("click_undo", None)
+from click_undo import UNDO, Steps  # option Undo: take back the last click
 
 STICKY = "SewingMarks"
 NAME = "SewingMarks"
@@ -82,7 +85,7 @@ def marks(obj, click, step, tick, angle, normal, tol):
 
 
 def ask(gp):
-    """Click near an edge / curve with options Step / Tick / Angle / Undo. A point, "undo" or None (Enter / Esc)."""
+    """Click near an edge / curve with options Step / Tick / Angle / Undo. A point, UNDO or None (Enter / Esc)."""
     mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     step = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_step", 200.0 * mm), 0.001, 1e9)
     tick = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_tick", 10.0 * mm), 0.0, 1e9)
@@ -98,7 +101,7 @@ def ask(gp):
         sc.sticky[STICKY + "_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
             if gp.OptionIndex() == i_undo:
-                return "undo"
+                return UNDO
             continue
         return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
@@ -118,7 +121,8 @@ def main():
         return
     tol = doc.ModelAbsoluteTolerance
     attrs = layer_attrs(doc, NAME)
-    made = []  # ids per click, for Undo
+    made = 0
+    steps = Steps(doc)
     while True:
         gp = Rhino.Input.Custom.GetPoint()
         gp.SetCommandPrompt(u"Click near the edge or curve for sewing marks (Enter — done)")
@@ -126,13 +130,11 @@ def main():
         click = ask(gp)
         if click is None:
             break
-        if click == "undo":
-            if made:
-                rs.DeleteObjects(made.pop())
-                doc.Views.Redraw()
-            else:
-                print(u"Nothing to undo")
+        if click == UNDO:
+            if steps.undo():
+                made -= 1
             continue
+        steps.start()
         crvs = [rs.coercecurve(i) for i in ids]
         obj = min((c for c in crvs if c), key=lambda c: c.PointAt(c.ClosestPoint(click)[1]).DistanceTo(click))
         view = doc.Views.ActiveView
@@ -149,9 +151,10 @@ def main():
         pts, line = res
         new = [doc.Objects.Add(p, attrs) for p in pts] + ([doc.Objects.AddCurve(line, attrs)] if line else [])
         rs.AddObjectsToGroup(new, rs.AddGroup())
-        made.append(new)
+        steps.created(new)
+        made += 1
         doc.Views.Redraw()
-    print(u"Sewing marks: %d edges → Parts::%s" % (len(made), NAME))
+    print(u"Sewing marks: %d edges → Parts::%s" % (made, NAME))
 
 
 if __name__ == "__main__":

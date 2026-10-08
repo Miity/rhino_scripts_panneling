@@ -84,6 +84,22 @@ try:
         g = rs.ObjectGroups(ia)[0]
         assert set(rs.ObjectsByGroup(g)) == {ia, ta, tb}, rs.ObjectsByGroup(g)
         doc.Dispose()
+        # Undo in the same run: the second curve is back (same id), the first has its old shape, groups as before
+        doc = Rhino.RhinoDoc.CreateHeadless(None)
+        sc.doc = doc
+        ia, ib = doc.Objects.AddCurve(top), doc.Objects.AddCurve(left)
+        ta = doc.Objects.AddTextDot("CZ1", Point3d(50, 65, 0))
+        tb = doc.Objects.AddTextDot("C2", Point3d(-10, 30, 0))
+        rs.AddObjectsToGroup([ia, ta], rs.AddGroup())
+        rs.AddObjectsToGroup([ib, tb], rs.AddGroup())
+        rs.GetObjects = lambda *x, **k: [ia, ib, ta, tb]
+        clicks = [Point3d(-5, 65, 0), M.UNDO, None]
+        len_a = top.GetLength()
+        M.main()
+        assert doc.Objects.FindId(ib) is not None and abs(doc.Objects.FindId(ia).Geometry.GetLength() - len_a) < 1e-6
+        assert set(rs.ObjectsByGroup(rs.ObjectGroups(ib)[0])) == {ib, tb}
+        assert set(rs.ObjectsByGroup(rs.ObjectGroups(ia)[0])) == {ia, ta}
+        doc.Dispose()
 
         # one closed curve with a notch at the bottom-left corner (frame closed through the panel corner) + the panel
         # itself in the selection: the notch is joined, the panel (outward corners only) is not touched

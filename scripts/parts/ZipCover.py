@@ -29,6 +29,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
 from PatternTextStyles import cm, label_style, pick_style  # label number in cm; style: option Style, default PAT 14 mm
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
+sys.modules.pop("click_undo", None)
+from click_undo import UNDO, Steps  # option Undo: take back the last click
+
 STICKY = "ZipCover"
 CODE, NAME = "CZ", "ZipCover"  # label code, sublayer of Parts
 MIN_SIN = 0.5  # sin 30°: sharper — perpendicular end
@@ -201,7 +205,7 @@ def edit_panel(doc, oid, panel, edge, outer, tol):
 
 
 def ask(gp):
-    """Click near an edge with options W / Angle / EditPanel / Style. A point or None (Enter / Esc)."""
+    """Click near an edge with options W / Angle / EditPanel / Style / Undo. A point, UNDO or None (Enter / Esc)."""
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 30.0), 0.001, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     gp.AddOptionDouble("W", w)
@@ -209,12 +213,15 @@ def ask(gp):
     ed = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_edit", True), "No", "Yes")
     gp.AddOptionToggle("EditPanel", ed)
     i_style = gp.AddOption("Style")
+    i_undo = gp.AddOption("Undo")
     while True:
         r = gp.Get()
         sc.sticky[STICKY] = w.CurrentValue
         sc.sticky[STICKY + "_edit"] = ed.CurrentValue
         sc.sticky[STICKY + "_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
+            if gp.OptionIndex() == i_undo:
+                return UNDO
             if gp.OptionIndex() == i_style:
                 pick_style(sc.doc, STICKY)
             continue
@@ -225,7 +232,8 @@ HELP = u"""Options:
   W — strip width: offset from the edge outward from the panel
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
   EditPanel — Yes: the panel contour itself gets the strip, the old edge stays as a line; No: only strip lines
-  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
+  Style — label text style (default PAT 14 mm)
+  Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -241,6 +249,7 @@ def main():
     ok, plane = panel.TryGetPlane(tol)
     normal = plane.ZAxis if ok else rs.ViewCPlane().ZAxis
     made = 0
+    steps = Steps(doc)
     while True:
         gp = Rhino.Input.Custom.GetPoint()
         gp.SetCommandPrompt(u"Click near the edge (Enter — done)")
@@ -248,6 +257,12 @@ def main():
         click = ask(gp)
         if click is None:
             break
+        if click == UNDO:
+            if steps.undo():
+                made -= 1
+                panel = rs.coercecurve(oid)  # EditPanel: the panel is back as it was
+            continue
+        steps.start()
         w, angle = sc.sticky[STICKY], sc.sticky[STICKY + "_angle"]
         res = flap(panel, click, w, angle, normal, tol)
         if not isinstance(res, tuple):
@@ -260,12 +275,13 @@ def main():
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
         geoms = off_panel(crv, [panel], tol)
         if sc.sticky[STICKY + "_edit"]:
+            steps.change(oid)
             new = edit_panel(doc, oid, panel, edge, geoms, tol)
             if new is None:
                 continue
             panel = new
             geoms = [edge]  # old edge = zip line
-        add_markup(doc, geoms, te, layer_attrs(doc, NAME))
+        steps.created(add_markup(doc, geoms, te, layer_attrs(doc, NAME)))
         made += 1
         if square:
             print(u"Warning: %d end(s) with a neighbour sharper than 30° — end is perpendicular" % square)

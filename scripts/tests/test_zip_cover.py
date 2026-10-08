@@ -102,6 +102,21 @@ try:
             if edit_:
                 assert abs(area_ - 9371.2) < 1, area_  # 7200 + top flap 1433.3 + side strip on the grown side
             doc.Dispose()
+
+        # Undo: top flap, right side, Undo → the right side is taken back (panel = 7200 + top flap only)
+        doc = Rhino.RhinoDoc.CreateHeadless(None)
+        sc.doc = doc
+        doc.ModelUnitSystem = Rhino.UnitSystem.Millimeters
+        pid = doc.Objects.AddCurve(poly((0, 0), (100, 0), (120, 60), (-20, 60)))
+        rs.GetObject = lambda *x, **k: pid
+        clicks = [Point3d(50, 61, 0), Point3d(112, 30, 0), M.UNDO, None]
+        M.ask = lambda gp: clicks.pop(0)
+        sc.sticky.update({"ZipCover": 10.0, "ZipCover_angle": 30.0, "ZipCover_edit": True})
+        M.main()
+        area_ = AreaMassProperties.Compute(doc.Objects.FindId(pid).Geometry).Area
+        assert abs(area_ - (7200 + 1433.333)) < 1e-2, area_
+        assert len([o for o in doc.Objects if o.Id != pid]) == 2  # zip line + label of the top only
+        doc.Dispose()
     finally:
         sc.doc, rs.GetObject = old_doc, old_get
     out.write("OK\n")
