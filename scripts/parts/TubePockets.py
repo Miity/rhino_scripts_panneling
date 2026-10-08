@@ -259,6 +259,7 @@ def ask(gp):
     notch = Rhino.Input.Custom.OptionToggle(get(STICKY + "_notch", True), "No", "Yes")
     rigid = Rhino.Input.Custom.OptionToggle(get(STICKY + "_rigid", False), "No", "Yes")
     angle = Rhino.Input.Custom.OptionDouble(get("ZipCover_angle", 30.0), 1.0, 179.0)  # shared with ZipCover
+    i_undo = gp.AddOption("Undo")
     gp.AddOptionDouble("W", w)
     gp.AddOptionDouble("H", h)
     gp.AddOptionDouble("Trim", trim)
@@ -270,7 +271,6 @@ def ask(gp):
     up = up_option(gp)
     gp.AddOptionDouble("Angle", angle)
     i_style = gp.AddOption("Style")
-    i_undo = gp.AddOption("Undo")
     while True:
         r = gp.Get()
         vals = (w.CurrentValue, h.CurrentValue, trim.CurrentValue, notch.CurrentValue, rigid.CurrentValue,

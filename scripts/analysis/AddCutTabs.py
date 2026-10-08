@@ -205,7 +205,7 @@ def edit_tabs(records, plane, width, tolerance):
             gp.Constrain(plane, False)
             options = {}
             if not select_move and moving is None:
-                for name in ('Move', 'Width', 'Undo', 'Clear'):
+                for name in ('Undo', 'Move', 'Width', 'Clear'):
                     options[gp.AddOption(name)] = name
 
             def draw(sender, event):

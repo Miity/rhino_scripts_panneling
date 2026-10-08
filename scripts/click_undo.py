@@ -8,7 +8,7 @@ Undo of a step: added objects deleted, deleted undeleted, changed ones get back 
 
 Use in a click loop:
     steps = Steps()
-    i_undo = gp.AddOption("Undo")                      # in the click prompt; on it return UNDO
+    i_undo = gp.AddOption("Undo")                      # FIRST option in the click prompt (keeps U); on it return UNDO
     if click == UNDO: steps.undo(); <re-read state, numbers>; continue
     steps.start()                                      # before each click's changes
     steps.change(id) BEFORE Replace / ModifyAttributes / group or UserText change; steps.delete(id) to delete

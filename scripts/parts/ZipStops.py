@@ -461,10 +461,10 @@ def ask_click(kind, nums, picked, cm):
         gp.SetCommandPrompt(u"%s%d: click near each edge / curve %s — %d picked (Enter — %s)" % (
             prefix, nums.get(kind) or next_number(kind), what, picked, u"finish it" if picked else u"done"))
         gp.AcceptNothing(True)
+        opt_undo = gp.AddOption("Undo")
         opt_type = gp.AddOption("Type", kind)
         gp.AddOptionDouble("Trim", trim)
         gp.AddOptionDouble("Angle", angle)
-        opt_undo = gp.AddOption("Undo")
         res = gp.Get()
         sc.sticky["ZipStops.trim." + kind] = trim.CurrentValue
         sc.sticky[ANGLE] = angle.CurrentValue

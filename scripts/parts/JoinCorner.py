@@ -198,8 +198,8 @@ def merge_groups(keep_id, drop_id):
 def ask(gp):
     """Click near the corner with options Angle / Undo. A point, UNDO or None (Enter / Esc)."""
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
-    gp.AddOptionDouble("Angle", a)
     i_undo = gp.AddOption("Undo")
+    gp.AddOptionDouble("Angle", a)
     while True:
         r = gp.Get()
         sc.sticky[STICKY + "_angle"] = a.CurrentValue

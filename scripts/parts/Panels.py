@@ -101,8 +101,8 @@ def get_corner(doc, crv, name):
         gp.SetCommandPrompt(u"Click near a panel corner for %s (Enter — top right, style: %s)"
                            % (name, D.pts.label_style(doc, STYLE).Name))
         gp.AcceptNothing(True)
-        opt = gp.AddOption("Style")
         i_undo = gp.AddOption("Undo")
+        opt = gp.AddOption("Style")
         res = gp.Get()
         if res == Rhino.Input.GetResult.Option and gp.OptionIndex() == i_undo:
             return UNDO

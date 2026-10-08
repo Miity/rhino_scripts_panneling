@@ -180,10 +180,10 @@ def main():
         gp.SetCommandPrompt(u"Click near the corner, on the side to keep (Enter — done)")
         gp.AcceptNothing(True)
         lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
+        i_undo = gp.AddOption("Undo")
         gp.AddOptionToggle("Layout", lay)
         up = up_option(gp)
         i_style = gp.AddOption("Style")
-        i_undo = gp.AddOption("Undo")
         undo = False
         while gp.Get() == Rhino.Input.GetResult.Option:
             if gp.OptionIndex() == i_style:

@@ -53,13 +53,13 @@ def get_top():
     gp.AcceptNothing(True)
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_w", 100.0), 0.001, 1e6)
     r = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 50.0), 0.001, 1e6)
+    i_undo = gp.AddOption("Undo")
     gp.AddOptionDouble("W", w)
     gp.AddOptionDouble("R", r)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
     up = up_option(gp)
     i_style = gp.AddOption("Style")
-    i_undo = gp.AddOption("Undo")
     while True:
         res = gp.Get()
         sc.sticky[STICKY + "_w"] = w.CurrentValue

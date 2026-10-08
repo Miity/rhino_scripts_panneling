@@ -59,6 +59,7 @@ def ask(gp):
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0 * unit), 0.001, 1e6)
     plus = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_plus", 100.0 * unit), 0.0, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get("ZipCover_angle", 30.0), 1.0, 179.0)  # shared with ZipCover
+    i_undo = gp.AddOption("Undo")
     gp.AddOptionDouble("W", w)
     gp.AddOptionDouble("Plus", plus)
     gp.AddOptionDouble("Angle", a)
@@ -66,7 +67,6 @@ def ask(gp):
     gp.AddOptionToggle("Layout", lay)
     up = up_option(gp)
     i_style = gp.AddOption("Style")
-    i_undo = gp.AddOption("Undo")
     while True:
         r = gp.Get()
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue

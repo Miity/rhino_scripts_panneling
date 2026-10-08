@@ -208,12 +208,12 @@ def ask(gp):
     """Click near an edge with options W / Angle / EditPanel / Style / Undo. A point, UNDO or None (Enter / Esc)."""
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 10.0), 0.001, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
+    i_undo = gp.AddOption("Undo")
     gp.AddOptionDouble("W", w)
     gp.AddOptionDouble("Angle", a)
     ed = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_edit", False), "No", "Yes")
     gp.AddOptionToggle("EditPanel", ed)
     i_style = gp.AddOption("Style")
-    i_undo = gp.AddOption("Undo")
     while True:
         r = gp.Get()
         sc.sticky[STICKY] = w.CurrentValue

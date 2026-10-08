@@ -90,10 +90,10 @@ def ask(gp):
     step = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_step", 200.0 * mm), 0.001, 1e9)
     tick = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_tick", 10.0 * mm), 0.0, 1e9)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
+    i_undo = gp.AddOption("Undo")
     gp.AddOptionDouble("Step", step)
     gp.AddOptionDouble("Tick", tick)
     gp.AddOptionDouble("Angle", a)
-    i_undo = gp.AddOption("Undo")
     while True:
         r = gp.Get()
         sc.sticky[STICKY + "_step"] = step.CurrentValue

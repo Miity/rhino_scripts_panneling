@@ -74,8 +74,8 @@ def get_one(doc, geom, prompt, closed=False, undo=False):
         if closed:
             go.GeometryAttributeFilter = Rhino.Input.Custom.GeometryAttributeFilter.ClosedCurve
         go.SetCommandPrompt(u"%s (style: %s)" % (prompt, pts.label_style(doc, STICKY).Name))
-        opt = go.AddOption("Style")
         i_undo = go.AddOption("Undo") if undo else -1
+        opt = go.AddOption("Style")
         res = go.Get()
         if res == Rhino.Input.GetResult.Option and go.OptionIndex() == i_undo:
             return UNDO
