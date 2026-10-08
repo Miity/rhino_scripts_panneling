@@ -104,7 +104,8 @@ try:
             # the part: rectangle 35 × (edge + 60), outside the panel, not crossing it
             edge_len = (Arc(Point3d(0, 0, 0), Point3d(250, -40, 0), Point3d(500, 0, 0)).Length if bulge else 500.0)
             assert "part B3.5" in t and not [k for k in t if "l=" in k], sorted(t)
-            rect = [o.Geometry for o in doc.Objects if o.Attributes.LayerIndex == doc.Layers.FindByFullPath("Parts::Bordino", -1)
+            rect_layer = doc.Layers.FindByFullPath("Parts::Bordino", -1)
+            rect = [o.Geometry for o in doc.Objects if o.Attributes.LayerIndex == rect_layer
                     and isinstance(o.Geometry, Curve)]
             assert len(rect) == 2 and all(abs(c.GetLength() - 2 * (35 + edge_len + 60)) < 1e-6 for c in rect), \
                 [c.GetLength() for c in rect]
@@ -114,6 +115,13 @@ try:
             up_text = [o for o in doc.Objects if rs.IsText(o.Id) and o.Geometry.PlainText == "B3.5"
                        and o.Geometry.GetBoundingBox(True).Min.Y > 5000]
             assert len(up_text) == 1, len(up_text)
+            # the label on the panel, the part next to it and its label — one group; the copy up — its own
+            g = rs.ObjectGroups(t["B3.5"])
+            here = [o for o in doc.Objects if o.Attributes.LayerIndex == rect_layer and
+                    o.Geometry.GetBoundingBox(True).Max.Y < 5000]
+            ids = set(str(o.Id) for o in here)  # the panel label is in Parts::Bordino too
+            assert len(g) == 1 and str(t["B3.5"]) in ids and set(str(i) for i in rs.ObjectsByGroup(g[0])) == ids, g
+            assert len(here) == 3 and not set(rs.ObjectGroups(up_text[0].Id)) & set(g)
             assert not Rhino.Geometry.Intersect.Intersection.CurveCurve(rect[0], pl, 0.001, 0.001).Count
             c = rect[0].GetBoundingBox(True).Center
             assert pl.Contains(c, Plane.WorldXY, 0.001) == PointContainment.Outside

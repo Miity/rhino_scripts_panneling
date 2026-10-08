@@ -3,7 +3,7 @@
 Select a panel (closed curve) and click near an edge (several in a row, Enter — done); the edge is taken corner to
 corner (corner — tangent break larger than Angle, as in ZipCover).
 The part is a rectangle W × (edge length + Plus), straight even if the edge is curved, laid next to the panel
-(outside, along the edge chord, GAP from the edge), label "B<w>" (cm) on it; part + label one group; the length is
+(outside, along the edge chord, GAP from the edge), label "B<w>" (cm) on it; part + its label + the label on the panel one group; the length is
 only in the command history. A copy of the part (with its label) goes Up (default 10000, shared by all part scripts)
 up along CPlane Y, as Rinforzo's full part.
 W: 3.5 cm — bordino, 4.5 cm — bordino rinforzato. Plus (default 6 cm) — cut longer, trimmed after sewing.
@@ -139,7 +139,7 @@ def main():
         te = TextEntity.Create(label, Plane(centre, x, y), style, False, 0, 0)
         te.TextHorizontalAlignment = TextHorizontalAlignment.Center
         te.TextVerticalAlignment = TextVerticalAlignment.Middle
-        add_part(doc, [rect], te, [rect], attrs)  # next to the panel + its copy Up up (linked by PartLink), groups
+        _, here = add_part(doc, [rect], te, [rect], attrs)  # next to the panel + its copy Up up (PartLink), groups
 
         # label on the panel: inside, three quarters along the edge; the zip's number pulls it beside itself
         p, tan = point_at(edge, edge.GetLength() * 0.75)
@@ -152,7 +152,7 @@ def main():
         m = mid_point(edge)
         a.SetUserString(BORD_EDGE, u"%r,%r,%r" % (m.X, m.Y, m.Z))
         a.SetUserString(BORD_LINE, str(oid))
-        rs.AddObjectsToGroup([doc.Objects.AddText(mark, a)], rs.AddGroup())
+        rs.AddObjectToGroup(doc.Objects.AddText(mark, a), rs.ObjectGroups(here[0])[0])  # one group with the part
         near = lambda q, z: bordino_near(z, q, m, oid, tol)
         zid = zip_text(lambda q, z: near(q, z) is not None, near)  # the zip of this side, also on a zip line inside
         if zid:
