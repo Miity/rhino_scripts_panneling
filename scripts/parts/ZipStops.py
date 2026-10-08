@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Marks zips and tracks (keder track / guide rail) with stops, a centre tick and a number; the input is not touched.
+"""Marks zips and tracks (keder track / guide rail) with stops and a number; the input is not touched.
 Select panels (closed curves) and / or open curves once, then click near each edge / curve of one zip — on all
 panels — and Enter; next zip, Enter on an empty zip — done. As in sewing_points: the nearest selected object to
 the click, only its edge corner to corner near the click (corner — a break larger than Angle; a curve without
@@ -10,13 +10,11 @@ For each edge: cross stops (centred, in the CPlane) Trim in from its real ends �
 than the line (option Trim, remembered per type: Zip 4 cm, Track 0).
 If a side is split (zip — 3+ edges, track — 2+), after Enter: a click near a junction end (where it continues on
 another panel) turns its stop into a tick half as long, right at the edge end (no Trim there); another click — back.
-Centre tick (stop length) at the middle of each side between its stops: on a panel — from the edge into the panel,
-on a curve — across it. A side split over two edges — the centre of the whole side (on whichever edge it falls);
-split over more — no centre tick (warning).
-Number text next to the centre tick — not on it: left or right of it, on a panel inside the panel, on a curve
-above or below; the first spot whose text box is free (no other visible curve, text, point crosses it),
-else the first spot with a warning. Text style — option Style (default PAT 14 mm).
-Stops, tick and text are one group per edge, in the type's layer; panels and curves keep their layer and group.
+Marks are on the text's side: a stop — a leg across the edge, then 90° along it towards the middle; a junction —
+a short leg across. Number text near the middle between the stops (left or right of it), on a panel inside the
+panel, on a curve above or below; the first spot whose text box is free (no other visible curve, text, point
+crosses it), else the first spot with a warning. Text style — option Style (default PAT 14 mm).
+Marks and text are one group per edge, in the type's layer; panels and curves keep their layer and group.
 The data lives on the text (UserText): Zip = number, ZipLine = panel / curve id, ZipEdge = edge midpoint,
 ZipAngle, ZipTrim = trim at start,end, ZipLen = edge length when marked — parts/ZipList.py finds the edge again
 and measures it live. An edge that already has a number is skipped. Numbering continues from the largest number
@@ -63,11 +61,10 @@ TRIM = "ZipTrim"     # UserText on the text: "start,end" — stop distance from 
 LEN = "ZipLen"       # UserText on the text: edge length when marked — used if the edge is not found any more
 SIDE = "ZipSide"     # UserText on the text: 1 / -1 — marks left / right of the edge direction (the text's side)
 JUNCTION = "ZipJunction"  # UserText on the text: "0,1" — which edge ends are junctions
-CENTRE = "ZipCentre"  # UserText on the text: arc length of the centre tick, empty — none
 STYLE = "ZipStops"   # sticky key of the label style (PatternTextStyles.label_style)
 KIND = "ZipStops.kind"
 ANGLE = "SewingMarks_angle"  # shared with sewing_points
-TEXT_SPOTS = 6  # how far along the edge the text may move: text widths from the centre tick, each way
+TEXT_SPOTS = 6  # how far along the edge the text may move: text widths from the middle, each way
 
 
 def point_at(crv, s):
@@ -86,10 +83,10 @@ def stop_line(crv, s, size, normal):
     return Rhino.Geometry.Line(pt - side, pt + side)
 
 
-def zip_marks(edge, trims, junction, centre, side, size, up):
+def zip_marks(edge, trims, junction, side, size, up):
     """Final marks of one edge, all on one side (side 1 — left of the edge direction, -1 — right; the text's side):
     a stop — leg across the edge then 90° along it towards the middle of the zip; a junction — a short leg across
-    (half a stop) right at the end; the centre — a leg across. Returns [Curve]."""
+    (half a stop) right at the end. Returns [Curve]."""
     length = edge.GetLength()
     out = []
     for e in (0, 1):
@@ -104,11 +101,6 @@ def zip_marks(edge, trims, junction, centre, side, size, up):
             tan.Unitize()
             corner = pt + n * size
             out.append(PolylineCurve(Polyline([pt, corner, corner + tan * (size if e == 0 else -size)])))
-    if centre is not None:
-        pt, tan = point_at(edge, centre)
-        n = Vector3d.CrossProduct(up, tan)
-        n.Unitize()
-        out.append(LineCurve(pt, pt + n * (side * size)))
     return out
 
 
@@ -214,7 +206,7 @@ def blocked(corners, obs, up, tol):
 
 
 def place_text(name, edge, panel, s_c, ds, gap, up, tol, obs):
-    """Number text next to arc length s_c (the centre tick): left / right of it, inside the panel (on a curve —
+    """Number text next to arc length s_c (the middle between the stops): left / right of it, inside the panel (on a curve —
     above / below), the first free spot. Returns (TextEntity, its corners, found a free spot, side 1 / -1 of the
     edge it is on)."""
     te0 = Rhino.Geometry.TextEntity.Create(name, Plane.WorldXY, ds, False, 0, 0)
@@ -233,7 +225,7 @@ def place_text(name, edge, panel, s_c, ds, gap, up, tol, obs):
                 u = -u  # reads left to right
             v = Vector3d.CrossProduct(up, u)
             toward = point_at(edge, min(length, s + 1e-3 * length))[0] - pt  # +s direction
-            left = (toward * u > 0) == (along > 0)  # text grows from the anchor away from the tick
+            left = (toward * u > 0) == (along > 0)  # text grows from the anchor away from the middle
             if panel is not None:
                 sides = [inward(panel, edge, s, up, h) * v > 0]
             else:
@@ -254,34 +246,11 @@ def place_text(name, edge, panel, s_c, ds, gap, up, tol, obs):
                     first = (te, corners, side)
                 if not blocked(corners, obs, up, tol):
                     return te, corners, True, side
-    if first is None:  # nothing fits inside the panel at all — at the tick
+    if first is None:  # nothing fits inside the panel at all — at the middle
         pt, u = point_at(edge, s_c)
         te = Rhino.Geometry.TextEntity.Create(name, Plane(pt, u, Vector3d.CrossProduct(up, u)), ds, False, 0, 0)
         return te, [pt, pt, pt, pt], False, 1
     return first[0], first[1], False, first[2]
-
-
-def centres(lines, notch):
-    """({edge index: arc length of the centre tick}, split edges left without one): the middle of each side between
-    its stops; a side of two edges joined at a junction — the middle of the whole side."""
-    out = {}
-    split = [i for i in range(len(lines)) if (i, 0) in notch or (i, 1) in notch]
-    for i, l in enumerate(lines):
-        if i not in split:
-            out[i] = (l["trims"][0] + l["edge"].GetLength() - l["trims"][1]) / 2.0
-    if len(split) == 2 and all(((i, 0) in notch) != ((i, 1) in notch) for i in split):
-        a, b = [lines[i] for i in split]
-        ea = 1 if (split[0], 0) in notch else 0       # a's real end
-        eb = 0 if (split[1], 0) in notch else 1       # b's junction end
-        la = a["edge"].GetLength() - a["trims"][ea]
-        lb = b["edge"].GetLength() - b["trims"][1 - eb]
-        half = (la + lb) / 2.0
-        if half <= la:  # from a's real stop towards its junction
-            out[split[0]] = a["trims"][0] + half if ea == 0 else a["edge"].GetLength() - a["trims"][1] - half
-        else:  # the rest from b's junction end
-            out[split[1]] = half - la if eb == 0 else b["edge"].GetLength() - (half - la)
-        split = []
-    return out, split
 
 
 def flip_label(doc, t, tol, steps=None):
@@ -301,8 +270,6 @@ def flip_label(doc, t, tol, steps=None):
     try:
         side = -int(rs.GetUserText(t, SIDE))
         junction = [x == "1" for x in rs.GetUserText(t, JUNCTION).split(",")]
-        centre = rs.GetUserText(t, CENTRE)
-        centre = float(centre) if centre else None
         size = float(rs.GetUserText(t, "ZipSize"))
     except Exception:
         return True  # marks from an older version — only the text moves
@@ -319,7 +286,7 @@ def flip_label(doc, t, tol, steps=None):
     attrs.LayerIndex = a.LayerIndex
     up = te.Plane.ZAxis
     new = [doc.Objects.AddCurve(c, attrs)
-           for c in zip_marks(edge, read_trims(t), junction, centre, side, size, up)]
+           for c in zip_marks(edge, read_trims(t), junction, side, size, up)]
     if groups:
         rs.AddObjectsToGroup(new, groups[0])
     a = a.Duplicate()
@@ -451,25 +418,22 @@ def toggle_end(doc, lines, notch, pt, size, up, steps=None):
 
 
 def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, steps):
-    """Number texts with the data, then the final marks (stops, junctions, centre) on the text's side;
+    """Number texts with the data, then the final marks (stops, junctions) on the text's side;
     the click-time crosses are removed. Marks and text one group per edge."""
     attrs = layer_attrs(doc, kind)
-    mids, split = centres(lines, notch)
-    if split:
-        print(u"%s: a side split over more than two edges — no centre tick there" % name)
     for l in lines:
         for sid in l["stops"]:
             steps.delete(sid)
     obs = obstacles(doc)
     for i, l in enumerate(lines):
         edge, panel = l["edge"], l["panel"]
-        s_c = mids.get(i, (l["trims"][0] + edge.GetLength() - l["trims"][1]) / 2.0)
+        s_c = (l["trims"][0] + edge.GetLength() - l["trims"][1]) / 2.0
         te, corners, free, side = place_text(name, edge, panel, s_c, ds, gap, up, tol, obs)
         if not free:
             print(u"%s: no free spot for the number — placed anyway, move / flip it" % name)
         obs.append((PolylineCurve(Polyline(list(corners) + [corners[0]])).GetBoundingBox(True), None))
         junction = [(i, 0) in notch, (i, 1) in notch]
-        marks = zip_marks(edge, l["trims"], junction, mids.get(i), side, size, up)
+        marks = zip_marks(edge, l["trims"], junction, side, size, up)
         new = [doc.Objects.AddCurve(c, attrs) for c in marks]
         obs.extend((c.GetBoundingBox(True), c) for c in marks)
         a = attrs.Duplicate()
@@ -482,7 +446,6 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
         a.SetUserString(LEN, u"%r" % edge.GetLength())
         a.SetUserString(SIDE, str(side))
         a.SetUserString(JUNCTION, u"%d,%d" % tuple(junction))
-        a.SetUserString(CENTRE, u"%r" % mids[i] if i in mids else u"")
         a.SetUserString("ZipSize", u"%r" % size)
         new.append(doc.Objects.AddText(te, a))
         rs.AddObjectsToGroup(new, rs.AddGroup())
