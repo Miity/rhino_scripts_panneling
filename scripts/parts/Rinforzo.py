@@ -6,8 +6,8 @@ larger than Angle) + offset by W (default 6 cm) into the panel, ends — along t
 (neighbour sharper than 30° — perpendicular end). Two strips at a corner: JoinCorner on the markup lines.
 Option Plus — the strip is cut longer than the edge by Plus (default 10 cm: Plus / 2 past each end, straight on),
 trimmed after sewing.
-The panel is not changed. Part in place, layer Parts::Reinforcements, label "R<w>  l=<l>" (cm, l = edge + Plus;
-≈ W/10, at a quarter of the edge, along the inner line) in a group. No number: strips of one width differ by l.
+The panel is not changed. Part in place, layer Parts::Reinforcements, label "R<w>" (cm;
+≈ W/10, at a quarter of the edge, along the inner line) in a group. No number, no length in the label.
 Option Layout (default Yes): on the panel — markup (only the inner line W, without panel edges and without Plus),
 full part — 10000 up (ReinfCircle.add_part); No — full part in place.
 B / BR (bordino, folded over the edge) are other parts, not this script.
@@ -122,7 +122,7 @@ def main():
             print(u"Skipped: %s" % bad)
             continue
         cut, edge, off, square = res
-        label = u"%s%s  l=%s" % (CODE, cm(w), cm(edge.GetLength() + plus))
+        label = u"%s%s" % (CODE, cm(w))
         style = label_style(doc, STICKY)
         plane, valign = label_place(edge, off, normal, style.TextHeight * 0.5)
         te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
@@ -130,7 +130,7 @@ def main():
         te.TextVerticalAlignment = valign
         add_part(doc, [full[0]], te, off_panel(cut, [panel], tol), attrs, sc.sticky[STICKY + "_layout"])
         doc.Views.Redraw()
-        print(label)
+        print(u"%s  l=%s" % (label, cm(edge.GetLength() + plus)))  # length only in the command history
         if square:
             print(u"Warning: %d end(s) with a neighbour sharper than 30° — end is perpendicular" % square)
         made += 1
