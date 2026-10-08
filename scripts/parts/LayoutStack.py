@@ -7,7 +7,8 @@ Only those parts are taken (the copy up; the markup on the panel is skipped). Ea
 CPlane X (label reading left to right), and stacked one under another from the click point (top-left corner),
 Gap apart (0 — touching, as the fascia strips): Rinforzo first, then Bordini, longest first in each.
 Already laid out parts (a copy with LayoutOf exists) are skipped; to lay out again — delete the copy.
-Layout then skips them too.
+Layout then skips them too. Tick "Hide the laid out parts" — the parts laid out now and the ones of the selection laid out
+before are hidden (only the part itself, the copy up; the markup on the panel stays); Show brings them back.
 """
 import math
 import os
@@ -28,6 +29,7 @@ KINDS = [  # (checkbox, layer, label code) — parts that may be turned along th
     (u"Rinforzo", "Parts::Reinforcements", re.compile(r"(?:^|\s)R\d")),
     (u"Bordini", "Parts::Bordino", re.compile(r"(?:^|\s)B\d")),
 ]
+HIDE = u"Hide the laid out parts"
 
 
 def kind_of(doc, u, kinds):
@@ -38,7 +40,7 @@ def kind_of(doc, u, kinds):
 
 
 def pick(doc, ids, kinds):
-    """Parts of kinds in the selection not laid out yet: ([(kind index, [objects])], number already laid out)."""
+    """Parts of kinds in the selection: (not laid out yet, already laid out), each [(kind index, [objects])]."""
     copied = set(o.Attributes.GetUserString(KEY) for o in doc.Objects)
     found = []
     for p in parts(ids):
@@ -46,8 +48,8 @@ def pick(doc, ids, kinds):
         k = kind_of(doc, u, kinds) if is_part(doc, u) else None
         if k is not None:
             found.append((k, u))
-    todo = [(k, u) for k, u in found if not any(str(o.Id) in copied for o in u)]
-    return todo, len(found) - len(todo)
+    done = [(k, u) for k, u in found if any(str(o.Id) in copied for o in u)]
+    return [p for p in found if p not in done], done
 
 
 def turn(u, plane):
@@ -106,33 +108,32 @@ def main():
     ids = rs.GetObjects(u"Select objects with the parts (window over the panels / parts up)", preselect=True)
     if not ids:
         return
-    ticks = rs.CheckListBox([(n, sc.sticky.get(STICKY + n, True)) for n, _, _ in KINDS], u"What to stack",
+    items = [n for n, _, _ in KINDS] + [HIDE]
+    ticks = rs.CheckListBox([(n, sc.sticky.get(STICKY + n, n != HIDE)) for n in items], u"What to stack",
                             u"Layout Stack")
     if not ticks:
         return
-    kinds = []
-    for (n, on), k in zip(ticks, KINDS):
-        sc.sticky[STICKY + n] = on
-        if on:
-            kinds.append(k)
-    todo, skipped = pick(doc, ids, kinds)
-    if not todo:
-        print(u"Nothing to stack in the selection (already laid out: %d)" % skipped)
-        return
-    gp = Rhino.Input.Custom.GetPoint()
-    gp.SetCommandPrompt(u"Point to stack from (top-left corner)")
-    gap = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_gap", 0.0), 0.0, 1e6)
-    gp.AddOptionDouble("Gap", gap)
-    while gp.Get() == Rhino.Input.GetResult.Option:
-        pass
-    sc.sticky[STICKY + "_gap"] = gap.CurrentValue
-    if gp.CommandResult() != Rhino.Commands.Result.Success:
-        return
-    stack(doc, todo, rs.ViewCPlane(), gp.Point(), gap.CurrentValue)
+    on = dict(ticks)
+    for n in items:
+        sc.sticky[STICKY + n] = on[n]
+    kinds = [k for k in KINDS if on[k[0]]]
+    todo, done = pick(doc, ids, kinds)
+    if todo:
+        gp = Rhino.Input.Custom.GetPoint()
+        gp.SetCommandPrompt(u"Point to stack from (top-left corner)")
+        gap = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_gap", 0.0), 0.0, 1e6)
+        gp.AddOptionDouble("Gap", gap)
+        while gp.Get() == Rhino.Input.GetResult.Option:
+            pass
+        sc.sticky[STICKY + "_gap"] = gap.CurrentValue
+        if gp.CommandResult() != Rhino.Commands.Result.Success:
+            return
+        stack(doc, todo, rs.ViewCPlane(), gp.Point(), gap.CurrentValue)
+    hidden = rs.HideObjects([o.Id for _, u in todo + done for o in u]) if on[HIDE] else 0
     doc.Views.Redraw()
-    names = [k[0] for k in kinds]
-    print(u"Stacked: %s; skipped (already laid out): %d" % (
-        u", ".join(u"%s %d" % (n, sum(1 for k, _ in todo if k == i)) for i, n in enumerate(names)), skipped))
+    print(u"Stacked: %s; already laid out: %d; hidden: %d objects" % (
+        u", ".join(u"%s %d" % (k[0], sum(1 for i, _ in todo if i == j)) for j, k in enumerate(kinds)), len(done),
+        hidden or 0))
 
 
 if __name__ == "__main__":

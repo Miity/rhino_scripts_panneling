@@ -57,10 +57,10 @@ try:
     rs.AddObjectsToGroup(rc, rs.AddGroup())  # a reinforcement, not a strip: not taken
 
     every = [o.Id for o in doc.Objects]
-    todo, skipped = L.pick(doc, every, L.KINDS[1:])
-    assert [k for k, _ in todo] == [0, 0] and skipped == 0, (todo, skipped)  # Bordini only
-    todo, skipped = L.pick(doc, every, L.KINDS)
-    assert sorted(k for k, _ in todo) == [0, 1, 1] and skipped == 0, (todo, skipped)
+    todo, done = L.pick(doc, every, L.KINDS[1:])
+    assert [k for k, _ in todo] == [0, 0] and not done, (todo, done)  # Bordini only
+    todo, done = L.pick(doc, every, L.KINDS)
+    assert sorted(k for k, _ in todo) == [0, 1, 1] and not done, (todo, done)
     L.stack(doc, todo, Plane.WorldXY, Point3d(0, -5000, 0), 10.0)
     copies = [o for o in doc.Objects if o.Attributes.GetUserString(LP.KEY)]
     lay = set(doc.Layers[o.Attributes.LayerIndex].FullPath for o in copies)
@@ -83,8 +83,9 @@ try:
         assert any(r.GetBoundingBox(True).Contains(o) for r in rects), o  # inside its strip
     groups = set(tuple(o.Attributes.GetGroupList() or []) for o in copies)
     assert len(groups) == 3, groups  # each strip with its label
-    todo, skipped = L.pick(doc, every, L.KINDS)  # again: already laid out
-    assert not todo and skipped == 3, (todo, skipped)
+    todo, done = L.pick(doc, every, L.KINDS)  # again: already laid out
+    assert not todo and len(done) == 3, (todo, done)
+    assert set(str(o.Id) for _, u in done for o in u) == set(o.Attributes.GetUserString(LP.KEY) for o in copies)
     new, skipped = LP.layout(doc, every, 10.0, Plane.WorldXY, Point3d(0, -8000, 0), 20.0)
     assert skipped == 3, skipped  # LayoutParts: the stacked ones are already on the canvas
     out.write("OK\n")
