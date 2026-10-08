@@ -52,7 +52,7 @@ try:
         pid = doc.Objects.AddCurve(pl((0, 0), (100, 0), (100, 60), (0, 60), (0, 0)))
         cid = doc.Objects.AddCurve(LineCurve(Point3d(0, 200, 0), Point3d(40, 200, 0)))
         rs.GetObjects = lambda *x, **k: [pid, cid]
-        clicks = [Point3d(50, 61, 0), None]
+        clicks = [Point3d(50, 61, 0), Point3d(20, 201, 0), "undo", None]  # 2nd click (the curve) undone
         M.ask = lambda gp: clicks.pop(0)
         sc.sticky.update({"SewingMarks_step": 20.0, "SewingMarks_tick": 10.0, "SewingMarks_angle": 30.0})
         M.main()

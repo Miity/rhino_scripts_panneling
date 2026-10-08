@@ -82,7 +82,7 @@ def marks(obj, click, step, tick, angle, normal, tol):
 
 
 def ask(gp):
-    """Click near an edge / curve with options Step / Tick / Angle. A point or None (Enter / Esc)."""
+    """Click near an edge / curve with options Step / Tick / Angle / Undo. A point, "undo" or None (Enter / Esc)."""
     mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     step = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_step", 200.0 * mm), 0.001, 1e9)
     tick = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_tick", 10.0 * mm), 0.0, 1e9)
@@ -90,12 +90,15 @@ def ask(gp):
     gp.AddOptionDouble("Step", step)
     gp.AddOptionDouble("Tick", tick)
     gp.AddOptionDouble("Angle", a)
+    i_undo = gp.AddOption("Undo")
     while True:
         r = gp.Get()
         sc.sticky[STICKY + "_step"] = step.CurrentValue
         sc.sticky[STICKY + "_tick"] = tick.CurrentValue
         sc.sticky[STICKY + "_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
+            if gp.OptionIndex() == i_undo:
+                return "undo"
             continue
         return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
@@ -103,7 +106,8 @@ def ask(gp):
 HELP = u"""Options:
   Step — distance between the points, from the edge centre both ways (default 200 mm)
   Tick — centre tick length: on a panel into the panel, on a curve across it; 0 — no tick (default 10 mm)
-  Angle — a break larger than this angle = corner (the edge is taken corner to corner)"""  # printed at start
+  Angle — a break larger than this angle = corner (the edge is taken corner to corner)
+  Undo — remove the marks of the last click (again — the click before it)"""  # printed at start
 
 
 def main():
@@ -114,7 +118,7 @@ def main():
         return
     tol = doc.ModelAbsoluteTolerance
     attrs = layer_attrs(doc, NAME)
-    made = 0
+    made = []  # ids per click, for Undo
     while True:
         gp = Rhino.Input.Custom.GetPoint()
         gp.SetCommandPrompt(u"Click near the edge or curve for sewing marks (Enter — done)")
@@ -122,6 +126,13 @@ def main():
         click = ask(gp)
         if click is None:
             break
+        if click == "undo":
+            if made:
+                rs.DeleteObjects(made.pop())
+                doc.Views.Redraw()
+            else:
+                print(u"Nothing to undo")
+            continue
         crvs = [rs.coercecurve(i) for i in ids]
         obj = min((c for c in crvs if c), key=lambda c: c.PointAt(c.ClosestPoint(click)[1]).DistanceTo(click))
         view = doc.Views.ActiveView
@@ -138,9 +149,9 @@ def main():
         pts, line = res
         new = [doc.Objects.Add(p, attrs) for p in pts] + ([doc.Objects.AddCurve(line, attrs)] if line else [])
         rs.AddObjectsToGroup(new, rs.AddGroup())
-        made += 1
+        made.append(new)
         doc.Views.Redraw()
-    print(u"Sewing marks: %d edges → Parts::%s" % (made, NAME))
+    print(u"Sewing marks: %d edges → Parts::%s" % (len(made), NAME))
 
 
 if __name__ == "__main__":
