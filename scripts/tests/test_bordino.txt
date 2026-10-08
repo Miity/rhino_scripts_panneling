@@ -1,0 +1,26 @@
+0°, line, zip → rinforzo → bordino: OK
+0°, line, zip → bordino → rinforzo: OK
+0°, line, rinforzo → zip → bordino: OK
+0°, line, rinforzo → bordino → zip: OK
+0°, line, bordino → zip → rinforzo: OK
+0°, line, bordino → rinforzo → zip: OK
+38°, line, zip → rinforzo → bordino: OK
+38°, line, zip → bordino → rinforzo: OK
+38°, line, rinforzo → zip → bordino: OK
+38°, line, rinforzo → bordino → zip: OK
+38°, line, bordino → zip → rinforzo: OK
+38°, line, bordino → rinforzo → zip: OK
+0°, arc, zip → rinforzo → bordino: OK
+0°, arc, zip → bordino → rinforzo: OK
+0°, arc, rinforzo → zip → bordino: OK
+0°, arc, rinforzo → bordino → zip: OK
+0°, arc, bordino → zip → rinforzo: OK
+0°, arc, bordino → rinforzo → zip: OK
+38°, arc, zip → rinforzo → bordino: OK
+38°, arc, zip → bordino → rinforzo: OK
+38°, arc, rinforzo → zip → bordino: OK
+38°, arc, rinforzo → bordino → zip: OK
+38°, arc, bordino → zip → rinforzo: OK
+38°, arc, bordino → rinforzo → zip: OK
+no zip: ['B3.5', 'B3.5  l=56']
+OK

@@ -14,7 +14,7 @@ own group); a zip made later on the strip pulls the label to its number, flippin
 The full part on the canvas then also carries the zip: its stops (copies), the line stop to stop and the label "Z20 R6".
 Option Layout (default Yes): on the panel — markup (only the inner line W, without panel edges and without Plus),
 full part — 10000 up (ReinfCircle.add_part); No — full part in place.
-B / BR (bordino, folded over the edge) are other parts, not this script.
+B (bordino, folded over the edge) — Bordino.py; its label B<w> goes after R<w>.
 """
 import os
 import sys
@@ -26,7 +26,7 @@ import scriptcontext as sc
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ReinfCircle", "ZipCover", "ZipStops"):  # Rhino keeps modules from the first run for the session
     sys.modules.pop(_m, None)
-from ZipStops import RINF_LINE, beside, edge_of, read_trims, zip_span, zip_text
+from ZipStops import EDGE, RINF_LINE, edge_of, holds, labels_after, read_trims, stored_point, zip_span, zip_text
 from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, off_panel, label_style, pick_style  # layer, style
 from ZipCover import cm, flap, label_frame  # edge corner to corner + offset, ends along the neighbours; label along the edge
 
@@ -131,7 +131,7 @@ def main():
         style = label_style(doc, STICKY)
         plane, valign = label_place(edge, off, normal, style.TextHeight * 0.5)
         layout = sc.sticky[STICKY + "_layout"]
-        zid = zip_text(cut, tol) if layout else None  # zip number on the strip (edge or zip line): R goes right after it
+        zid = zip_text(lambda p: holds(cut, p, tol)) if layout else None  # zip number on the strip (edge or zip line): R goes right after it
         te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign
@@ -146,7 +146,7 @@ def main():
         if layout:  # a zip made later on this strip puts the label after its number (ZipStops.finish_zip)
             rs.SetUserText(markup[-1], RINF_LINE, str(oid))
         if zid:
-            beside(doc, zid, markup[-1], steps)
+            labels_after(doc, zid, stored_point(zid, EDGE), tol, steps)  # Z<n> R<w> (B<w> after it, if any)
             rs.TextObjectText(full_ids[-1], rs.GetUserText(zid, "Zip") + u" " + label)  # canvas part: "Z20 R6"
         doc.Views.Redraw()
         print(u"%s  l=%s" % (label, cm(edge.GetLength() + plus)))  # length only in the command history

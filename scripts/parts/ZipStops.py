@@ -170,6 +170,7 @@ def marked_edges():
 
 
 RINF_LINE = "RinfLine"  # UserText on a Rinforzo markup label: id of its panel (marks the label)
+BORD_EDGE = "BordEdge"  # UserText on a Bordino label (B<w> on the panel): "x,y,z" — midpoint of its edge
 
 
 def holds(strip, pt, tol):
@@ -187,16 +188,21 @@ def canvas_part(doc, link):
     return full, Vector3d(*[float(x) for x in full[0].Attributes.GetUserString("LayoutUp").split(",")])
 
 
-def zip_text(strip, tol):
-    """The number text (Z<n> / Can<n>) whose edge midpoint lies on the strip — the panel edge itself or a zip line
-    inside it (the old edge after ZipCover) — or None."""
+def stored_point(o, key):
+    """Point3d kept in UserText key ("x,y,z"), or None."""
+    try:
+        return Point3d(*[float(x) for x in rs.GetUserText(o, key).split(",")])
+    except Exception:
+        return None
+
+
+def zip_text(at):
+    """The number text (Z<n> / Can<n>) whose edge midpoint satisfies at(point) — e.g. lies on a Rinforzo strip, or is
+    the midpoint of a Bordino edge — or None."""
     for t in TYPES.values():
         for o in (rs.ObjectsByLayer(t[1]) or []) if rs.IsLayer(t[1]) else []:
-            try:
-                pt = Point3d(*[float(x) for x in rs.GetUserText(o, EDGE).split(",")])
-            except Exception:
-                continue
-            if rs.IsText(o) and holds(strip, pt, tol):
+            pt = stored_point(o, EDGE)
+            if pt is not None and rs.IsText(o) and at(pt):
                 return o
 
 
@@ -212,6 +218,26 @@ def rinforzo_text(doc, mid, tol):
                     c.Translate(-up)
                     if holds(c, mid, tol):
                         return o
+
+
+def bordino_text(mid, tol):
+    """The Bordino label (B<w> on the panel) of the edge whose midpoint is mid, or None.
+    ponytail: same edge only — a zip on a zip line inside the panel (old edge after ZipCover) is not matched."""
+    for o in rs.ObjectsByType(512) or []:
+        pt = stored_point(o, BORD_EDGE)
+        if pt is not None and pt.DistanceTo(mid) <= 100 * tol:
+            return o
+
+
+def labels_after(doc, zid, mid, tol, steps=None):
+    """Labels of the zip's edge (midpoint mid) right after its number zid, in the order Z<n> R<w> B<w>.
+    Returns the Rinforzo label or None."""
+    prev, rid = zid, rinforzo_text(doc, mid, tol)
+    for o in (rid, bordino_text(mid, tol)):
+        if o:
+            beside(doc, prev, o, steps)
+            prev = o
+    return rid
 
 
 def beside(doc, zid, rid, steps=None):
@@ -354,9 +380,7 @@ def flip_label(doc, t, tol, steps=None):
     te.TextVerticalAlignment = (TextVerticalAlignment.Top if te.TextVerticalAlignment == TextVerticalAlignment.Bottom
                                 else TextVerticalAlignment.Bottom)
     doc.Objects.Replace(t, te)
-    rid = rinforzo_text(doc, mid_point(edge), tol)
-    if rid:
-        beside(doc, t, rid, steps)
+    labels_after(doc, t, mid_point(edge), tol, steps)
     try:
         side = -int(rs.GetUserText(t, SIDE))
         junction = [x == "1" for x in rs.GetUserText(t, JUNCTION).split(",")]
@@ -528,7 +552,6 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
     for i, l in enumerate(lines):
         edge, panel = l["edge"], l["panel"]
         s_c = (l["trims"][0] + edge.GetLength() - l["trims"][1]) / 2.0
-        rid = rinforzo_text(doc, mid_point(edge), tol)  # a Rinforzo strip made before, this zip on it
         te, corners, free, side = place_text(name, edge, panel, s_c, ds, gap, up, tol, obs)
         if not free:
             print(u"%s: no free spot for the number — placed anyway, move / flip it" % name)
@@ -551,8 +574,8 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
         zid = doc.Objects.AddText(te, a)
         new.append(zid)
         rs.AddObjectsToGroup(new, rs.AddGroup())
-        if rid:  # its label goes right after the number (Z first, R after); the strip's part on the canvas shows the zip too
-            beside(doc, zid, rid, steps)
+        rid = labels_after(doc, zid, m, tol, steps)  # Rinforzo / Bordino made before: Z<n> R<w> B<w>
+        if rid:  # the strip's part on the canvas shows the zip too
             to_part(doc, rs.GetUserText(rid, "PartLink"), marks + [zip_span(edge, l["trims"])], name + u" " + rs.TextObjectText(rid), steps)
 
 
