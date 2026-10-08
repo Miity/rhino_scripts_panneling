@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Check of ZipCover (flap, label, seam points, main in both modes, EditPanel) in Rhino 8 (needs RhinoCommon):
+"""Check of ZipCover (flap, label, main with / without EditPanel) in Rhino 8 (needs RhinoCommon):
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_zip_cover.txt next to it."""
 import math
@@ -64,20 +64,18 @@ try:
 
     # sides converge upward, W too large → extensions intersect → error string
     assert not isinstance(M.flap(poly((0, 0), (100, 0), (55, 40), (45, 40)), Point3d(50, 41, 0), 50, 30, Z, tol), tuple)
-    # label inside the strip; seam points (sewing_points logic) on an edge copy
+    # label inside the strip
     pan = poly((0, 0), (100, 0), (100, 60), (0, 60))
     crv, edge, off, sq = M.flap(pan, Point3d(50, 61, 0), 10, 30, Z, tol)
     assert 60 < M.label_frame(edge, off, Z).Origin.Y < 70
-    g = M.sewing_geometry(edge, 20)
-    assert len(g) == 5 and all(abs(p.Location.Y - 60) < 1e-6 for p in g)  # points only at 10, 30 … 90
 
-    # main(): Points No → CZ in Parts::ZipCover, Yes → C + points in Parts::Seam (w in cm); EditPanel → panel contour grows
+    # main(): CZ<w> in Parts::ZipCover (w in cm), no seam points; EditPanel → panel contour grows, old edge = zip line
     import Rhino, System
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
     old_doc, old_get = sc.doc, rs.GetObject
     try:
-        for points, edit_ in ((False, False), (True, False), (False, True), (True, True)):
+        for edit_ in (False, True):
             doc = Rhino.RhinoDoc.CreateHeadless(None)
             sc.doc = doc
             doc.ModelUnitSystem = Rhino.UnitSystem.Millimeters  # labels in cm: W 10 mm → 1
@@ -88,17 +86,14 @@ try:
             rs.GetObject = lambda *x, **k: pid
             clicks = [Point3d(50, 61, 0), Point3d(112, 30, 0), None]  # top, then the right side (on the grown panel)
             M.ask = lambda gp: clicks.pop(0)
-            sc.sticky.update({"ZipCover": 10.0, "ZipCover_angle": 30.0, "ZipCover_points": points,
-                              "ZipCover_edit": edit_, "sew_step": 20.0})
+            sc.sticky.update({"ZipCover": 10.0, "ZipCover_angle": 30.0, "ZipCover_edit": edit_})
             M.main()
-            name = "Parts::Seam" if points else "Parts::ZipCover"
+            name = "Parts::ZipCover"
             objs = [o for o in doc.Objects if o.Id != pid]
             assert all(doc.Layers[o.Attributes.LayerIndex].FullPath == name for o in objs)
             texts = [o.Geometry.PlainText for o in objs if isinstance(o.Geometry, Rhino.Geometry.TextEntity)]
-            assert texts == [("C1" if points else "CZ1")] * 2, texts
-            assert any(isinstance(o.Geometry, Rhino.Geometry.Point) for o in objs) == points
-            if points and edit_:  # seam on the grown panel: only points + label, no line
-                assert all(isinstance(o.Geometry, (Rhino.Geometry.Point, Rhino.Geometry.TextEntity)) for o in objs)
+            assert texts == ["CZ1"] * 2, texts
+            assert not any(isinstance(o.Geometry, Rhino.Geometry.Point) for o in objs)
             assert len(set(o.Attributes.GetGroupList()[0] for o in objs)) == 2  # one group per click
             p = doc.Objects.FindId(pid)
             area_ = AreaMassProperties.Compute(p.Geometry).Area

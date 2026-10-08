@@ -1,19 +1,17 @@
 # -*- coding: utf-8 -*-
-"""Zip cover / seam allowance: a strip of width W outside a panel edge.
+"""Zip cover (copri zip / canalina): a strip of width W outside a panel edge.
 Select a panel (closed curve: polyline, lines, arcs — any segments) and click near an edge
 (several in a row, Enter — done). The edge runs corner to corner (corner — tangent break larger than Angle;
 small breaks of a curved edge do not count). The part is a closed curve: copy of the edge + offset by W
 outward from the panel, ends along the extension of the neighbouring edges. If a neighbour leaves sharper than 30°
 from the edge (the extension would go very far) — the end is perpendicular, with a warning.
 Labels are Italian codes, numbers in cm (PatternTextStyles.cm).
-Option Points=No (default): zip cover (copri zip / canalina) — label "CZ<w>", layer Parts::ZipCover.
-Points=Yes: seam allowance — seam points (logic of markup/sewing_points.py: centre ± k·Step) on the panel edge (no line under them),
-label "C<w>" (cucitura), layer Parts::Seam.
+Label "CZ<w>", layer Parts::ZipCover. Seam points (battute) — a separate script, markup/sewing_points.py.
 Option EditPanel=No: only markup is added, in place: the strip lines not lying on the panel edge
-+ label (+ seam points), one group. The panel is not changed: before cutting PreparePanelCut joins
++ label, one group. The panel is not changed: before cutting PreparePanelCut joins
 it with the markup (for that the edge must be a polyline / lines).
 EditPanel=Yes (default): the panel contour itself gets the strip (one closed curve; layer, groups, UserText kept),
-zip cover: the old edge stays as a line (zip line) + label; seam: only seam points + label; one group.
+the old edge stays as a line (zip line) + label, one group.
 """
 import math
 import os
@@ -30,10 +28,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
 sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
 from PatternTextStyles import cm, label_style, pick_style  # label number in cm; style: option Style, default PAT 14 mm
-from sewing_points import sewing_lengths  # the same markup/ in sys.path
 
 STICKY = "ZipCover"
-MODES = {False: ("CZ", "ZipCover"), True: ("C", "Seam")}  # Points → (label code, sublayer of Parts)
+CODE, NAME = "CZ", "ZipCover"  # label code, sublayer of Parts
 MIN_SIN = 0.5  # sin 30°: sharper — perpendicular end
 GAP_MM = 1.0  # gap between the ends of an "almost closed" panel (DXF) that we close ourselves
 
@@ -176,16 +173,6 @@ def label_frame(crv, offset, normal):
     return Plane((m + q) / 2.0, u, Vector3d.CrossProduct(normal, u))
 
 
-def sewing_geometry(crv, step):
-    """Seam points on the edge (as sewing_points) — geometry, no line under them."""
-    out = []
-    for s in sewing_lengths(crv.GetLength(), step):
-        ok, t = crv.LengthParameter(s)
-        if ok:
-            out.append(Rhino.Geometry.Point(crv.PointAt(t)))
-    return out
-
-
 def layer_attrs(doc, name):
     """Attributes on layer Parts::<name> (created if missing)."""
     if not rs.IsLayer("Parts"):
@@ -214,15 +201,11 @@ def edit_panel(doc, oid, panel, edge, outer, tol):
 
 
 def ask(gp):
-    """Click near an edge with options W / Angle / Points / Step / EditPanel / Style. A point or None (Enter / Esc)."""
+    """Click near an edge with options W / Angle / EditPanel / Style. A point or None (Enter / Esc)."""
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 30.0), 0.001, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     gp.AddOptionDouble("W", w)
     gp.AddOptionDouble("Angle", a)
-    pts = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_points", False), "No", "Yes")
-    step = Rhino.Input.Custom.OptionDouble(sc.sticky.get("sew_step", 200.0), 0.001, 1e6)  # shared with sewing_points
-    gp.AddOptionToggle("Points", pts)
-    gp.AddOptionDouble("Step", step)
     ed = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_edit", True), "No", "Yes")
     gp.AddOptionToggle("EditPanel", ed)
     i_style = gp.AddOption("Style")
@@ -230,8 +213,6 @@ def ask(gp):
         r = gp.Get()
         sc.sticky[STICKY] = w.CurrentValue
         sc.sticky[STICKY + "_edit"] = ed.CurrentValue
-        sc.sticky[STICKY + "_points"] = pts.CurrentValue
-        sc.sticky["sew_step"] = step.CurrentValue
         sc.sticky[STICKY + "_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
             if gp.OptionIndex() == i_style:
@@ -243,8 +224,6 @@ def ask(gp):
 HELP = u"""Options:
   W — strip width: offset from the edge outward from the panel
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
-  Points — No: zip cover (CZ<w>, Parts::ZipCover); Yes: seam allowance + seam points on the edge, no line (C<w>, Parts::Seam); w in cm
-  Step — seam point spacing (from the edge centre both ways)
   EditPanel — Yes: the panel contour itself gets the strip, the old edge stays as a line; No: only strip lines
   Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
@@ -261,7 +240,7 @@ def main():
     tol = doc.ModelAbsoluteTolerance
     ok, plane = panel.TryGetPlane(tol)
     normal = plane.ZAxis if ok else rs.ViewCPlane().ZAxis
-    made = {}
+    made = 0
     while True:
         gp = Rhino.Input.Custom.GetPoint()
         gp.SetCommandPrompt(u"Click near the edge (Enter — done)")
@@ -270,14 +249,12 @@ def main():
         if click is None:
             break
         w, angle = sc.sticky[STICKY], sc.sticky[STICKY + "_angle"]
-        points = sc.sticky[STICKY + "_points"]
-        prefix, name = MODES[points]
         res = flap(panel, click, w, angle, normal, tol)
         if not isinstance(res, tuple):
             print(u"Skipped: %s" % res)
             continue
         crv, edge, off, square = res
-        te = Rhino.Geometry.TextEntity.Create(prefix + cm(w), label_frame(edge, off, normal),
+        te = Rhino.Geometry.TextEntity.Create(CODE + cm(w), label_frame(edge, off, normal),
                                               label_style(doc, STICKY), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
@@ -287,16 +264,13 @@ def main():
             if new is None:
                 continue
             panel = new
-            geoms = [] if points else [edge]  # old edge = zip line; for a seam only the points stay
-        if points:
-            geoms += sewing_geometry(edge, sc.sticky["sew_step"])  # seam points on the panel edge
-        add_markup(doc, geoms, te, layer_attrs(doc, name))
-        made[name] = made.get(name, 0) + 1
+            geoms = [edge]  # old edge = zip line
+        add_markup(doc, geoms, te, layer_attrs(doc, NAME))
+        made += 1
         if square:
             print(u"Warning: %d end(s) with a neighbour sharper than 30° — end is perpendicular" % square)
         doc.Views.Redraw()
-    for name, n in sorted(made.items()):
-        print(u"%s: %d strips → Parts::%s" % (name, n, name))
+    print(u"Zip cover: %d strips → Parts::%s" % (made, NAME))
 
 
 if __name__ == "__main__":
