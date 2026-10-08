@@ -1,1 +1,5 @@
-OK
+Traceback (most recent call last):
+  File "file:///Users/dmytro/Documents/Rhino/scripts/tests/test_tube_pockets.py", line 63, in <module>
+  File "/Users/dmytro/Documents/Rhino/scripts/parts/UpdateTubePockets.py", line 45, in read_pocket
+    seg = Rhino.Geometry.CommonObject.FromJSON(js) if js else opened[0]
+AttributeError: CommonObject

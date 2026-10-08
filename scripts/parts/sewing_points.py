@@ -151,7 +151,6 @@ def main():
         pts, line = res
         new = [doc.Objects.Add(p, attrs) for p in pts] + ([doc.Objects.AddCurve(line, attrs)] if line else [])
         rs.AddObjectsToGroup(new, rs.AddGroup())
-        steps.created(new)
         made += 1
         doc.Views.Redraw()
     print(u"Sewing marks: %d edges → Parts::%s" % (made, NAME))

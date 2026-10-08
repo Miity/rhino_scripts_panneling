@@ -21,6 +21,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino keeps modules from the first run for the session
 from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, next_number, off_panel, label_style, pick_style  # layer, numbering, style
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
+sys.modules.pop("click_undo", None)
+from click_undo import UNDO, Steps  # option Undo: take back the last click
+
 STICKY = "ReinfD"
 PREFIX = "RD"  # Reinforcement D
 
@@ -43,7 +47,7 @@ def d_shape(top, bottom, w, r, normal, tol):
 
 
 def get_top():
-    """First point with options W, R, Layout, Style. (point, w, r) or None."""
+    """First point with options W, R, Layout, Style, Undo. (point, w, r), UNDO or None."""
     gp = Rhino.Input.Custom.GetPoint()
     gp.SetCommandPrompt(u"Top corner of the pocket — centre of the D (Enter — done)")
     gp.AcceptNothing(True)
@@ -55,6 +59,7 @@ def get_top():
     gp.AddOptionToggle("Layout", lay)
     up = up_option(gp)
     i_style = gp.AddOption("Style")
+    i_undo = gp.AddOption("Undo")
     while True:
         res = gp.Get()
         sc.sticky[STICKY + "_w"] = w.CurrentValue
@@ -62,6 +67,8 @@ def get_top():
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         sc.sticky[UP_KEY] = up.CurrentValue
         if res == Rhino.Input.GetResult.Option:
+            if gp.OptionIndex() == i_undo:
+                return UNDO
             if gp.OptionIndex() == i_style:
                 pick_style(sc.doc, STICKY)
             continue
@@ -90,7 +97,8 @@ HELP = u"""Options:
   R — how far the D end extends past the top corner (W = 2R — half-circle)
   Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
   Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
-  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
+  Style — label text style (default PAT 14 mm)
+  Undo — take back the last D (again — the one before it); its number is reused"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -102,10 +110,16 @@ def main():
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
     n = next_number(LAYER, PREFIX)
     made = 0
+    steps = Steps(doc)
     while True:
         got = get_top()
         if got is None:
             break
+        if got == UNDO:
+            if steps.undo():
+                n, made = n - 1, made - 1
+            continue
+        steps.start()
         top, w, r = got
         bottom = get_bottom(top, w, r, normal, tol)
         if bottom is None:

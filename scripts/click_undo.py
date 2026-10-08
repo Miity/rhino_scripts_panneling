@@ -1,17 +1,19 @@
 # -*- coding: utf-8 -*-
 """Undo of the last click inside a running click loop (option Undo in the click prompt).
 Rhino's own Undo only works after the command ends; this takes back one click at a time while it runs.
-Per click (step): objects created, objects changed (geometry + attributes before the first change in the step),
-objects deleted (kept and undeleted, same id). Undo of a step: created objects deleted, deleted undeleted,
-changed ones get back their geometry and attributes (layer, groups, UserText).
+Per click (step): objects added during it (runtime serial number ≥ the one at start()), objects changed
+(geometry + attributes before the first change in the step), objects deleted (undeleted, same id).
+Undo of a step: added objects deleted, deleted undeleted, changed ones get back their geometry and attributes
+(layer, groups, UserText).
 
 Use in a click loop:
     steps = Steps()
     i_undo = gp.AddOption("Undo")                      # in the click prompt; on it return UNDO
-    if click == UNDO: steps.undo(); <re-read state>; continue
+    if click == UNDO: steps.undo(); <re-read state, numbers>; continue
     steps.start()                                      # before each click's changes
-    steps.created(ids) / steps.change(id) before Replace / ModifyAttributes / group change / steps.delete(id)
+    steps.change(id) BEFORE Replace / ModifyAttributes / group or UserText change; steps.delete(id) to delete
 """
+import Rhino
 import scriptcontext as sc
 
 UNDO = "undo"  # what a click prompt returns for the Undo option
@@ -23,10 +25,9 @@ class Steps(object):
         self.steps = []
 
     def start(self):
-        self.steps.append({"new": [], "old": {}, "gone": []})
-
-    def created(self, ids):
-        self.steps[-1]["new"] += [i for i in ids if i]
+        if self.steps:
+            self.close(self.steps[-1])
+        self.steps.append({"sn": Rhino.DocObjects.RhinoObject.NextRuntimeSerialNumber, "old": {}, "gone": []})
 
     def change(self, oid):
         """Call BEFORE changing the object (geometry, attributes, groups); the first state in the step is kept."""
@@ -43,15 +44,25 @@ class Steps(object):
             self.doc.Objects.Delete(o, True)
             self.steps[-1]["gone"].append(o)
 
+    def close(self, step):
+        """Fixes the objects added during the step (serial ≥ its start; a replaced object gets a new serial too —
+        those are in "old"). Done when the next step starts, before any undo restores objects (new serials)."""
+        if "new" not in step:
+            step["new"] = [o.Id for o in self.doc.Objects
+                           if o.RuntimeSerialNumber >= step["sn"] and o.Id not in step["old"]]
+
     def undo(self):
         """Takes back the last step that changed something. False — nothing to undo."""
-        while self.steps and not any(self.steps[-1].values()):
-            self.steps.pop()
-        if not self.steps:
+        while self.steps:
+            step = self.steps.pop()
+            self.close(step)
+            new = step["new"]
+            if new or step["old"] or step["gone"]:
+                break
+        else:
             print(u"Nothing to undo")
             return False
-        step = self.steps.pop()
-        for i in step["new"]:
+        for i in new:
             self.doc.Objects.Delete(i, True)
         for o in step["gone"]:
             self.doc.Objects.Undelete(o)

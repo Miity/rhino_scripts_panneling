@@ -27,6 +27,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
 from PatternTextStyles import cm, label_style, pick_style  # label number in cm; style: option Style, default PAT 14 mm
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
+sys.modules.pop("click_undo", None)
+from click_undo import UNDO, Steps  # option Undo: take back the last click
+
 STICKY = "ReinfCircle"
 LAYER = "Parts::Reinforcements"
 PREFIX = "RC"  # Reinforcement Circle; other shapes have their own prefixes (RS, RT…)
@@ -144,7 +148,8 @@ HELP = u"""Options:
   R — reinforcement circle radius (centre — panel corner)
   Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
   Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
-  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
+  Style — label text style (default PAT 14 mm)
+  Undo — take back the last click (again — the click before it); its number is reused"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -169,6 +174,7 @@ def main():
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
     n = next_number(LAYER)
     made = 0
+    steps = Steps(doc)
     while True:
         gp = Rhino.Input.Custom.GetPoint()
         gp.SetCommandPrompt(u"Click near the corner, on the side to keep (Enter — done)")
@@ -177,13 +183,23 @@ def main():
         gp.AddOptionToggle("Layout", lay)
         up = up_option(gp)
         i_style = gp.AddOption("Style")
+        i_undo = gp.AddOption("Undo")
+        undo = False
         while gp.Get() == Rhino.Input.GetResult.Option:
             if gp.OptionIndex() == i_style:
                 pick_style(doc, STICKY)
+            if gp.OptionIndex() == i_undo:
+                undo = True
+                break
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         sc.sticky[UP_KEY] = up.CurrentValue
+        if undo:
+            if steps.undo():
+                n, made = n - 1, made - 1
+            continue
         if gp.CommandResult() != Rhino.Commands.Result.Success or gp.Result() != Rhino.Input.GetResult.Point:
             break
+        steps.start()
         click = gp.Point()
         center = min(cands, key=lambda p: p.DistanceTo(click))
         if center.DistanceTo(click) > r:

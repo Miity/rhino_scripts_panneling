@@ -27,6 +27,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino keeps modules from the first run for the session
 from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, next_number, off_panel, piece, cm, label_style, pick_style  # layer, numbering, trimming, style
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
+sys.modules.pop("click_undo", None)
+from click_undo import UNDO, Steps  # option Undo: take back the last click
+
 STICKY = "ReinfO"
 PREFIX = "RO"  # Reinforcement O
 
@@ -158,12 +162,25 @@ def get_edge(curves, center, normal, tol):
         gp.DynamicDraw -= draw
 
 
+def get_center():
+    """Top corner of the pocket with option Undo. A point, UNDO or None (Enter / Esc)."""
+    gp = Rhino.Input.Custom.GetPoint()
+    gp.SetCommandPrompt(u"Top corner of the pocket — centre of the O (Enter — done)")
+    gp.AcceptNothing(True)
+    i_undo = gp.AddOption("Undo")
+    res = gp.Get()
+    if res == Rhino.Input.GetResult.Option and gp.OptionIndex() == i_undo:
+        return UNDO
+    return gp.Point() if res == Rhino.Input.GetResult.Point else None
+
+
 HELP = u"""Options:
   Plus — how far the O arc extends past the line you clicked
   SA — seam allowance along the panel edges (no seam on the arc; 0 — none)
   Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
   Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
-  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
+  Style — label text style (default PAT 14 mm)
+  Undo (at the centre click) — take back the last O (again — the one before it); its number is reused"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -177,10 +194,16 @@ def main():
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
     n = next_number(LAYER, PREFIX)
     made = 0
+    steps = Steps(doc)
     while True:
-        center = rs.GetPoint(u"Top corner of the pocket — centre of the O (Enter — done)")
+        center = get_center()
         if center is None:
             break
+        if center == UNDO:
+            if steps.undo():
+                n, made = n - 1, made - 1
+            continue
+        steps.start()
         got = get_edge(curves, center, normal, tol)
         if got is None:
             break

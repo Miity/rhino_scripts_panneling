@@ -281,7 +281,7 @@ def main():
                 continue
             panel = new
             geoms = [edge]  # old edge = zip line
-        steps.created(add_markup(doc, geoms, te, layer_attrs(doc, NAME)))
+        add_markup(doc, geoms, te, layer_attrs(doc, NAME))
         made += 1
         if square:
             print(u"Warning: %d end(s) with a neighbour sharper than 30° — end is perpendicular" % square)

@@ -25,6 +25,10 @@ for _m in ("ReinfCircle", "ZipCover"):  # Rhino keeps modules from the first run
 from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, off_panel, label_style, pick_style  # layer, style
 from ZipCover import cm, flap, label_frame  # edge corner to corner + offset, ends along the neighbours; label along the edge
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
+sys.modules.pop("click_undo", None)
+from click_undo import UNDO, Steps  # option Undo: take back the last click
+
 STICKY = "Rinforzo"
 CODE = "R"  # rinforzo
 
@@ -45,7 +49,7 @@ def label_place(edge, off, normal, gap):
 
 
 def ask(gp):
-    """Click near an edge with options W / Plus / Angle / Layout / Style. A point or None (Enter / Esc)."""
+    """Click near an edge with options W / Plus / Angle / Layout / Style / Undo. A point, UNDO or None (Enter / Esc)."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0 * unit), 0.001, 1e6)
     plus = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_plus", 100.0 * unit), 0.0, 1e6)
@@ -57,6 +61,7 @@ def ask(gp):
     gp.AddOptionToggle("Layout", lay)
     up = up_option(gp)
     i_style = gp.AddOption("Style")
+    i_undo = gp.AddOption("Undo")
     while True:
         r = gp.Get()
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
@@ -65,6 +70,8 @@ def ask(gp):
         sc.sticky[STICKY + "_plus"] = plus.CurrentValue
         sc.sticky["ZipCover_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
+            if gp.OptionIndex() == i_undo:
+                return UNDO
             if gp.OptionIndex() == i_style:
                 pick_style(sc.doc, STICKY)
             continue
@@ -77,7 +84,8 @@ HELP = u"""Options:
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
   Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
   Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
-  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
+  Style — label text style (default PAT 14 mm)
+  Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -93,6 +101,7 @@ def main():
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
     made = 0
+    steps = Steps(doc)
     while True:
         gp = Rhino.Input.Custom.GetPoint()
         gp.SetCommandPrompt(u"Click near the edge for the reinforcement strip (Enter — done)")
@@ -100,6 +109,11 @@ def main():
         click = ask(gp)
         if click is None:
             break
+        if click == UNDO:
+            if steps.undo():
+                made -= 1
+            continue
+        steps.start()
         w, plus, angle = sc.sticky[STICKY], sc.sticky[STICKY + "_plus"], sc.sticky["ZipCover_angle"]
         res = flap(panel, click, w, angle, normal, tol, inward=True)  # on the panel: markup
         full = flap(panel, click, w, angle, normal, tol, inward=True, plus=plus)  # for cutting: longer by Plus
