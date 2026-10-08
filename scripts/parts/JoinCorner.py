@@ -1,256 +1,190 @@
 # -*- coding: utf-8 -*-
-"""Join two parts at a panel corner (ZipCover / Seam / any with different width W) into one.
-Two parts on neighbouring edges meet at the panel corner in a single point only, leaving a notch
-between them. Select the parts (labels and groups may be included, window selection), click in the notch near the corner
-(several corners in a row, Enter — done); the click must be in the notch — it tells which segments are the ends. The ends of both parts at this corner are removed, the outer
-edges are extended along the tangent to their intersection (like _Connect), giving one closed curve.
-Last corner of a frame around the panel (both ends belong to one part) → only the outer contour is kept.
-Parts inside the panel (ReinfBord) overlap at the corner instead of leaving a notch → simple union
-(inner edges to their intersection); click near the corner.
-The new curve takes the layer and group of the first part, the group of the second (label, seam points) merges into it.
-Parts with Layout=Yes (markup on the panel + full part above, UserText PartLink): you may select the markup
-or the part above and click the corner in either — the parts above are joined, the markup on the panel is rebuilt
-(lines of the joined part that do not lie on panel edges).
+"""Join any two open curves at a corner, edge to edge (like _Connect, but for corner-to-corner edges).
+Typical case: two ZipCover / Seam markups on neighbouring panel edges leave a notch at the panel corner.
+Select curves (window selection is fine: texts, points and closed curves are ignored), then click near the
+corner (several corners in a row, Enter — done). The two curve ends nearest the click are taken (two curves,
+or both ends of one curve). An edge runs corner to corner (corner — a break larger than Angle).
+For each end the script either joins its last edge or drops it (the short end to the panel) and joins the next
+one — whichever pair of edges meets nearest the click. The two edges are extended (straight, along the tangent)
+or trimmed to their intersection, everything beyond it is removed, the curves are joined into one.
+Two curves → the first keeps its object (layer, groups, UserText), the second is deleted and its group (label,
+seam points) merges into the first's group. Both ends of one curve (frame around a panel) → it closes.
+Parallel edges — skipped with a message.
 """
 import math
-import os
-import sys
 
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import AreaMassProperties, Curve, Line, LineCurve, PolylineCurve, Transform, Vector3d
+from Rhino.Geometry import Curve, CurveEnd, CurveExtensionStyle, Vector3d
 from Rhino.Geometry.Intersect import Intersection
 
-
-def at(segs, p, tol):
-    """[(segment, direction from p)] for segments that have an end at p."""
-    res = []
-    for s in segs:
-        if s.PointAtStart.DistanceTo(p) <= tol:
-            res.append((s, s.TangentAtStart))
-        elif s.PointAtEnd.DistanceTo(p) <= tol:
-            res.append((s, -s.TangentAtEnd))
-    return res
+STICKY = "JoinCorner"
 
 
-def other_end(s, p):
-    return s.PointAtEnd if s.PointAtStart.DistanceTo(p) < s.PointAtEnd.DistanceTo(p) else s.PointAtStart
-
-
-def in_sector(v, u, w):
-    """v between directions u and w (angle between them < 180°)."""
-    n = Vector3d.CrossProduct(u, w)
-    return n.Length > 1e-9 and Vector3d.CrossProduct(u, v) * n > 0 and Vector3d.CrossProduct(v, w) * n > 0
-
-
-def shared_corner(sa, sb, click, tol):
-    """Common vertex of segments sa and sb closest to click, or None.
-    sb is sa — a corner where the part touches itself (last corner of a frame around the panel)."""
-    common = [s.PointAtStart for s in sa
-              if (len(at(sa, s.PointAtStart, tol)) >= 4 if sb is sa else at(sb, s.PointAtStart, tol))]
-    return min(common, key=click.DistanceTo) if common else None
-
-
-def fill(sa, sb, ea, eb, c, tol):
-    """(notch area, ea, eb, xa, xb, o) if ea, eb are ends whose outer edges meet at o."""
-    xa, xb = other_end(ea, c), other_end(eb, c)
-    ends = []
-    for segs, e, x in ((sa, ea, xa), (sb, eb, xb)):
-        nxt = [t for t in at(segs, x, tol) if t[0] is not e]
-        if len(nxt) != 1:
-            return None
-        ends.append(-nxt[0][1])  # tangent of the outer edge, extension past x
-    ok, ta, tb = Intersection.LineLine(Line(xa, xa + ends[0]), Line(xb, xb + ends[1]), tol, False)
-    if not ok or ta < -tol or tb < -tol:
-        return None
-    o = xa + ends[0] * ta
-    area = (Vector3d.CrossProduct(xa - c, o - c).Length + Vector3d.CrossProduct(o - c, xb - c).Length) / 2
-    return area, ea, eb, xa, xb, o
-
-
-def join(a, b, click, tol):
-    """[closed curves] — a and b joined at the corner near click; or an error string.
-    b None — both ends at the corner belong to a: the frame closes → only the outer contour."""
-    sa = list(a.DuplicateSegments())  # list: stable wrappers for `is`
-    sb = sa if b is None else list(b.DuplicateSegments())
-    c = shared_corner(sa, sb, click, tol)
-    if c is None:
-        return u"parts have no common corner"
-    joined = overlap(a, b, tol)
-    if joined is None:
-        joined = gap(sa, sb, c, click, tol)
-        if isinstance(joined, str):
-            return joined
+def edges(crv, angle, tol):
+    """Edges corner to corner of an open curve, in curve order (corner — a break larger than angle)."""
     out = []
-    for crv in joined:
-        ok, pl = crv.TryGetPolyline()  # as in ZipCover: a clean polyline for PreparePanelCut
-        if ok:
-            pl.DeleteShortSegments(tol)
-            if hasattr(pl, "MergeColinearSegments"):
-                pl.MergeColinearSegments(1e-6, True)
-            crv = PolylineCurve(pl)
-        out.append(crv)
-    return out
+    for s in crv.DuplicateSegments() or [crv.DuplicateCurve()]:
+        if s.GetLength() <= tol:
+            continue
+        if out and Vector3d.VectorAngle(out[-1][-1].TangentAtEnd, s.TangentAtStart) <= math.radians(angle):
+            out[-1].append(s)
+        else:
+            out.append([s])
+    return [Curve.JoinCurves(g, tol)[0] for g in out]
 
 
-def overlap(a, b, tol):
-    """[union of a and b] if they overlap (strips inside the panel, ReinfBord); otherwise None."""
-    # ponytail: a frame of inward strips (last corner — part with itself) is not handled
-    if b is None:
-        return None
-    u = Curve.CreateBooleanUnion([a, b], tol)
-    if not u or len(u) != 1:
-        return None
-    area = lambda c: AreaMassProperties.Compute(c).Area
-    ua, aa, ab = area(u[0]), area(a), area(b)
-    return [u[0]] if max(aa, ab) * 1.001 < ua < 0.999 * (aa + ab) else None  # a real overlap, not a touch and not the same part
+def plan(es, at_end, drop):
+    """(index of the edge to join, its corner end is its end?) for the curve end at_end with drop edges dropped."""
+    return (len(es) - 1 - drop, True) if at_end else (drop, False)
 
 
-def gap(sa, sb, c, click, tol):
-    """[closed curves] — parts with a notch at corner c, ends removed, outer edges to their intersection; or an error string."""
-    # Ends — the two segments at the corner with the click between them (in the notch). Without the panel the parts are symmetric:
-    # the pair "edge + edge" also closes (fills the panel), so only the click can tell them apart.
-    v = click - c
+def extended(e, at_end, big):
+    return e.Extend(CurveEnd.End if at_end else CurveEnd.Start, big, CurveExtensionStyle.Line)
+
+
+def cut(e, at_end, x):
+    """Edge from its far end to x (x on its straight extension or on the edge itself)."""
+    ext = extended(e, at_end, e.GetLength() + x.DistanceTo(e.PointAtEnd if at_end else e.PointAtStart) * 2 + 1)
+    t = ext.ClosestPoint(x)[1]
+    return ext.Trim(ext.Domain.T0, t) if at_end else ext.Trim(t, ext.Domain.T1)
+
+
+def join(ends, click, angle, tol):
+    """ends — two (curve, at_end) (the same curve twice for a frame). Joined curve or an error string."""
+    (ca, ea), (cb, eb) = ends
+    same = ca is cb
+    la, lb = edges(ca, angle, tol), (None if same else edges(cb, angle, tol))
+    lb = la if same else lb
+    big = 10 * (ca.GetLength() + cb.GetLength())
     best = None
-    for ea, da in at(sa, c, tol):
-        for eb, db in at(sb, c, tol):
-            if ea is eb or Vector3d.VectorAngle(da, db) > math.radians(175):  # end of one along the edge of the other
+    for da in (0, 1):
+        for db in (0, 1):
+            ia, fa = plan(la, ea, da)
+            ib, fb = plan(lb, eb, db)
+            if not (0 <= ia < len(la) and 0 <= ib < len(lb)):
                 continue
-            if in_sector(v, da, db):
-                best = fill(sa, sb, ea, eb, c, tol)
+            if same and (ia >= ib if not fa else ib >= ia):  # frame: start edge before end edge, not the same one
+                continue
+            xa, xb = extended(la[ia], fa, big), extended(lb[ib], fb, big)
+            if xa is None or xb is None:
+                continue
+            ev = Intersection.CurveCurve(xa, xb, tol, tol)
+            pts = [e.PointA for e in ev or []]
+            if not pts:
+                continue
+            x = min(pts, key=click.DistanceTo)
+            ends_now = (ca.PointAtEnd if ea else ca.PointAtStart, cb.PointAtEnd if eb else cb.PointAtStart)
+            if all(p.DistanceTo(x) <= tol for p in ends_now) and da == db == 0:
+                continue  # already joined there — nothing to do
+            if best is None or x.DistanceTo(click) < best[0]:
+                best = (x.DistanceTo(click), ia, fa, ib, fb, x)
     if best is None:
-        return u"click in the notch between the parts near the corner (or the outer edges do not meet — concave corner)"
-    _, ea, eb, xa, xb, o = best
-    rest = [s for s in sa if s is not ea and s is not eb]
-    if sb is not sa:
-        rest += [s for s in sb if s is not eb]
-    rest += [LineCurve(p, o) for p in (xa, xb) if p.DistanceTo(o) > tol]
-    joined = Curve.JoinCurves(rest, tol)
-    if len(joined) != (2 if sb is sa else 1) or not all(c.IsClosed for c in joined):
-        return u"part did not close"
-    if sb is sa:  # frame closed: the inner contour (= panel edge) is not needed, the outer one stays
-        joined = [max(joined, key=lambda c: c.GetBoundingBox(True).Diagonal.Length)]
-    return joined
-
-
-def link_of(i):
-    """(PartLink, LayoutUp vector) of the full part or (None, None)."""
-    up = rs.GetUserText(i, "LayoutUp")
-    return (rs.GetUserText(i, "PartLink"), Vector3d(*[float(x) for x in up.split(",")])) if up else (None, None)
-
-
-def linked(link, markup):
-    """Objects with UserText PartLink == link: markup or the full part."""
-    return [o.Id for o in sc.doc.Objects.FindByUserString("PartLink", link, True)
-            if bool(o.Attributes.GetUserString("PartMarkup")) == markup]
-
-
-def to_full(ids):
-    """Replaces markup (open curve with PartMarkup) with its full part (closed contour above)."""
-    out = []
-    for i in ids:
-        if rs.GetUserText(i, "PartMarkup"):
-            i = next((k for k in linked(rs.GetUserText(i, "PartLink"), False)
-                      if rs.IsCurve(k) and rs.IsCurveClosed(k)), None)
-        if i is not None and rs.IsCurveClosed(i) and i not in out:
-            out.append(i)
+        return u"the edges near the click do not meet (parallel?)"
+    _, ia, fa, ib, fb, x = best
+    if same:  # frame: both ends of one curve → closed loop
+        es = list(la)
+        es[ia], es[ib] = cut(es[ia], fa, x), cut(es[ib], fb, x)
+        keep = es[min(ia, ib):max(ia, ib) + 1]
+    else:
+        ka = la[:ia] + [cut(la[ia], fa, x)] if fa else [cut(la[ia], fa, x)] + la[ia + 1:]
+        kb = lb[:ib] + [cut(lb[ib], fb, x)] if fb else [cut(lb[ib], fb, x)] + lb[ib + 1:]
+        keep = ka + kb
+    joined = Curve.JoinCurves(keep, tol)
+    if len(joined) != 1:
+        return u"the result did not join into one curve"
+    out = joined[0]
+    ok, pl = out.TryGetPolyline()  # a clean polyline if everything is straight (for PreparePanelCut)
+    if ok:
+        pl.DeleteShortSegments(tol)
+        out = Rhino.Geometry.PolylineCurve(pl)
     return out
 
 
-def moved(crv, v):
-    c = crv.DuplicateCurve()
-    c.Transform(Transform.Translation(v))
-    return c
+def nearest_ends(ids, click):
+    """Two curve ends nearest the click: [(id, at_end)], ends of the same curve allowed."""
+    cands = []
+    for i in ids:
+        c = rs.coercecurve(i)
+        if c is None or c.IsClosed:
+            continue
+        cands += [(c.PointAtStart.DistanceTo(click), i, False), (c.PointAtEnd.DistanceTo(click), i, True)]
+    cands.sort(key=lambda k: k[0])
+    return [(i, e) for _, i, e in cands[:2]]
 
 
-def rebuild_markup(doc, res, parts, up, tol):
-    """Markup of the joined part: res (above) moved by -up, without panel edges. parts — [(contour id, PartLink)]
-    of the source parts (still in the document). Old markup curves are deleted, labels go to the markup group of the first."""
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    sys.modules.pop("ReinfCircle", None)  # Rhino caches modules per session
-    from ReinfCircle import off_panel
-    edges, old = [], []
-    for i, link in parts:
-        marks = linked(link, True)
-        curves = [rs.coercecurve(m) for m in marks if rs.IsCurve(m)]
-        # panel edges = segments of the source part (in place) that do not lie on its markup
-        edges += [g for g in moved(rs.coercecurve(i), -up).DuplicateSegments()
-                  if not curves or off_panel(g, curves, tol)]
-        old.append(marks)
-    first = [m for m in old[0] if rs.IsCurve(m)]
-    if not first:
+def merge_groups(keep_id, drop_id):
+    """Members of drop_id's groups go into keep_id's group (created if keep_id has none)."""
+    groups = rs.ObjectGroups(drop_id) or []
+    if not groups:
         return
-    attrs = doc.Objects.FindId(first[0]).Attributes.Duplicate()
-    groups = rs.ObjectGroups(first[0])
-    new = [doc.Objects.AddCurve(c, attrs) for r in res for c in off_panel(moved(r, -up), edges, tol)]
-    rest = [m for marks in old[1:] for m in marks if not rs.IsCurve(m)]  # markup labels of the second part
-    for m in rest:
-        rs.RemoveObjectFromAllGroups(m)
-        rs.SetUserText(m, "PartLink", parts[0][1])
-    rs.DeleteObjects([m for marks in old for m in marks if rs.IsCurve(m)])
-    if groups:
-        rs.AddObjectsToGroup(new + rest, groups[0])
+    target = (rs.ObjectGroups(keep_id) or [None])[0]
+    if target is None:
+        target = rs.AddGroup()
+        rs.AddObjectToGroup(keep_id, target)
+    for g in groups:
+        members = [m for m in rs.ObjectsByGroup(g) if m != drop_id]
+        if members:
+            rs.AddObjectsToGroup(members, target)
+
+
+def ask(gp):
+    """Click near the corner with option Angle. A point or None (Enter / Esc)."""
+    a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
+    gp.AddOptionDouble("Angle", a)
+    while True:
+        r = gp.Get()
+        sc.sticky[STICKY + "_angle"] = a.CurrentValue
+        if r == Rhino.Input.GetResult.Option:
+            continue
+        return gp.Point() if r == Rhino.Input.GetResult.Point else None
+
+
+HELP = u"""Options:
+  Angle — a break larger than this angle = corner (an edge runs corner to corner)"""  # printed at start
 
 
 def main():
+    print(HELP)
     doc = sc.doc
-    tol = doc.ModelAbsoluteTolerance
-    ids = rs.GetObjects(u"Select parts to join at corners", rs.filter.curve, preselect=True) or []
-    ids = to_full(ids)
+    ids = rs.GetObjects(u"Select curves to join at corners", preselect=True)
     if not ids:
-        print(u"No closed part selected (or markup with a part above).")
         return
-    rs.UnselectAllObjects()
-    made = []
+    tol = doc.ModelAbsoluteTolerance
+    ids = [i for i in ids if rs.IsCurve(i) and not rs.IsCurveClosed(i)]
+    if not ids:
+        print(u"No open curves in the selection")
+        return
+    made = 0
     while True:
-        click = rs.GetPoint(u"Click in the notch between the parts near the corner (Enter — done)")
+        gp = Rhino.Input.Custom.GetPoint()
+        gp.SetCommandPrompt(u"Click near the corner to join (Enter — done)")
+        gp.AcceptNothing(True)
+        click = ask(gp)
         if click is None:
             break
-        # pair of parts (or a part with itself, j == i) with a common vertex closest to the click;
-        # click on the markup on the panel → the same corner above (+LayoutUp)
-        best = None
-        segs = [list(rs.coercecurve(k).DuplicateSegments()) for k in ids]
-        for i in range(len(ids)):
-            up = link_of(ids[i])[1]
-            for p in [click] + ([click + up] if up else []):
-                for j in range(i, len(ids)):
-                    c = shared_corner(segs[i], segs[j], p, tol)
-                    if c is not None and (best is None or c.DistanceTo(p) < best[0]):
-                        best = (c.DistanceTo(p), i, j, p)
-        if best is None:
-            print(u"No corner near the click where part ends meet.")
+        ends = nearest_ends(ids, click)
+        if len(ends) < 2:
+            print(u"Skipped: need two curve ends")
             continue
-        _, i, j, p = best
-        res = join(rs.coercecurve(ids[i]), None if i == j else rs.coercecurve(ids[j]), p, tol)
-        if isinstance(res, str):
+        (ia, ea), (ib, eb) = ends
+        ca = rs.coercecurve(ia)
+        cb = ca if ia == ib else rs.coercecurve(ib)
+        res = join([(ca, ea), (cb, eb)], click, sc.sticky[STICKY + "_angle"], tol)
+        if not isinstance(res, Curve):
             print(u"Skipped: %s" % res)
             continue
-        ia, ib = ids[i], ids[j]
-        (la, up), lb = link_of(ia), link_of(ib)[0]
-        if la:
-            rebuild_markup(doc, res, [(ia, la)] + ([(ib, lb)] if lb and ib != ia else []), up, tol)
-        attrs = doc.Objects.FindId(ia).Attributes.Duplicate()  # layer and groups of the first part (and PartLink)
-        new = [doc.Objects.AddCurve(crv, attrs) for crv in res]
-        ga, gb = rs.ObjectGroups(ia), rs.ObjectGroups(ib) if ib != ia else None
-        rs.DeleteObjects(list(set([ia, ib])))
-        if gb:
-            members = rs.ObjectsByGroup(gb[0]) or []
-            if ga:
-                for m in members:
-                    rs.RemoveObjectFromGroup(m, gb[0])
-                rs.AddObjectsToGroup(members, ga[0])
-            else:
-                rs.AddObjectsToGroup(new, gb[0])
-            if la:
-                for m in members:
-                    rs.SetUserText(m, "PartLink", la)
-        ids = [k for k in ids if k not in (ia, ib)] + new
-        made = [k for k in made if k not in (ia, ib)] + new
+        doc.Objects.Replace(ia, res)
+        if ib != ia:
+            merge_groups(ia, ib)
+            doc.Objects.Delete(ib, True)
+            ids.remove(ib)
+        if res.IsClosed:
+            ids.remove(ia)  # closed now — no more ends to join
+        made += 1
         doc.Views.Redraw()
-    if made:
-        rs.SelectObjects(made)
-    print(u"Joined: %d parts (selected)" % len(made))
+    print(u"Join Corner: %d corners joined" % made)
 
 
 if __name__ == "__main__":

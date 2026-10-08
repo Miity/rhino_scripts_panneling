@@ -55,7 +55,7 @@ GROUPS = [
         (u"Panels", u"Panels → copy in Parts::Panels numbered P1, P2… (text inside + TextDot)", py("parts/Panels.py"), None),
         (u"Strips", u"Strips under the selected lines: height H, length = length of each curve; label S<n>", py("parts/StripsFromCurves.py"), None),
         (u"ZipCover", u"Zip cover / seam allowance: panel edge (corner to corner) + offset W outward, ends along the neighbouring edges; Points=No — ZC W, Points=Yes — seam points, SA W; EditPanel=Yes — the panel contour itself grows", py("parts/ZipCover.py"), None),
-        (u"Join Corner", u"Join two parts at a corner (ZipCover / Seam, different W): click in the notch between the parts → ends removed, outer edges to their intersection, one curve", py("parts/JoinCorner.py"), None),
+        (u"Join Corner", u"Join any two open curves at a corner, edge to edge: click near the corner → edges (corner to corner) extended / trimmed to their intersection, ends beyond removed, one curve", py("parts/JoinCorner.py"), None),
         (u"ZipStops", u"Zips (Z<n>) and tracks (Trk<n>, option Type): stops Trim in from the line ends + number, tick at junctions; lines untouched", py("parts/ZipStops.py"), None),
         (u"ZipList", u"Order table: zips (longer side, cm × pcs) and tracks (full length); CSV next to the .3dm + clipboard", py("parts/ZipList.py"), None),
         (u"Mark Reinf", u"Reinforcement strip without a part: select labels (ZC / SA…), the panel is found automatically → append R<H>, edge length in UserText", py("parts/MarkReinf.py"), None),

@@ -3,7 +3,7 @@
 Select a panel (closed curve) and click near an edge (several in a row, Enter — done).
 Like ZipCover (ZipCover.flap, inward), but inward: edge corner to corner (corner — tangent break
 larger than Angle) + offset by H (default 6 cm; sometimes 10) into the panel, ends — along the neighbouring edges
-(neighbour sharper than 30° — perpendicular end). Two strips at a corner are joined by JoinCorner.
+(neighbour sharper than 30° — perpendicular end). Two strips at a corner: JoinCorner on the markup lines.
 Option SA — seam allowance on the inner edge (default 0): cut at H + SA, seam line at H, in the group.
 The panel is not changed. Part in place, layer Parts::Reinforcements, label "RB<n>  H=…" (≈ H/10, at a quarter of the edge, along the inner line) in a group;
 RB numbering continues between runs.

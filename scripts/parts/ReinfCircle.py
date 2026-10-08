@@ -47,7 +47,7 @@ def add_part(doc, full, te, markup, attrs, layout=True):
     in place — markup (curves markup + the same label), its own group. Returns (full id, markup ids).
     Without layout — full part in place, no markup (markup ids = []).
     The pair is linked by UserText PartLink (common id); the full part has LayoutUp (offset vector), the markup — PartMarkup.
-    JoinCorner uses them to join the parts above and rebuild the markup."""
+    """
     xf = Transform.Translation(rs.ViewCPlane().YAxis * (UP if layout else 0.0))
 
     def add(geo):

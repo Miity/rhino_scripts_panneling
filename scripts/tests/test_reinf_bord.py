@@ -11,10 +11,9 @@ out = open(os.path.join(HERE, "test_reinf_bord.txt"), "w")
 try:
     from Rhino.Geometry import AreaMassProperties, Point3d, Polyline, PolylineCurve, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
-    for m in ("ReinfCircle", "ZipCover", "ReinfBord", "JoinCorner"):  # live Rhino keeps old module versions
+    for m in ("ReinfCircle", "ZipCover", "ReinfBord"):  # live Rhino keeps old module versions
         sys.modules.pop(m, None)
     import ReinfBord as M
-    import JoinCorner
 
     Z, tol = Vector3d.ZAxis, 0.001
     def poly(*xy):
@@ -61,13 +60,6 @@ try:
     assert len(mk) == 1 and abs(mk[0].GetLength() - top) < 1e-3, [c.GetLength() for c in mk]
     cut, seams = M.border(panel, Point3d(510, 150, 0), 60, 10, 30, Z, tol)[:2]  # SA: seam — also only line H
     assert len(seams) == 1 and abs(seams[0].GetLength() - top) < 1e-3, [c.GetLength() for c in seams]
-    # JoinCorner: strips on the right and top edges overlap at the corner → one L-shaped part
-    panel = poly((0, 0), (500, 0), (500, 300), (0, 300))
-    a = M.border(panel, Point3d(510, 150, 0), 60, 0, 30, Z, tol)[0]
-    b = M.border(panel, Point3d(250, 310, 0), 60, 0, 30, Z, tol)[0]
-    j = JoinCorner.join(a, b, Point3d(490, 290, 0), tol)
-    assert isinstance(j, list) and len(j) == 1 and j[0].IsClosed, j
-    assert abs(area(j[0]) - (18000 + 30000 - 3600)) < 1e-2, area(j[0])
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())

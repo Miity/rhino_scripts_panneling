@@ -8,10 +8,10 @@ from the edge (the extension would go very far) — the end is perpendicular, wi
 Option Points=No (default): zip cover — label "ZC W", layer Parts::ZipCover.
 Points=Yes: seam allowance — seam points (logic of markup/sewing_points.py: centre ± k·Step) on a copy of the edge,
 label "SA W", layer Parts::Seam.
-Option EditPanel=No (default): only markup is added, in place: the strip lines not lying on the panel edge
+Option EditPanel=No: only markup is added, in place: the strip lines not lying on the panel edge
 + label (+ edge copy and seam points), one group. The panel is not changed: before cutting PreparePanelCut joins
 it with the markup (for that the edge must be a polyline / lines).
-EditPanel=Yes: the panel contour itself gets the strip (one closed curve; layer, groups, UserText kept),
+EditPanel=Yes (default): the panel contour itself gets the strip (one closed curve; layer, groups, UserText kept),
 the old edge stays as a line (zip / seam line) + label, one group.
 """
 import math
@@ -207,15 +207,15 @@ def edit_panel(doc, oid, panel, edge, outer, tol):
 
 def ask(gp):
     """Click near an edge with options W / Angle / Points / Step / EditPanel / Style. A point or None (Enter / Esc)."""
-    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 25.0), 0.001, 1e6)
+    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 30.0), 0.001, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     gp.AddOptionDouble("W", w)
     gp.AddOptionDouble("Angle", a)
     pts = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_points", False), "No", "Yes")
-    step = Rhino.Input.Custom.OptionDouble(sc.sticky.get("sew_step", 20.0), 0.001, 1e6)  # shared with sewing_points
+    step = Rhino.Input.Custom.OptionDouble(sc.sticky.get("sew_step", 200.0), 0.001, 1e6)  # shared with sewing_points
     gp.AddOptionToggle("Points", pts)
     gp.AddOptionDouble("Step", step)
-    ed = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_edit", False), "No", "Yes")
+    ed = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_edit", True), "No", "Yes")
     gp.AddOptionToggle("EditPanel", ed)
     i_style = gp.AddOption("Style")
     while True:

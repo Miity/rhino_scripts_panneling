@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Check of JoinCorner.join in Rhino 8 (needs RhinoCommon):
+"""Check of JoinCorner (join, main with group merge) in Rhino 8 (needs RhinoCommon):
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_join_corner.txt next to it."""
 import os
@@ -9,68 +9,67 @@ import traceback
 HERE = os.path.dirname(os.path.abspath(__file__))
 out = open(os.path.join(HERE, "test_join_corner.txt"), "w")
 try:
-    from Rhino.Geometry import AreaMassProperties, Point3d, Polyline, PolylineCurve, Vector3d
+    from Rhino.Geometry import AreaMassProperties, Curve, LineCurve, Point3d, Polyline, PolylineCurve, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
+    for m in ("ReinfCircle", "ZipCover", "JoinCorner"):  # live Rhino keeps old module versions
+        sys.modules.pop(m, None)
     import ZipCover
+    from ReinfCircle import off_panel
     import JoinCorner as M
-    import importlib; importlib.reload(M)
 
     Z, tol = Vector3d.ZAxis, 0.001
-    def poly(*p):
-        return PolylineCurve(Polyline([Point3d(x, y, 0) for x, y in p + (p[0],)]))
-    def area(c):
-        return AreaMassProperties.Compute(c).Area
+    def pl(*p, **k):
+        return PolylineCurve(Polyline([Point3d(x, y, 0) for x, y in (p + (p[0],) if k.get("closed") else p)]))
 
-    # rectangle 100×60: flap W=10 on top, seam W=20 on the left → L with a filled 20×10 corner
-    pan = poly((0, 0), (100, 0), (100, 60), (0, 60))
-    top = ZipCover.flap(pan, Point3d(50, 61, 0), 10, 30, Z, tol)[0]
-    left = ZipCover.flap(pan, Point3d(-1, 30, 0), 20, 30, Z, tol)[0]
-    j, = M.join(top, left, Point3d(-10, 65, 0), tol)
-    assert j.IsClosed and abs(area(j) - (1000 + 1200 + 200)) < 1e-3, area(j)
-    ok, pl = j.TryGetPolyline()
-    assert ok and pl.Count - 1 == 6, pl.Count  # L: 6 vertices, no extra ones on straight lines
-    assert M.join(left, top, Point3d(-10, 65, 0), tol)[0].IsClosed  # order does not matter
-    # click on the part itself (not between the ends and not between the edges) — error
-    assert isinstance(M.join(top, left, Point3d(50, 65, 0), tol), str)
+    # ZipCover markups at the top-left corner of a 100×60 panel: top W=10, left W=20 → notch at (0, 60)
+    pan = pl((0, 0), (100, 0), (100, 60), (0, 60), closed=True)
+    top, = off_panel(ZipCover.flap(pan, Point3d(50, 61, 0), 10, 30, Z, tol)[0], [pan], tol)
+    left, = off_panel(ZipCover.flap(pan, Point3d(-1, 30, 0), 20, 30, Z, tol)[0], [pan], tol)
+    ends = [(top, top.PointAtEnd.DistanceTo(Point3d(0, 60, 0)) < 1), (left, left.PointAtEnd.DistanceTo(Point3d(0, 60, 0)) < 1)]
+    j = M.join(ends, Point3d(-5, 65, 0), 30, tol)
+    assert isinstance(j, Curve) and not j.IsClosed, j
+    assert abs(j.GetLength() - 220) < 1e-6, j.GetLength()  # 10 + 120 (top to x=-20) + 70 + 20
+    assert {(round(p.X), round(p.Y)) for p in (j.PointAtStart, j.PointAtEnd)} == {(100, 60), (0, 0)}
+    assert any(p.DistanceTo(Point3d(-20, 70, 0)) < 1e-6 for p in j.TryGetPolyline()[1])  # outer corner
 
-    # slanted corner (trapezoid) with different W: area = sum + notch, outer corner — intersection of offsets
-    pan = poly((0, 0), (100, 0), (120, 60), (-20, 60))
-    top = ZipCover.flap(pan, Point3d(50, 61, 0), 10, 30, Z, tol)[0]
-    right = ZipCover.flap(pan, Point3d(111, 30, 0), 15, 30, Z, tol)[0]
-    j, = M.join(top, right, Point3d(128, 64, 0), tol)
-    assert j.IsClosed and area(j) > area(top) + area(right), (area(j), area(top) + area(right))
-    # without the notch between parts: both parts are pieces of the result
-    assert abs(j.GetBoundingBox(True).Max.Y - 70) < 1e-6
-    ok, pl = j.TryGetPolyline()
-    assert ok and pl.Count - 1 == 6, pl.Count
+    # frame: one open curve around a square, gap at the corner (0, 0) → closes
+    fr = pl((0, 2), (0, 10), (10, 10), (10, 0), (2, 0))
+    j = M.join([(fr, False), (fr, True)], Point3d(0.5, 0.5, 0), 30, tol)
+    assert j.IsClosed and abs(AreaMassProperties.Compute(j).Area - 100) < 1e-6
 
-    # as p1.3dm: curved side as a polyline of small segments, W 30 on top and 20 on the side.
-    # The pair "edge + edge" gives a tiny fill here — without the click it is easy to take the wrong one.
-    import math
-    side = [(-5 * math.sin(math.pi * k / 20), 60 - 3 * k) for k in range(21)]
-    pan = poly(*([(100, 60), (100, 0)] + side[::-1][:-1] + [(0, 60)]))
-    top = ZipCover.flap(pan, Point3d(50, 61, 0), 30, 30, Z, tol)[0]
-    left = ZipCover.flap(pan, Point3d(-6, 30, 0), 20, 30, Z, tol)[0]
-    j, = M.join(top, left, Point3d(-5, 75, 0), tol)
-    # minimum fill would pick the pair of edges here — so check that the notch is taken
-    
-    gap = area(j) - area(top) - area(left)
-    assert j.IsClosed and 300 < gap < 900, gap  # notch ≈ 20 × 30
-    assert abs(j.GetBoundingBox(True).Max.Y - 90) < 1e-6
+    # crossing lines → trimmed at the crossing, joined
+    a, b = LineCurve(Point3d(0, 0, 0), Point3d(12, 0, 0)), LineCurve(Point3d(10, -2, 0), Point3d(10, 10, 0))
+    j = M.join([(a, True), (b, False)], Point3d(11, -1, 0), 30, tol)
+    assert abs(j.GetLength() - 20) < 1e-6, j.GetLength()
 
-    # parts without a common corner
-    bottom = ZipCover.flap(poly((0, 0), (100, 0), (100, 60), (0, 60)), Point3d(50, -1, 0), 10, 30, Z, tol)[0]
-    assert isinstance(M.join(bottom, top, Point3d(0, 0, 0), tol), str)
-    # frame: 4 parts around a rectangle, different W; 3 corners → one part, the 4th corner — with itself
-    pan = poly((0, 0), (100, 0), (100, 60), (0, 60))
-    fl = [ZipCover.flap(pan, c, w, 30, Z, tol)[0] for c, w in
-          ((Point3d(50, 61, 0), 10), (Point3d(-1, 30, 0), 20), (Point3d(50, -1, 0), 5), (Point3d(101, 30, 0), 15))]
-    a, = M.join(fl[0], fl[1], Point3d(-10, 65, 0), tol)
-    a, = M.join(a, fl[2], Point3d(-10, -3, 0), tol)
-    a, = M.join(a, fl[3], Point3d(110, -3, 0), tol)
-    assert isinstance(M.join(a, a, Point3d(110, 65, 0), tol), str)  # no pair with itself
-    outer, = M.join(a, None, Point3d(110, 65, 0), tol)  # frame closed → only the outer contour
-    assert outer.IsClosed and abs(area(outer) - 135 * 75) < 1e-3, area(outer)
+    # parallel lines → error string
+    c = LineCurve(Point3d(0, 5, 0), Point3d(12, 5, 0))
+    assert not isinstance(M.join([(a, True), (c, True)], Point3d(12, 2, 0), 30, tol), Curve)
+
+    # main(): the second curve is deleted, its group (label) merges into the first's group
+    import Rhino
+    import rhinoscriptsyntax as rs
+    import scriptcontext as sc
+    old_doc, old_get = sc.doc, rs.GetObjects
+    try:
+        doc = Rhino.RhinoDoc.CreateHeadless(None)
+        sc.doc = doc
+        ia, ib = doc.Objects.AddCurve(top), doc.Objects.AddCurve(left)
+        ta = doc.Objects.AddTextDot("ZC 10", Point3d(50, 65, 0))
+        tb = doc.Objects.AddTextDot("SA 20", Point3d(-10, 30, 0))
+        rs.AddObjectsToGroup([ia, ta], rs.AddGroup())
+        rs.AddObjectsToGroup([ib, tb], rs.AddGroup())
+        rs.GetObjects = lambda *x, **k: [ia, ib, ta, tb]
+        clicks = [Point3d(-5, 65, 0), None]
+        M.ask = lambda gp: clicks.pop(0)
+        sc.sticky["JoinCorner_angle"] = 30.0
+        M.main()
+        assert doc.Objects.FindId(ib) is None and abs(doc.Objects.FindId(ia).Geometry.GetLength() - 220) < 1e-6
+        g = rs.ObjectGroups(ia)[0]
+        assert set(rs.ObjectsByGroup(g)) == {ia, ta, tb}, rs.ObjectsByGroup(g)
+        doc.Dispose()
+    finally:
+        sc.doc, rs.GetObjects = old_doc, old_get
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())
