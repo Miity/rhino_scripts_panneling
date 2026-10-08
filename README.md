@@ -26,11 +26,13 @@ Labels on the drawing are read by the seamstresses, so they are Italian codes; e
 | `Can<n>` | canalina — track | ZipStops, `Type=Track` |
 | `R<w>` | rinforzo — strip laid on the panel, not folded | Rinforzo (`R<w>`), Mark Reinf (` R<w>` on a label) |
 | `B<w>` | bordino — separate straight strip folded over the panel edge: 3.5 cm bordino, 4.5 cm bordino rinforzato | Bordino |
+| `Pt<w>` | pettola — the same separate strip as bordino, only wider (6–14 cm and more); a panel may have both | Pettola |
 | `RD<n>` / `RO<n>  r=…` | rinforzo D / O | Reinf D / O (RfD / RfO) |
-| `T<n>` | tasca — pocket | Tube Pockets |
+| `T<n>` | tasca — pocket | Pettola | `parts/Pettola.py` — pettola `Pt`: exactly Bordino (same clicks, options, copy up, one group, label on the panel after the zip number), only wider — `W` default 10 cm (6–14 cm and more, remembered separately from Bordino), label `Pt<w>`, layer `Parts::Pettola`; on one edge the labels go `Z<n>  R<w>  B<w>  Pt<w>`. Runs `Bordino.main("Pettola")` |
+| Tube Pockets |
 | `A–A`, `B–B`… | joint of panel pieces split to the material width | SplitToMaterial |
 
-On the panel the labels of one edge stand in a row: `Z<n>  R<w>  B<w>`. Part Panel adds the panel number to a part's label: `R6 P4`, `B3.5 P4`, `T9 P5`.
+On the panel the labels of one edge stand in a row: `Z<n>  R<w>  B<w>  Pt<w>`. Part Panel adds the panel number to a part's label: `R6 P4`, `B3.5 P4`, `T9 P5`.
 
 ### Old drawings
 

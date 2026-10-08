@@ -30,7 +30,8 @@ try:
     tol = doc.ModelAbsoluteTolerance
     rs.ViewCPlane = lambda *a, **k: Plane.WorldXY
     sc.sticky.update({R.STICKY: 60.0, R.STICKY + "_plus": 100.0, R.STICKY + "_layout": True, R.UP_KEY: 10000.0,
-                      "ZipCover_angle": 30.0, B.STICKY: 35.0, B.STICKY + "_plus": 60.0})
+                      "ZipCover_angle": 30.0, "Bordino": 35.0, "Bordino_plus": 60.0, "Pettola": 100.0,
+                      "Pettola_plus": 60.0})
 
     def rect(x0, y0, x1, y1):
         return PolylineCurve(Polyline([Point3d(x, y, 0) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0))]))
@@ -57,7 +58,7 @@ try:
     R.ask = lambda gp: seq.pop(0)
     R.main()
     seq2 = [Point3d(250, 5, 0), None]
-    B.ask = lambda gp: seq2.pop(0)
+    B.ask = lambda *a: seq2.pop(0)
     B.main()
     # tube pocket on the bottom edge of P5, part up
     edge = LineCurve(Point3d(0, -300, 0), Point3d(500, -300, 0))

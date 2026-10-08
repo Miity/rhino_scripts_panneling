@@ -170,7 +170,7 @@ def marked_edges():
 
 
 RINF_LINE = "RinfLine"  # UserText on a Rinforzo markup label: id of its panel (marks the label)
-BORD_EDGE = "BordEdge"  # UserText on a Bordino label (B<w> on the panel): "x,y,z" — midpoint of its edge
+BORD_EDGE = "BordEdge"  # UserText on a Bordino / Pettola label (B<w>, Pt<w> on the panel): "x,y,z" — midpoint of its edge
 BORD_LINE = "BordLine"  # UserText on a Bordino label: id of its panel
 BORD_NEAR_CM = 10.0  # zip edge and Bordino edge midpoints closer than this = one side (see bordino_near)
 
@@ -240,22 +240,24 @@ def bordino_near(zid, zmid, bmid, pid, tol):
         return d
 
 
-def bordino_text(zid, mid, tol):
-    """The Bordino label (B<w> on the panel) of the zip's edge (midpoint mid), the nearest one, or None."""
+def bordino_texts(zid, mid, tol):
+    """Bordino / Pettola labels (B<w>, Pt<w> on the panel) of the zip's edge (midpoint mid) — those of the nearest edge,
+    B before Pt."""
     found = []
     for o in rs.ObjectsByType(512) or []:
         pt, pid = stored_point(o, BORD_EDGE), rs.GetUserText(o, BORD_LINE)
         d = bordino_near(zid, mid, pt, pid, tol) if pt is not None and pid else None
         if d is not None:
             found.append((d, o))
-    return min(found, key=lambda f: f[0])[1] if found else None
+    d0 = min(d for d, o in found) if found else 0.0
+    return sorted((o for d, o in found if d <= d0 + 100 * tol), key=lambda o: rs.TextObjectText(o).startswith("Pt"))
 
 
 def labels_after(doc, zid, mid, tol, steps=None):
-    """Labels of the zip's edge (midpoint mid) right after its number zid, in the order Z<n> R<w> B<w>.
+    """Labels of the zip's edge (midpoint mid) right after its number zid, in the order Z<n> R<w> B<w> Pt<w>.
     Returns the Rinforzo label or None."""
     prev, rid = zid, rinforzo_text(doc, mid, tol)
-    for o in (rid, bordino_text(zid, mid, tol)):
+    for o in [rid] + bordino_texts(zid, mid, tol):
         if o:
             beside(doc, prev, o, steps)
             prev = o

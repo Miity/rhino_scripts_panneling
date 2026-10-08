@@ -42,7 +42,8 @@ try:
 
     sc.sticky[Z.ANGLE] = 30.0
     sc.sticky.update({R.STICKY: 60.0, R.STICKY + "_plus": 100.0, R.STICKY + "_layout": True, R.UP_KEY: 10000.0,
-                      "ZipCover_angle": 30.0, B.STICKY: 35.0, B.STICKY + "_plus": 60.0})
+                      "ZipCover_angle": 30.0, "Bordino": 35.0, "Bordino_plus": 60.0, "Pettola": 100.0,
+                      "Pettola_plus": 60.0})
     rs.ViewCPlane = lambda *a, **k: Plane.WorldXY
 
     def run_zip(doc, pid, click):
@@ -62,7 +63,7 @@ try:
     def run_bordino(doc, pid, click):
         rs.GetObject = lambda *a, **k: pid
         seq = [click, None]
-        B.ask = lambda gp: seq.pop(0)
+        B.ask = lambda *a: seq.pop(0)
         B.main()
 
     def right_of(doc, zid, rid):
@@ -78,10 +79,16 @@ try:
 
     def texts(doc):
         """{text: id}; the Bordino label on the panel as B3.5, the one on the part as part B3.5"""
-        return {("" if o.Attributes.GetUserString("BordEdge") or not o.Geometry.PlainText.startswith("B")
+        return {("" if o.Attributes.GetUserString("BordEdge") or not o.Geometry.PlainText.startswith(("B", "Pt"))
                  else "part ") + o.Geometry.PlainText: o.Id for o in doc.Objects if rs.IsText(o.Id)}
 
-    runs = {"zip": run_zip, "rinforzo": run_rinforzo, "bordino": run_bordino}
+    def run_pettola(doc, pid, click):
+        rs.GetObject = lambda *a, **k: pid
+        seq = [click, None]
+        B.ask = lambda *a: seq.pop(0)
+        B.main("Pettola")
+
+    runs = {"zip": run_zip, "rinforzo": run_rinforzo, "bordino": run_bordino, "pettola": run_pettola}
     for deg, bulge, on in ((0, False, "edge"), (38, False, "edge"), (0, True, "edge"), (38, True, "edge"),
                            (0, False, "line"), (38, False, "line")):
         turn = Transform.Rotation(deg * 3.141592653589793 / 180, Vector3d.ZAxis, Point3d.Origin)
@@ -139,7 +146,24 @@ try:
     run_bordino(doc, pid, Point3d(250, 5, 0))
     t = texts(doc)
     assert not right_of(doc, t["Z1"], t["B3.5"]), sorted(t)
-    out.write("zip of the neighbour panel: B3.5 stays on its own\nOK\n")
+    out.write("zip of the neighbour panel: B3.5 stays on its own\n")
+    # pettola on the same edge as the zip, R and B: Z1 R6 B3.5 Pt10 in any run order; own layer, W 100
+    for order in (("zip", "rinforzo", "bordino", "pettola"), ("pettola", "bordino", "zip", "rinforzo"),
+                  ("bordino", "pettola", "rinforzo", "zip")):
+        doc, pid, pl, lid = fresh(Transform.Identity, False)
+        for name in order:
+            runs[name](doc, pid, Point3d(250, -5, 0))
+        t = texts(doc)
+        chain = ["Z1", "R6", "B3.5", "Pt10"]
+        assert all(right_of(doc, t[a], t[b]) for a, b in zip(chain, chain[1:])), (order, sorted(t))
+        Z.flip_label(doc, t["Z1"], doc.ModelAbsoluteTolerance)
+        assert all(right_of(doc, t[a], t[b]) for a, b in zip(chain, chain[1:])), (order, "flip")
+        lay = doc.Layers.FindByFullPath("Parts::Pettola", -1)
+        rect = [o.Geometry for o in doc.Objects if o.Attributes.LayerIndex == lay and isinstance(o.Geometry, Curve)]
+        assert len(rect) == 2 and all(abs(c.GetLength() - 2 * (100 + 500 + 60)) < 1e-6 for c in rect), len(rect)
+        assert "part Pt10" in t, sorted(t)
+        out.write("pettola, %s: %s\n" % (" → ".join(order), " ".join(chain)))
+    out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())
 out.close()
