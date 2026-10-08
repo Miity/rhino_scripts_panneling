@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """End to end: Rinforzo label R<w> right after the ZipStops number on the same edge, in both run orders, flip, canvas part;
-a level panel and a turned one (turned text); the zip on the panel edge or on a zip line inside the strip (old edge after
+a level panel and turned ones (turned text; near vertical — drawn turned 180° by Rhino); the zip on the panel edge or on a zip line inside the strip (old edge after
 ZipCover).
 Rhino 8: DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_rinforzo_zip.txt next to it."""
@@ -59,9 +59,14 @@ try:
         return res
 
     def right_of(doc, zid, rid):
-        """text rid starts just after the end of text zid along its reading direction, on the same line:
-        copies of both turned flat (they keep their style), world boxes compared"""
-        xf = Transform.PlaneToPlane(doc.Objects.FindId(zid).Geometry.Plane, Plane.WorldXY)
+        """text rid starts just after the end of text zid along its reading direction as drawn (Draw forward turns
+        text near upside down 180°: its first glyph is then at the plane end), on the same line: copies of both turned
+        flat (they keep their style), world boxes compared"""
+        z = doc.Objects.FindId(zid).Geometry
+        cs = z.CreateCurves(z.GetDimensionStyle(doc.DimStyles.FindId(z.DimensionStyleId)), True)  # as on screen
+        pl = z.Plane
+        read = pl.XAxis if (cs[-1].PointAtStart - cs[0].PointAtStart) * pl.XAxis > 0 else -pl.XAxis  # first → last glyph
+        xf = Transform.PlaneToPlane(Plane(pl.Origin, read, Vector3d.CrossProduct(pl.ZAxis, read)), Plane.WorldXY)
         a, b = [doc.Objects.Transform(i, xf, False) for i in (zid, rid)]
         ba, bb = [doc.Objects.FindId(i).Geometry.GetBoundingBox(True) for i in (a, b)]
         for i in (a, b):
@@ -70,7 +75,8 @@ try:
         gap, common = bb.Min.X - ba.Max.X, min(ba.Max.Y, bb.Max.Y) - max(ba.Min.Y, bb.Min.Y)
         return 0 <= gap < h and common > 0.5 * h, (round(gap, 2), round(h, 2), round(common, 2))
 
-    for deg, on in ((0, "edge"), (38, "edge"), (0, "line"), (38, "line")):
+    # 95°: the number is turned -85° — Rhino draws it turned 180° (Draw forward), it reads the other way than its plane
+    for deg, on in ((0, "edge"), (38, "edge"), (95, "edge"), (0, "line"), (38, "line"), (95, "line")):
         turn = Transform.Rotation(deg * 3.141592653589793 / 180, Vector3d.ZAxis, Point3d.Origin)
         click = Point3d(250, -5, 0)
         click.Transform(turn)

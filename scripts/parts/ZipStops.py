@@ -276,8 +276,14 @@ def beside(doc, zid, rid, steps=None):
     w, h = bb.Max.X - bb.Min.X, bb.Max.Y - bb.Min.Y
     end = {TextHorizontalAlignment.Left: w, TextHorizontalAlignment.Center: w / 2.0}.get(z.TextHorizontalAlignment, 0.0)
     r = rs.coercegeometry(rid).Duplicate()
-    r.Plane = Plane(pl.PointAt(end + 0.4 * h, 0), pl.XAxis, pl.YAxis)
-    r.TextHorizontalAlignment = TextHorizontalAlignment.Left
+    # Draw forward: text near upside down (plane X outside -80°..100°) is drawn turned 180° about its middle, it reads
+    # from the plane end back — "after" is then before the start in plane X (rid keeps the plane, so it turns too)
+    if z.GetTextTransform(1.0, z.GetDimensionStyle(ds)) * Vector3d.XAxis * pl.XAxis < 0:
+        x, align = end - w - 0.4 * h, TextHorizontalAlignment.Right
+    else:
+        x, align = end + 0.4 * h, TextHorizontalAlignment.Left
+    r.Plane = Plane(pl.PointAt(x, 0), pl.XAxis, pl.YAxis)
+    r.TextHorizontalAlignment = align
     r.TextVerticalAlignment = z.TextVerticalAlignment
     if steps:
         steps.change(rid)
