@@ -69,7 +69,7 @@ try:
     crv, edge, off, sq = M.flap(pan, Point3d(50, 61, 0), 10, 30, Z, tol)
     assert 60 < M.label_frame(edge, off, Z).Origin.Y < 70
 
-    # main(): CZ<w> in Parts::ZipCover (w in cm), no seam points; EditPanel → panel contour grows, old edge = zip line
+    # main(): Off<w> in Parts::ZipCover (w in cm), no seam points; EditPanel → panel contour grows, old edge = zip line
     import Rhino, System
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
@@ -92,7 +92,7 @@ try:
             objs = [o for o in doc.Objects if o.Id != pid]
             assert all(doc.Layers[o.Attributes.LayerIndex].FullPath == name for o in objs)
             texts = [o.Geometry.PlainText for o in objs if isinstance(o.Geometry, Rhino.Geometry.TextEntity)]
-            assert texts == ["CZ1"] * 2, texts
+            assert texts == ["Off1"] * 2, texts
             assert not any(isinstance(o.Geometry, Rhino.Geometry.Point) for o in objs)
             assert len(set(o.Attributes.GetGroupList()[0] for o in objs)) == 2  # one group per click
             p = doc.Objects.FindId(pid)

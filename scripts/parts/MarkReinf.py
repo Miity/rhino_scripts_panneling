@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Reinforcement strip mark on an existing label — without a part.
-Select labels (CZ / C…, window selection allowed, on different panels): " R<w>" (rinforzo, w in cm) is appended
+Select labels (Off / C…, window selection allowed, on different panels): " R<w>" (rinforzo, w in cm) is appended
 to the text (an old R mark is replaced, W=0 — removes it). The panel for each label is the nearest (within NEAR_MM) closed
 curve outside Parts:: (or in Parts::Panels) that has an edge (corner to corner, ZipCover.pick_edge): marker circles
 without corners are skipped; Seam / ZipCover strips too (wrong edge). No panel nearby — the label is skipped; edge — the one closest to the label — its length is written to UserText ReinfLen (cm), w (cm) — to Reinf.

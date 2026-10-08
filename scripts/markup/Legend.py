@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Label legend: finds texts and TextDots placed by the scripts in the document (Italian codes, numbers in cm:
-P1, F5  l=120, CZ3, C1, Z2, Can1, R6, RC1  r=4, RD1, RO1  r=15, T1  h=8, joint letters A–A) and places one text
+P1, F5  l=120, Off1, CZ3 (old), C1, Z2, Can1, R6, RC1  r=4, RD1, RO1  r=15, T1  h=8, joint letters A–A) and places one text
 at the click point — the meaning of only those marks that actually exist in the drawing. Changes nothing in the document,
 only adds text to the current layer. Options while clicking: Lang = UA / EN / IT (default IT — for the seamstresses), Height.
 Font (FONTS): UA — Arial, because the single-stroke SLF-RHN Architect of the PAT styles has no Cyrillic;
@@ -20,6 +20,9 @@ ENTRIES = [
     (r"F[\d.]+\s", (u"F<w>  l — фаша (смуга): ширина w, довжина l",
                     u"F<w>  l — fascia strip: width w, length l",
                     u"F<w>  l — fascia: larghezza w, lunghezza l")),
+    (r"Off[\d.]+", (u"Off<w> — відступ (клапан над блискавкою / каналіною), ширина w",
+                    u"Off<w> — offset (zip / track cover flap), width w",
+                    u"Off<w> — offset (copri zip / canalina), larghezza w")),
     (r"CZ[\d.]+", (u"CZ<w> — клапан над блискавкою / каналіною, ширина w",
                    u"CZ<w> — zip / track cover flap, width w",
                    u"CZ<w> — copri zip / canalina, larghezza w")),

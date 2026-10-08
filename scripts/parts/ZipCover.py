@@ -6,7 +6,7 @@ small breaks of a curved edge do not count). The part is a closed curve: copy of
 outward from the panel, ends along the extension of the neighbouring edges. If a neighbour leaves sharper than 30°
 from the edge (the extension would go very far) — the end is perpendicular, with a warning.
 Labels are Italian codes, numbers in cm (PatternTextStyles.cm).
-Label "CZ<w>", layer Parts::ZipCover. Seam points (battute) — a separate script, markup/sewing_points.py.
+Label "Off<w>" (offset), layer Parts::ZipCover. Seam points (battute) — a separate script, markup/sewing_points.py.
 Option EditPanel=No (default): only markup is added, in place: the strip lines not lying on the panel edge
 + label, one group. The panel is not changed: before cutting PreparePanelCut joins
 it with the markup (for that the edge must be a polyline / lines).
@@ -34,7 +34,7 @@ sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
 
 STICKY = "ZipCover"
-CODE, NAME = "CZ", "ZipCover"  # label code, sublayer of Parts
+CODE, NAME = "Off", "ZipCover"  # label code, sublayer of Parts
 MIN_SIN = 0.5  # sin 30°: sharper — perpendicular end
 GAP_MM = 1.0  # gap between the ends of an "almost closed" panel (DXF) that we close ourselves
 
