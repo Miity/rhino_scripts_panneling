@@ -54,7 +54,7 @@ GROUPS = [
     ]),
     (u"Parts", u"Creating parts (strips, reinforcements…) in the Parts layer", [
         (u"Panels", u"Panels → copy in Parts::Panels numbered P1, P2… (text inside + TextDot)", py("parts/Panels.py"), None),
-        (u"SewingPoints", u"Seam points: curve centre + equal step both ways", py("parts/sewing_points.py"),
+        (u"SewingPoints", u"Battute: panels / curves + click near an edge → points from the edge centre (corner to corner) both ways with Step (200 mm) + centre tick (Tick 10 mm, into the panel); Parts::SewingMarks", py("parts/sewing_points.py"),
          (u"SewPoints GH", u"Seam points (Grasshopper Player, old version)", GH_SEW)),
         (u"Strips", u"Fascia strips under the selected lines: width W, length = length of each curve; label F<w>  l=… (cm)", py("parts/StripsFromCurves.py"), None),
         (u"ZipCover", u"Zip cover: panel edge (corner to corner) + offset W outward, ends along the neighbouring edges; label CZ<w> (cm); EditPanel=Yes — the panel contour itself grows", py("parts/ZipCover.py"), None),
@@ -129,7 +129,7 @@ IT = {
     u"Layout": (u"Piazzamento", u"Piazzamento per il taglio: pezzi con contorno, battute, tacche al centro e codici in fila, in <layer>::Layout; il resto resta sullo schema"),
     u"Markup": (u"Segni", u"Segni su INK"),
     u"Crosses": (u"Croci", u"Punti → croci o cerchi"),
-    u"SewingPoints": (u"Battute", u"Battute: centro della curva + passo uguale in entrambe le direzioni"),
+    u"SewingPoints": (u"Battute", u"Battute: pannelli / curve + clic vicino a un lato → punti dal centro del lato (da angolo ad angolo) in entrambe le direzioni con passo Step (200 mm) + tacca centrale (Tick 10 mm, verso l'interno del pannello); Parts::SewingMarks"),
     u"SewPoints GH": (u"Battute GH", u"Battute (Grasshopper Player, versione vecchia)"),
     u"Linetype 400,2": (u"Linea 400,2", u"Assegna il tipo di linea 400,2 alle curve selezionate"),
     u"TextStyles": (u"Stili testo", u"Crea / aggiorna gli stili di testo PAT 2.5–40 mm per cartamodelli 1:1"),
