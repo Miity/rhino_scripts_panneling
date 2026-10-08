@@ -3,7 +3,7 @@
 Select any part of a pocket (or several with a window) — the pocket is rebuilt from its edge
 in place, with the same number T<n>, layer and side. Only the parameters you changed in the options
 change; the rest stay each pocket's own. Parameters are read from UserText (TP_H…); in old pockets
-without UserText — from the geometry (h from the label, in cm; Trim — from the contour);
+without UserText — from the geometry (h from an old label "h=…", in cm; Trim — from the contour);
 an old seam allowance SA is dropped on rebuild (the seam is on the panel).
 Pocket = markup on the panel + full part above (TP_Up): you can select either, both are rebuilt.
 """
@@ -33,7 +33,7 @@ def read_pocket(ids, tol):
     """dict with the pocket's parameters and geometry from group ids, or a reason string."""
     curves = [(i, rs.coercecurve(i)) for i in ids if rs.IsCurve(i)]
     texts = [i for i in ids if rs.IsText(i)]
-    m = re.match(TP.PREFIX + r"(\d+)\s+h=([\d.]+)", rs.TextObjectText(texts[0]) if texts else "")
+    m = re.match(TP.PREFIX + r"(\d+)(?:\s+h=([\d.]+))?", rs.TextObjectText(texts[0]) if texts else "")
     outline_ids = [i for i, c in curves if c.IsClosed]
     outline = [c for i, c in curves if c.IsClosed]
     opened = sorted([c for i, c in curves if not c.IsClosed], key=lambda c: -c.GetLength())
@@ -52,7 +52,7 @@ def read_pocket(ids, tol):
         Rhino.Geometry.Vector3d.CrossProduct(seg.TangentAt(seg.ClosestPoint(p)[1]), p - seg.PointAt(seg.ClosestPoint(p)[1])), normal)
     s_in = side(toward)
     pts = [c.PointAtStart for c in outline.DuplicateSegments()]
-    h = float(rs.GetUserText(ids[0], "TP_H") or 0) or float(m.group(2)) * Rhino.RhinoMath.UnitScale(
+    h = float(rs.GetUserText(ids[0], "TP_H") or 0) or float(m.group(2) or 0) * Rhino.RhinoMath.UnitScale(
         Rhino.UnitSystem.Centimeters, sc.doc.ModelUnitSystem)  # label h is rounded to 1 mm, in cm
     inner = [p for p in pts if side(p) * s_in > 0 and abs(abs(side(p)) - h) < 0.01 * h]
     trim = min([seg.GetLength(Rhino.Geometry.Interval(seg.Domain.Min, seg.ClosestPoint(p)[1])) for p in inner] or [0.0])

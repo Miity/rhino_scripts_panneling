@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Label legend: finds texts and TextDots placed by the scripts in the document (Italian codes, numbers in cm:
-P1, F5  l=120, Off1, CZ3 (old), C1, Z2, Can1, R6, RC1  r=4, RD1, RO1  r=15, T1  h=8, joint letters A–A) and places one text
+P1, F5  l=120, Off1, CZ3 (old), C1, Z2, Can1, R6, RC1  r=4, RD1, RO1  r=15, T1, joint letters A–A) and places one text
 at the click point — the meaning of only those marks that actually exist in the drawing. Changes nothing in the document,
 only adds text to the current layer. Options while clicking: Lang = UA / EN / IT (default IT — for the seamstresses), Height.
 Font (FONTS): UA — Arial, because the single-stroke SLF-RHN Architect of the PAT styles has no Cyrillic;
@@ -47,9 +47,9 @@ ENTRIES = [
     (r"RO\d+\s", (u"RO<n>  r — підсилення у формі O, радіус r",
                   u"RO<n>  r — O-shaped reinforcement, radius r",
                   u"RO<n>  r — rinforzo a O, raggio r")),
-    (r"T\d+\s", (u"T<n>  h — карман, висота h",
-                 u"T<n>  h — pocket, height h",
-                 u"T<n>  h — tasca, altezza h")),
+    (r"T\d+(\s|$)", (u"T<n> — карман",
+                    u"T<n> — pocket",
+                    u"T<n> — tasca")),
     (r"[A-Z]{1,2}$", (u"A–A, B–B… — стик шматків панелі, розрізаної по ширині матеріалу (шов 1 см)",
                       u"A–A, B–B... — joint of panel pieces split to material width (1 cm seam)",
                       u"A–A, B–B... — giunzione dei pezzi di un pannello diviso per larghezza del materiale (cucitura 1 cm)")),

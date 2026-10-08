@@ -7,7 +7,7 @@ the offset line is shorter by Trim at each end (the pocket narrows).
 No seam allowance: the pocket bottom is the panel edge itself (the seam is already on the panel). The edge is
 kept as UserText TP_Seg (JSON) on the contour, so UpdateTubePockets can rebuild the pocket.
 Option Notch — centre mark (a tick from the edge into the pocket at the middle). The part lies in place, in layer
-Parts::Pockets, with label "T<n>  h=…" (tasca, h in cm) in a group; T numbering continues. The panel is not changed.
+Parts::Pockets, with label "T<n>" (tasca) in a group; T numbering continues. The panel is not changed.
 Option Rigid — pocket by rigid offset (curves/OffsetRigid.py): a copy of the segment without changing its shape,
 moved by H along the normal at the pocket centre (Rigid=No — standard offset).
 Option Hem — hem allowance at the ends (+Hem left and right): the end moves outward by Hem, the top and bottom
@@ -208,8 +208,8 @@ def add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid=False, hem
 
 
 def label(n, h):
-    """Pocket label: "T3  h=8" (h in cm)."""
-    return u"%s%d  h=%s" % (PREFIX, n, cm(h))
+    """Pocket label: "T3" (h is in UserText TP_H)."""
+    return u"%s%d" % (PREFIX, n)
 
 
 def fold_layer(doc, index):
