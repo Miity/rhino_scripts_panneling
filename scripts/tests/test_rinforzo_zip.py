@@ -87,9 +87,10 @@ try:
             ok, d = right_of(doc, t["Z1"], t["R6"])
             assert ok, (deg, order, d)
             assert "Z1 R6" in names, (deg, order, names)
-            # the canvas part got the zip stops: strip outline + 2 stops up on the canvas
+            # the canvas part got the zip: strip outline + 2 stops + the line between them, up on the canvas
             up = [o for o in doc.Objects if o.Geometry.GetBoundingBox(True).Min.Y > 5000 and rs.IsCurve(o.Id)]
-            assert len(up) >= 3, (deg, order, len(up))
+            assert len(up) >= 4, (deg, order, len(up))  # + the zip line stop to stop: 500 − 2 × Trim 40
+            assert any(abs(o.Geometry.GetLength() - 420) < 1e-3 for o in up), (deg, on, order, [o.Geometry.GetLength() for o in up])
             # flip the number: the label follows it
             Z.flip_label(doc, t["Z1"], doc.ModelAbsoluteTolerance)
             ok, d2 = right_of(doc, t["Z1"], t["R6"])

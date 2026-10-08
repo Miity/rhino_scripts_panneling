@@ -11,7 +11,7 @@ The panel is not changed. Part in place, layer Parts::Reinforcements, label "R<w
 If the strip holds a zip — a ZipStops number whose edge midpoint is on the strip: the panel edge itself or a zip line
 inside it (the old edge after ZipCover) — the label stands right after the number ("Z20  R6": two texts, each in its
 own group); a zip made later on the strip pulls the label to its number, flipping the number moves the label with it.
-The full part on the canvas then also carries the zip: its stops (copies) and the label "Z20 R6".
+The full part on the canvas then also carries the zip: its stops (copies), the line stop to stop and the label "Z20 R6".
 Option Layout (default Yes): on the panel — markup (only the inner line W, without panel edges and without Plus),
 full part — 10000 up (ReinfCircle.add_part); No — full part in place.
 B / BR (bordino, folded over the edge) are other parts, not this script.
@@ -26,7 +26,7 @@ import scriptcontext as sc
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ReinfCircle", "ZipCover", "ZipStops"):  # Rhino keeps modules from the first run for the session
     sys.modules.pop(_m, None)
-from ZipStops import RINF_LINE, beside, zip_text
+from ZipStops import RINF_LINE, beside, edge_of, read_trims, zip_span, zip_text
 from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, off_panel, label_style, pick_style  # layer, style
 from ZipCover import cm, flap, label_frame  # edge corner to corner + offset, ends along the neighbours; label along the edge
 
@@ -135,10 +135,13 @@ def main():
         te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign
-        zip_marks = []  # the zip's stops on this edge go to the part on the canvas too (copies of the number's group)
+        zip_marks = []  # the zip goes to the part on the canvas too: its stops (copies of the number's group) + the line
         if zid:
             zip_marks = [rs.coercecurve(m) for g in rs.ObjectGroups(zid) or [] for m in rs.ObjectsByGroup(g) or []
                          if rs.IsCurve(m)]
+            zedge = edge_of(zid, tol)[0]
+            if zedge is not None:
+                zip_marks.append(zip_span(zedge, read_trims(zid)))  # stop to stop
         full_ids, markup = add_part(doc, [full[0]] + zip_marks, te, off_panel(cut, [panel], tol), attrs, layout)
         if layout:  # a zip made later on this strip puts the label after its number (ZipStops.finish_zip)
             rs.SetUserText(markup[-1], RINF_LINE, str(oid))

@@ -385,6 +385,16 @@ def flip_label(doc, t, tol, steps=None):
     return True
 
 
+def zip_span(edge, trims):
+    """The zip itself, stop to stop: the edge without the trims at its ends (for the strip's part on the canvas)."""
+    return edge.Trim(point_param(edge, trims[0]), point_param(edge, edge.GetLength() - trims[1]))
+
+
+def point_param(crv, s):
+    ok, t = crv.LengthParameter(s)
+    return t if ok else (crv.Domain.T0 if s <= 0 else crv.Domain.T1)
+
+
 def read_trims(t):
     try:
         return [float(x) for x in rs.GetUserText(t, TRIM).split(",")]
@@ -543,7 +553,7 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
         rs.AddObjectsToGroup(new, rs.AddGroup())
         if rid:  # its label goes right after the number (Z first, R after); the strip's part on the canvas shows the zip too
             beside(doc, zid, rid, steps)
-            to_part(doc, rs.GetUserText(rid, "PartLink"), marks, name + u" " + rs.TextObjectText(rid), steps)
+            to_part(doc, rs.GetUserText(rid, "PartLink"), marks + [zip_span(edge, l["trims"])], name + u" " + rs.TextObjectText(rid), steps)
 
 
 HELP = u"""Options:
