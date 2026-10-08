@@ -131,7 +131,7 @@ def main():
         style = label_style(doc, STICKY)
         plane, valign = label_place(edge, off, normal, style.TextHeight * 0.5)
         layout = sc.sticky[STICKY + "_layout"]
-        zid = zip_text(lambda p: holds(cut, p, tol)) if layout else None  # zip number on the strip (edge or zip line): R goes right after it
+        zid = zip_text(lambda p, o: holds(cut, p, tol)) if layout else None  # zip number on the strip (edge or zip line): R goes right after it
         te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign

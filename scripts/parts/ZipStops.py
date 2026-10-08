@@ -171,6 +171,8 @@ def marked_edges():
 
 RINF_LINE = "RinfLine"  # UserText on a Rinforzo markup label: id of its panel (marks the label)
 BORD_EDGE = "BordEdge"  # UserText on a Bordino label (B<w> on the panel): "x,y,z" — midpoint of its edge
+BORD_LINE = "BordLine"  # UserText on a Bordino label: id of its panel
+BORD_NEAR_CM = 10.0  # zip edge and Bordino edge midpoints closer than this = one side (see bordino_near)
 
 
 def holds(strip, pt, tol):
@@ -196,14 +198,16 @@ def stored_point(o, key):
         return None
 
 
-def zip_text(at):
-    """The number text (Z<n> / Can<n>) whose edge midpoint satisfies at(point) — e.g. lies on a Rinforzo strip, or is
-    the midpoint of a Bordino edge — or None."""
+def zip_text(at, key=None):
+    """The number text (Z<n> / Can<n>) whose edge midpoint satisfies at(point, text) — e.g. lies on a Rinforzo strip —
+    or None; key(point, text) — of several, the smallest wins."""
+    found = []
     for t in TYPES.values():
         for o in (rs.ObjectsByLayer(t[1]) or []) if rs.IsLayer(t[1]) else []:
             pt = stored_point(o, EDGE)
-            if pt is not None and rs.IsText(o) and at(pt):
-                return o
+            if pt is not None and rs.IsText(o) and at(pt, o):
+                found.append((key(pt, o) if key else 0, o))
+    return min(found, key=lambda f: f[0])[1] if found else None
 
 
 def rinforzo_text(doc, mid, tol):
@@ -220,20 +224,38 @@ def rinforzo_text(doc, mid, tol):
                         return o
 
 
-def bordino_text(mid, tol):
-    """The Bordino label (B<w> on the panel) of the edge whose midpoint is mid, or None.
-    ponytail: same edge only — a zip on a zip line inside the panel (old edge after ZipCover) is not matched."""
+def bordino_near(zid, zmid, bmid, pid, tol):
+    """Distance between the zip's edge midpoint zmid and a Bordino edge midpoint bmid (panel id pid), if they are one
+    side of the panel: midpoints closer than BORD_NEAR_CM, and the zip is on this panel's edge or on an open line
+    inside it (zip line — old edge after ZipCover; the bordino is then on the outer edge), not on a neighbour panel.
+    Else None. ponytail: a fixed distance — two parallel edges of a panel narrower than it could be mixed up."""
+    d = zmid.DistanceTo(bmid)
+    if d > BORD_NEAR_CM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Centimeters, sc.doc.ModelUnitSystem):
+        return None
+    line = rs.GetUserText(zid, LINE) or ""
+    if line.lower() == str(pid).lower():
+        return d
+    obj, panel = rs.coercecurve(line, -1, False), rs.coercecurve(str(pid), -1, False)
+    if obj is not None and not obj.IsClosed and panel is not None and holds(panel, zmid, tol):
+        return d
+
+
+def bordino_text(zid, mid, tol):
+    """The Bordino label (B<w> on the panel) of the zip's edge (midpoint mid), the nearest one, or None."""
+    found = []
     for o in rs.ObjectsByType(512) or []:
-        pt = stored_point(o, BORD_EDGE)
-        if pt is not None and pt.DistanceTo(mid) <= 100 * tol:
-            return o
+        pt, pid = stored_point(o, BORD_EDGE), rs.GetUserText(o, BORD_LINE)
+        d = bordino_near(zid, mid, pt, pid, tol) if pt is not None and pid else None
+        if d is not None:
+            found.append((d, o))
+    return min(found, key=lambda f: f[0])[1] if found else None
 
 
 def labels_after(doc, zid, mid, tol, steps=None):
     """Labels of the zip's edge (midpoint mid) right after its number zid, in the order Z<n> R<w> B<w>.
     Returns the Rinforzo label or None."""
     prev, rid = zid, rinforzo_text(doc, mid, tol)
-    for o in (rid, bordino_text(mid, tol)):
+    for o in (rid, bordino_text(zid, mid, tol)):
         if o:
             beside(doc, prev, o, steps)
             prev = o

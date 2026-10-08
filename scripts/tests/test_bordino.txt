@@ -1,26 +1,39 @@
-0°, line, zip → rinforzo → bordino: OK
-0°, line, zip → bordino → rinforzo: OK
-0°, line, rinforzo → zip → bordino: OK
-0°, line, rinforzo → bordino → zip: OK
-0°, line, bordino → zip → rinforzo: OK
-0°, line, bordino → rinforzo → zip: OK
-38°, line, zip → rinforzo → bordino: OK
-38°, line, zip → bordino → rinforzo: OK
-38°, line, rinforzo → zip → bordino: OK
-38°, line, rinforzo → bordino → zip: OK
-38°, line, bordino → zip → rinforzo: OK
-38°, line, bordino → rinforzo → zip: OK
-0°, arc, zip → rinforzo → bordino: OK
-0°, arc, zip → bordino → rinforzo: OK
-0°, arc, rinforzo → zip → bordino: OK
-0°, arc, rinforzo → bordino → zip: OK
-0°, arc, bordino → zip → rinforzo: OK
-0°, arc, bordino → rinforzo → zip: OK
-38°, arc, zip → rinforzo → bordino: OK
-38°, arc, zip → bordino → rinforzo: OK
-38°, arc, rinforzo → zip → bordino: OK
-38°, arc, rinforzo → bordino → zip: OK
-38°, arc, bordino → zip → rinforzo: OK
-38°, arc, bordino → rinforzo → zip: OK
-no zip: ['B3.5', 'B3.5  l=56']
+0°, straight edge, zip on edge, zip → rinforzo → bordino: OK
+0°, straight edge, zip on edge, zip → bordino → rinforzo: OK
+0°, straight edge, zip on edge, rinforzo → zip → bordino: OK
+0°, straight edge, zip on edge, rinforzo → bordino → zip: OK
+0°, straight edge, zip on edge, bordino → zip → rinforzo: OK
+0°, straight edge, zip on edge, bordino → rinforzo → zip: OK
+38°, straight edge, zip on edge, zip → rinforzo → bordino: OK
+38°, straight edge, zip on edge, zip → bordino → rinforzo: OK
+38°, straight edge, zip on edge, rinforzo → zip → bordino: OK
+38°, straight edge, zip on edge, rinforzo → bordino → zip: OK
+38°, straight edge, zip on edge, bordino → zip → rinforzo: OK
+38°, straight edge, zip on edge, bordino → rinforzo → zip: OK
+0°, arc edge, zip on edge, zip → rinforzo → bordino: OK
+0°, arc edge, zip on edge, zip → bordino → rinforzo: OK
+0°, arc edge, zip on edge, rinforzo → zip → bordino: OK
+0°, arc edge, zip on edge, rinforzo → bordino → zip: OK
+0°, arc edge, zip on edge, bordino → zip → rinforzo: OK
+0°, arc edge, zip on edge, bordino → rinforzo → zip: OK
+38°, arc edge, zip on edge, zip → rinforzo → bordino: OK
+38°, arc edge, zip on edge, zip → bordino → rinforzo: OK
+38°, arc edge, zip on edge, rinforzo → zip → bordino: OK
+38°, arc edge, zip on edge, rinforzo → bordino → zip: OK
+38°, arc edge, zip on edge, bordino → zip → rinforzo: OK
+38°, arc edge, zip on edge, bordino → rinforzo → zip: OK
+0°, straight edge, zip on line, zip → rinforzo → bordino: OK
+0°, straight edge, zip on line, zip → bordino → rinforzo: OK
+0°, straight edge, zip on line, rinforzo → zip → bordino: OK
+0°, straight edge, zip on line, rinforzo → bordino → zip: OK
+0°, straight edge, zip on line, bordino → zip → rinforzo: OK
+0°, straight edge, zip on line, bordino → rinforzo → zip: OK
+38°, straight edge, zip on line, zip → rinforzo → bordino: OK
+38°, straight edge, zip on line, zip → bordino → rinforzo: OK
+38°, straight edge, zip on line, rinforzo → zip → bordino: OK
+38°, straight edge, zip on line, rinforzo → bordino → zip: OK
+38°, straight edge, zip on line, bordino → zip → rinforzo: OK
+38°, straight edge, zip on line, bordino → rinforzo → zip: OK
+no zip: ['B3.5', 'part B3.5']
+zip of the neighbour panel: B3.5 stays on its own
 OK
