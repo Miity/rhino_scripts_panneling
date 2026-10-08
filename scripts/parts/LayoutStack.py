@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """Strips on the canvas, turned along the grain: before nesting with a fixed fabric direction.
-Select objects (a window over the panels / parts up is fine), tick what to stack — Rinforzo (R<w> parts in
-Parts::Reinforcements; RC / RD / RO are not strips) and / or Bordini (Parts::Bordino) — the choice is remembered.
+Select objects (a window over the panels / parts up is fine), then at the click options Rinforzo (R<w> parts in
+Parts::Reinforcements; RC / RD / RO are not strips) and Bordini (Parts::Bordino) = Yes / No — what to stack, remembered.
 Only those parts are taken (the copy up; the markup on the panel is skipped). Each one is copied as LayoutParts does
 (contour + label code "B3.5 P4", sublayer <layer>::Layout, UserText LayoutOf), turned so it lies flattest along
 CPlane X (label reading left to right), and stacked one under another from the click point (top-left corner),
 Gap apart (0 — touching, as the fascia strips): Rinforzo first, then Bordini, longest first in each.
 Already laid out parts (a copy with LayoutOf exists) are skipped; to lay out again — delete the copy.
-Layout then skips them too. Tick "Hide the laid out parts" — the parts laid out now and the ones of the selection laid out
-before are hidden (only the part itself, the copy up; the markup on the panel stays); Show brings them back.
+Layout then skips them too. Option Hide=Yes — the parts laid out now and the ones of the selection laid out before are
+hidden (only the part itself, the copy up; the markup on the panel stays); Show brings them back. Enter instead of
+the click — nothing stacked, only Hide.
 """
 import math
 import os
@@ -25,11 +26,10 @@ sys.modules.pop("LayoutParts", None)  # Rhino keeps modules from the first run f
 from LayoutParts import KEY, is_part, outer, own, parts, place
 
 STICKY = "LayoutStack"
-KINDS = [  # (checkbox, layer, label code) — parts that may be turned along the grain
+KINDS = [  # (option, layer, label code) — parts that may be turned along the grain
     (u"Rinforzo", "Parts::Reinforcements", re.compile(r"(?:^|\s)R\d")),
     (u"Bordini", "Parts::Bordino", re.compile(r"(?:^|\s)B\d")),
 ]
-HIDE = u"Hide the laid out parts"
 
 
 def kind_of(doc, u, kinds):
@@ -99,7 +99,11 @@ def stack(doc, todo, plane, start, gap):
 
 
 HELP = u"""Options:
-  Gap — space between the stacked parts (0 — touching)"""  # printed at start — visible under the option fields
+  Rinforzo — stack the R<w> strips (Parts::Reinforcements; RC / RD / RO are not taken)
+  Bordini — stack the bordini (Parts::Bordino; Pettola is not taken)
+  Gap — space between the stacked parts (0 — touching)
+  Hide — hide the laid out parts of the selection (now and before; the copy up only), Show brings them back
+  Enter instead of a click — nothing stacked, only Hide"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -108,28 +112,31 @@ def main():
     ids = rs.GetObjects(u"Select objects with the parts (window over the panels / parts up)", preselect=True)
     if not ids:
         return
-    items = [n for n, _, _ in KINDS] + [HIDE]
-    ticks = rs.CheckListBox([(n, sc.sticky.get(STICKY + n, n != HIDE)) for n in items], u"What to stack",
-                            u"Layout Stack")
-    if not ticks:
+    gp = Rhino.Input.Custom.GetPoint()
+    gp.SetCommandPrompt(u"Point to stack from (top-left corner; Enter — only Hide)")
+    gp.AcceptNothing(True)
+    ticks = [(n, Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + n, n != "Hide"), "No", "Yes"))
+             for n in [k[0] for k in KINDS] + ["Hide"]]
+    gap = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_gap", 0.0), 0.0, 1e6)
+    for n, t in ticks[:-1]:
+        gp.AddOptionToggle(n, t)
+    gp.AddOptionDouble("Gap", gap)
+    gp.AddOptionToggle(*ticks[-1])
+    while gp.Get() == Rhino.Input.GetResult.Option:
+        pass
+    on = {}
+    for n, t in ticks:
+        sc.sticky[STICKY + n] = on[n] = t.CurrentValue
+    sc.sticky[STICKY + "_gap"] = gap.CurrentValue
+    if gp.CommandResult() != Rhino.Commands.Result.Success:
         return
-    on = dict(ticks)
-    for n in items:
-        sc.sticky[STICKY + n] = on[n]
     kinds = [k for k in KINDS if on[k[0]]]
     todo, done = pick(doc, ids, kinds)
-    if todo:
-        gp = Rhino.Input.Custom.GetPoint()
-        gp.SetCommandPrompt(u"Point to stack from (top-left corner)")
-        gap = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_gap", 0.0), 0.0, 1e6)
-        gp.AddOptionDouble("Gap", gap)
-        while gp.Get() == Rhino.Input.GetResult.Option:
-            pass
-        sc.sticky[STICKY + "_gap"] = gap.CurrentValue
-        if gp.CommandResult() != Rhino.Commands.Result.Success:
-            return
+    if gp.Result() == Rhino.Input.GetResult.Point:
         stack(doc, todo, rs.ViewCPlane(), gp.Point(), gap.CurrentValue)
-    hidden = rs.HideObjects([o.Id for _, u in todo + done for o in u]) if on[HIDE] else 0
+    else:
+        todo = []  # Enter: nothing laid out now
+    hidden = rs.HideObjects([o.Id for _, u in todo + done for o in u]) if on["Hide"] else 0
     doc.Views.Redraw()
     print(u"Stacked: %s; already laid out: %d; hidden: %d objects" % (
         u", ".join(u"%s %d" % (k[0], sum(1 for i, _ in todo if i == j)) for j, k in enumerate(kinds)), len(done),

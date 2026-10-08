@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
-"""End to end: real Bordino / Pettola / Rinforzo parts on a panel turned 30° + an RC part; LayoutStack.pick / stack on
-the whole selection → only the ticked kinds (Rinforzo, Bordini; never Pettola / RC), copies along X reading left to
-right, stacked down from the click Gap apart, Rinforzo first, longest first; a second run skips them, LayoutParts too.
+"""End to end: real Bordino / Pettola / Rinforzo parts on a panel turned 30° + an RC part; LayoutStack.main (click prompt
+faked: options + click / Enter) on the whole selection → only the ticked kinds (Rinforzo, Bordini; never Pettola / RC), copies along X reading left to
+right, stacked down from the click Gap apart, Rinforzo first, longest first; a second run skips them, LayoutParts too; Enter + Hide=Yes, Rinforzo=No → only the
+bordini parts up are hidden.
 Rhino 8: DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_layout_stack.txt next to it."""
 import math
 import os
 import sys
 import traceback
+import types
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 out = open(os.path.join(HERE, "test_layout_stack.txt"), "w")
@@ -61,7 +63,37 @@ try:
     assert [k for k, _ in todo] == [0, 0] and not done, (todo, done)  # Bordini only
     todo, done = L.pick(doc, every, L.KINDS)
     assert sorted(k for k, _ in todo) == [0, 1, 1] and not done, (todo, done)
-    L.stack(doc, todo, Plane.WorldXY, Point3d(0, -5000, 0), 10.0)
+    run = {}
+
+    class Opt(object):
+        def __init__(self, v, *a):
+            self.CurrentValue = v
+
+    class GP(object):  # the click prompt: options set as given in run, then a click (at) or Enter (at=None)
+        def __init__(self):
+            self.o = {}
+        def SetCommandPrompt(self, s):
+            pass
+        def AcceptNothing(self, b):
+            pass
+        def AddOptionToggle(self, n, t):
+            self.o[n] = t
+        AddOptionDouble = AddOptionToggle
+        def Get(self):
+            for n, v in run["set"].items():
+                self.o[n].CurrentValue = v
+            return self.Result()
+        def Result(self):
+            return Rhino.Input.GetResult.Point if run["at"] else Rhino.Input.GetResult.Nothing
+        def CommandResult(self):
+            return Rhino.Commands.Result.Success
+        def Point(self):
+            return run["at"]
+    L.Rhino = types.SimpleNamespace(Commands=Rhino.Commands, Input=types.SimpleNamespace(
+        GetResult=Rhino.Input.GetResult, Custom=types.SimpleNamespace(GetPoint=GP, OptionToggle=Opt, OptionDouble=Opt)))
+    rs.GetObjects = lambda *a, **k: every
+    run.update(at=Point3d(0, -5000, 0), set={"Rinforzo": True, "Bordini": True, "Gap": 10.0, "Hide": False})
+    L.main()
     copies = [o for o in doc.Objects if o.Attributes.GetUserString(LP.KEY)]
     lay = set(doc.Layers[o.Attributes.LayerIndex].FullPath for o in copies)
     assert lay == {"Parts::Bordino::Layout", "Parts::Reinforcements::Layout"}, lay
@@ -88,6 +120,14 @@ try:
     assert set(str(o.Id) for _, u in done for o in u) == set(o.Attributes.GetUserString(LP.KEY) for o in copies)
     new, skipped = LP.layout(doc, every, 10.0, Plane.WorldXY, Point3d(0, -8000, 0), 20.0)
     assert skipped == 3, skipped  # LayoutParts: the stacked ones are already on the canvas
+    assert not [o for o in map(doc.Objects.FindId, every) if o.IsHidden]
+    run.update(at=None, set={"Rinforzo": False, "Bordini": True, "Hide": True})  # Enter: only Hide, bordini only
+    L.main()
+    hidden = [o for o in map(doc.Objects.FindId, every) if o.IsHidden]  # doc.Objects skips hidden objects
+    assert sorted(o.Geometry.PlainText for o in hidden if isinstance(o.Geometry, TextEntity)) == ["B3.5", "B3.5"], \
+        [(o.Geometry.GetType().Name, rs.ObjectLayer(o.Id)) for o in hidden]
+    assert len(hidden) == 4 and not any(o.Attributes.GetUserString("PartMarkup") for o in hidden), len(hidden)
+    assert sc.sticky["LayoutStackHide"] and not sc.sticky["LayoutStackRinforzo"]  # remembered
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())
