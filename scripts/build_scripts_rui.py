@@ -73,7 +73,7 @@ GROUPS = [
         (u"Update Pockets", u"Update existing T pockets: new H / Trim / Hem / Notch / Rigid in place, same number (only what you changed changes)", py("parts/UpdateTubePockets.py"), None),
         (u"Part Panel", u"Panel number on parts: select parts (window) → \" P<n>\" added to each part's label; the panel is found from where the part sits on it (part up → back down; Bordino — its edge)", py("parts/PartPanel.py"), None),
         (u"Layout", u"Canvas: parts with contour, seam points, centre ticks and label codes in a row, in <layer>::Layout; the rest stays on the schema", py("parts/LayoutParts.py"), None),
-        (u"Layout Bordino", u"Bordini of the selection on the canvas turned along CPlane X (grain), stacked touching down from the click, longest first; Parts::Bordino::Layout", py("parts/LayoutBordino.py"), None),
+        (u"Layout Stack", u"Strips that may turn along the grain — tick Rinforzo / Bordini: copies on the canvas along CPlane X, stacked down from the click Gap apart (0 — touching), longest first; <layer>::Layout", py("parts/LayoutStack.py"), None),
     ]),
     (u"Markup", u"Markup on INK", [
         (u"Crosses", u"Points → crosses or circles", py("markup/PointsToCrosses.py"), None),
@@ -134,7 +134,7 @@ IT = {
     u"Update Pockets": (u"Aggiorna tasche", u"Aggiorna le tasche T esistenti: nuovi H / Trim / Hem / Notch / Rigid sul posto, stesso numero (cambia solo quello che hai cambiato)"),
     u"Part Panel": (u"N. pannello", u"Numero del pannello sui pezzi: seleziona i pezzi (finestra) → \" P<n>\" aggiunto all'etichetta di ogni pezzo; il pannello si trova dalla posizione del pezzo (pezzo in alto → riportato giù; Bordino — dal suo lato)"),
     u"Layout": (u"Piazzamento", u"Piazzamento per il taglio: pezzi con contorno, battute, tacche al centro e codici in fila, in <layer>::Layout; il resto resta sullo schema"),
-    u"Layout Bordino": (u"Piazza bordini", u"Bordini della selezione sul piazzamento girati lungo X del CPlane (drittofilo), impilati a contatto in giù dal clic, i più lunghi prima; Parts::Bordino::Layout"),
+    u"Layout Stack": (u"Piazza in pila", u"Strisce che si possono girare lungo il drittofilo — spunta Rinforzo / Bordini: copie sul piazzamento lungo X del CPlane, in pila in giù dal clic a distanza Gap (0 — a contatto), le più lunghe prima; <layer>::Layout"),
     u"Markup": (u"Segni", u"Segni su INK"),
     u"Crosses": (u"Croci", u"Punti → croci o cerchi"),
     u"SewingPoints": (u"Battute", u"Battute: pannelli / curve + clic vicino a un lato → punti dal centro del lato (da angolo ad angolo) in entrambe le direzioni con passo Step (200 mm) + tacca centrale (Tick 10 mm, verso l'interno del pannello); Parts::SewingMarks"),
