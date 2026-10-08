@@ -66,7 +66,7 @@ GROUPS = [
         (u"Reinf Bord", u"Reinforced border: like ZipCover, but inward: edge (corner to corner) + offset H (6 / 10 cm) into the panel, ends along the neighbouring edges, JoinCorner joins at corners; SA — allowance on the inner edge (default 0)", py("parts/ReinfBord.py"), None),
         (u"Tube Pockets", u"Tube pockets: panel → click near an edge, W centred on the edge, height H, narrowing Trim, allowance SA, hem allowance at the ends Hem, centre mark, Rigid — rigid offset", py("parts/TubePockets.py"), None),
         (u"Update Pockets", u"Update existing TP pockets: new H / Trim / SA / Hem / Notch / Rigid in place, same number (only what you changed changes)", py("parts/UpdateTubePockets.py"), None),
-        (u"Layout", u"Lay out parts: copies in a row from the click point, in <layer>::Layout; originals stay as markup", py("parts/LayoutParts.py"), None),
+        (u"Layout", u"Canvas: parts with contour, seam points, centre ticks and label codes in a row, in <layer>::Layout; the rest stays on the schema", py("parts/LayoutParts.py"), None),
     ]),
     (u"Markup", u"Markup on INK", [
         (u"Crosses", u"Points → crosses or circles", py("markup/PointsToCrosses.py"), None),
