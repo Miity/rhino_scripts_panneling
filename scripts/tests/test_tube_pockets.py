@@ -94,7 +94,7 @@ try:
         full = [o for o in ids if o not in markup]
         assert len(markup) == 2 and rs.ObjectGroups(markup[0]) == rs.ObjectGroups(markup[1])
         assert all(rs.BoundingBox(o)[0].Y < 1000 for o in markup)
-        assert all(rs.BoundingBox(o)[0].Y > 9000 for o in full) and len(full) == 6  # contour, 2 folds, seam, mark, text
+        assert all(rs.BoundingBox(o)[0].Y > 9000 for o in full) and len(full) == 5  # contour, 2 folds, mark, text (seam line not drawn)
         assert set(U.tagged(markup[0], "9", False)) == set(o for o in full if rs.ObjectLayer(o) == rs.ObjectLayer(markup[0]))
         p = U.read_pocket(rs.ObjectsByGroup(rs.ObjectGroups(full[0])[0]), tol)
         assert p["up"] == up and set(p["markup"]) == set(markup) and p["n"] == 9, p

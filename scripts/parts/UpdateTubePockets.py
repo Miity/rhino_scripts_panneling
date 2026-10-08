@@ -38,10 +38,12 @@ def read_pocket(ids, tol):
     opened = sorted([c for i, c in curves if not c.IsClosed], key=lambda c: -c.GetLength())
     if not m or len(outline) != 1:
         return u"does not look like a pocket (no T<n> label or contour)"
-    if not opened:
-        # ponytail: a pocket with SA=0 has no separate seam line — rebuilding from the contour is not done.
+    js = rs.GetUserText(outline_ids[0], "TP_Seg")  # new pockets: seam line stored on the contour, not drawn
+    if not js and not opened:
+        # ponytail: an old pocket with SA=0 has no separate seam line — rebuilding from the contour is not done.
         return u"no seam line (SA=0) — rebuild with TubePockets"
-    seg, outline = opened[0], outline[0]
+    seg = Rhino.Geometry.CommonObject.FromJSON(js) if js else opened[0]
+    outline = outline[0]
     ok, plane = outline.TryGetPlane(tol)
     normal = plane.ZAxis if ok else rs.ViewCPlane().ZAxis
     toward = rs.coercegeometry(texts[0]).Plane.Origin  # the label sits inside the pocket

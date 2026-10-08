@@ -4,7 +4,8 @@ Select a panel (closed curve), then click near an edge (several in a row, Enter 
 Edge — corner to corner (corner — tangent break larger than Angle, as in ZipCover). The pocket is a segment
 of the edge of width W centred (middle by length; 0 — the whole edge), offset by height H into the panel;
 the offset line is shorter by Trim at each end (the pocket narrows).
-Seam allowance SA goes from the edge outward from the panel. The seam line is a copy of the segment in the group.
+Seam allowance SA goes from the edge outward from the panel. The seam line is not drawn: it is kept as
+UserText TP_Seg (JSON) on the contour, so UpdateTubePockets can rebuild the pocket.
 Option Notch — centre mark (a tick across the seam line at the middle). The part lies in place, in layer
 Parts::Pockets, with label "T<n>  h=…" (tasca, h in cm) in a group; T numbering continues. The panel is not changed.
 Option Rigid — pocket by rigid offset (curves/OffsetRigid.py): a copy of the segment without changing its shape,
@@ -184,8 +185,9 @@ def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False,
     fa = attrs.Duplicate()
     fa.LayerIndex = fold_layer(doc, attrs.LayerIndex) if folds else attrs.LayerIndex
     full = [add(outline, attrs)] + [add(f, fa) for f in folds]
-    if sa > 0:
-        full.append(add(seg, attrs))  # seam line
+    seam = seg.DuplicateCurve()  # the seam line is not drawn — stored on the contour for UpdateTubePockets
+    seam.Transform(xf)
+    rs.SetUserText(full[0], "TP_Seg", seam.ToJSON(None))
     if mark:
         full.append(add(mark, attrs))
     full.append(add(te, attrs))
