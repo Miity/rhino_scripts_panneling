@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Label legend: finds texts and TextDots placed by the scripts in the document (Italian codes, numbers in cm:
-P1, F5  l=120, Off1, CZ3 (old), C1, Z2, Can1, R6, RC1  r=4, RD1, RO1  15, T1, joint letters A–A) and places one text
+P1, F5  l=120, Off1, CZ3 (old), C1, Z2, Can1, R6, RC1  r=4, RD1, RO1, T1, joint letters A–A) and places one text
 at the click point — the meaning of only those marks that actually exist in the drawing. Changes nothing in the document,
 only adds text to the current layer. Options while clicking: Lang = UA / EN / IT (default IT — for the seamstresses), Height.
 Font (FONTS): UA — Arial, because the single-stroke SLF-RHN Architect of the PAT styles has no Cyrillic;
@@ -50,9 +50,9 @@ ENTRIES = [
     (r"RD\d+$", (u"RD<n> — підсилення у формі D",
                  u"RD<n> — D-shaped reinforcement",
                  u"RD<n> — rinforzo a D")),
-    (r"RO\d+\s", (u"RO<n>  r — підсилення у формі O, радіус r",
-                  u"RO<n>  r — O-shaped reinforcement, radius r",
-                  u"RO<n>  r — rinforzo a O, raggio r")),
+    (r"RO\d+\b", (u"RO<n> — підсилення у формі O",
+                  u"RO<n> — O-shaped reinforcement",
+                  u"RO<n> — rinforzo a O")),
     (r"T\d+(\s|$)", (u"T<n> — карман",
                     u"T<n> — pocket",
                     u"T<n> — tasca")),

@@ -11,7 +11,7 @@ Option SA — seam allowance (default 1 cm, panel only): sides along the panel e
 (the arc stays at R — no seam on it); seam line — panel edges inside the circle, in the group.
 SA=0 — no allowance. Plus and SA — in the second click prompt.
 The part lies in place,
-layer Parts::Reinforcements, label "RO<n>  <r>" (r in cm) along the arc (inside) in a group; RO numbering continues between runs.
+layer Parts::Reinforcements, label "RO<n>" along the arc (inside) in a group; RO numbering continues between runs.
 Option Layout (default Yes, in the second click prompt): on the panel — markup (arc only, without panel edges),
 full part — 10000 up (ReinfCircle.add_part); No — full part in place.
 """
@@ -25,7 +25,7 @@ from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, CurveOff
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino keeps modules from the first run for the session
-from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, next_number, off_panel, piece, cm, label_style, pick_style  # layer, numbering, trimming, style
+from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, next_number, off_panel, piece, label_style, pick_style  # layer, numbering, trimming, style
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
@@ -213,7 +213,7 @@ def main():
             continue
         if got[2] > 0 and not seams:  # ponytail: SA only with a closed panel; with corner lines — no allowance
             print(u"SA skipped: a closed panel is needed")
-        label = u"%s%d  %s" % (PREFIX, n, cm(r))
+        label = u"%s%d" % (PREFIX, n)
         style = label_style(doc, STICKY)
         tp, valign = arc_label(crv, center, r, normal, style.TextHeight * 0.5, tol) or \
             (Plane(rs.ViewCPlane()), Rhino.DocObjects.TextVerticalAlignment.Middle)
