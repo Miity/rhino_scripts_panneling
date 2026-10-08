@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Join any two open curves at a corner, edge to edge (like _Connect, but for corner-to-corner edges).
 Typical case: two ZipCover / Seam markups on neighbouring panel edges leave a notch at the panel corner.
-Select curves (window selection is fine: texts, points and closed curves are ignored), then click near the
+Select curves (window selection is fine: texts and points are ignored), then click near the
 corner (several corners in a row, Enter — done). The two curve ends nearest the click are taken (two curves,
 or both ends of one curve). An edge runs corner to corner (corner — a break larger than Angle).
 For each end the script either joins its last edge or drops the short end to the panel (its last segment, or
@@ -10,6 +10,8 @@ or trimmed to their intersection, everything beyond it is removed, the curves ar
 Two curves → the first keeps its object (layer, groups, UserText), the second is deleted and its group (label,
 seam points) merges into the first's group. Both ends of one curve (frame around a panel) → it closes.
 If after a join the two far ends also touch (markups end exactly on the panel corner), that corner is joined too.
+A closed curve (e.g. a frame already closed with a notch at a corner) works too: the inward break (notch,
+turn larger than Angle) nearest the click is taken as the two ends; smooth bends and outward corners are never notches.
 Parallel edges — skipped with a message.
 """
 import math
@@ -131,16 +133,45 @@ def join(ends, click, angle, tol):
     return out
 
 
-def nearest_ends(ids, click):
-    """Two curve ends nearest the click: [(id, at_end)], ends of the same curve allowed."""
-    cands = []
+def notch(crv, click, angle, tol):
+    """Closed curve: (distance, seam parameter) of the inward break (notch, turn larger than angle) nearest the click,
+    or None. Cutting the curve there makes the corner a frame corner (both ends of one curve)."""
+    ok, plane = crv.TryGetPlane(tol)
+    if not ok:
+        return None
+    sign = 1 if crv.ClosedCurveOrientation(plane.ZAxis) == Rhino.Geometry.CurveOrientation.CounterClockwise else -1
+    segs = segments(crv, tol)
+    best = None
+    for i in range(len(segs)):
+        a, b = segs[i - 1].TangentAtEnd, segs[i].TangentAtStart
+        if Vector3d.VectorAngle(a, b) <= math.radians(angle) or Vector3d.CrossProduct(a, b) * plane.ZAxis * sign >= 0:
+            continue  # smooth, or turns the way the curve goes round (outward corner)
+        p = segs[i].PointAtStart
+        if best is None or p.DistanceTo(click) < best[0]:
+            best = (p.DistanceTo(click), crv.ClosestPoint(p)[1])
+    return best
+
+
+def nearest_ends(ids, click, angle, tol):
+    """What to join at the click: two curve ends [(id, at_end, seam)] (two curves or both ends of one), seam=None;
+    or a notch of a closed curve — the same id twice with the seam parameter to cut it at."""
+    cands, notches = [], []
     for i in ids:
         c = rs.coercecurve(i)
-        if c is None or c.IsClosed:
+        if c is None:
+            continue
+        if c.IsClosed:
+            n = notch(c, click, angle, tol)
+            if n:
+                notches.append((n[0], i, n[1]))
             continue
         cands += [(c.PointAtStart.DistanceTo(click), i, False), (c.PointAtEnd.DistanceTo(click), i, True)]
     cands.sort(key=lambda k: k[0])
-    return [(i, e) for _, i, e in cands[:2]]
+    if notches:
+        d, i, t = min(notches, key=lambda k: k[0])
+        if len(cands) < 2 or d < cands[1][0]:  # a notch nearer than the open ends → join inside the closed curve
+            return [(i, False, t), (i, True, t)]
+    return [(i, e, None) for _, i, e in cands[:2]]
 
 
 def merge_groups(keep_id, drop_id):
@@ -181,9 +212,9 @@ def main():
     if not ids:
         return
     tol = doc.ModelAbsoluteTolerance
-    ids = [i for i in ids if rs.IsCurve(i) and not rs.IsCurveClosed(i)]
+    ids = [i for i in ids if rs.IsCurve(i)]
     if not ids:
-        print(u"No open curves in the selection")
+        print(u"No curves in the selection")
         return
     made = 0
     while True:
@@ -193,14 +224,17 @@ def main():
         click = ask(gp)
         if click is None:
             break
-        ends = nearest_ends(ids, click)
+        angle = sc.sticky[STICKY + "_angle"]
+        ends = nearest_ends(ids, click, angle, tol)
         if len(ends) < 2:
-            print(u"Skipped: need two curve ends")
+            print(u"Skipped: need two curve ends or a notch of a closed curve")
             continue
-        (ia, ea), (ib, eb) = ends
-        ca = rs.coercecurve(ia)
+        (ia, ea, seam), (ib, eb, _) = ends
+        ca = rs.coercecurve(ia).DuplicateCurve()
+        if seam is not None:
+            ca.ChangeClosedCurveSeam(seam)  # notch → both ends of one curve there
         cb = ca if ia == ib else rs.coercecurve(ib)
-        res = join([(ca, ea), (cb, eb)], click, sc.sticky[STICKY + "_angle"], tol)
+        res = join([(ca, ea), (cb, eb)], click, angle, tol)
         if not isinstance(res, Curve):
             print(u"Skipped: %s" % res)
             continue
@@ -209,8 +243,6 @@ def main():
             merge_groups(ia, ib)
             doc.Objects.Delete(ib, True)
             ids.remove(ib)
-        if res.IsClosed:
-            ids.remove(ia)  # closed now — no more ends to join
         made += 1
         doc.Views.Redraw()
     print(u"Join Corner: %d corners joined" % made)

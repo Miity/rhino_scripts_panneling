@@ -84,6 +84,21 @@ try:
         g = rs.ObjectGroups(ia)[0]
         assert set(rs.ObjectsByGroup(g)) == {ia, ta, tb}, rs.ObjectsByGroup(g)
         doc.Dispose()
+
+        # one closed curve with a notch at the bottom-left corner (frame closed through the panel corner) + the panel
+        # itself in the selection: the notch is joined, the panel (outward corners only) is not touched
+        doc = Rhino.RhinoDoc.CreateHeadless(None)
+        sc.doc = doc
+        fid = doc.Objects.AddCurve(pl((0, -10), (110, -10), (110, 70), (-10, 70), (-10, 0), (0, 0), closed=True))
+        pid = doc.Objects.AddCurve(pl((0, 0), (100, 0), (100, 60), (0, 60), closed=True))
+        rs.GetObjects = lambda *x, **k: [fid, pid]
+        clicks = [Point3d(-5, -5, 0), None]
+        M.ask = lambda gp: clicks.pop(0)
+        M.main()
+        f = doc.Objects.FindId(fid).Geometry
+        assert f.IsClosed and abs(AreaMassProperties.Compute(f).Area - 120 * 80) < 1e-6, AreaMassProperties.Compute(f).Area
+        assert abs(AreaMassProperties.Compute(doc.Objects.FindId(pid).Geometry).Area - 6000) < 1e-6
+        doc.Dispose()
     finally:
         sc.doc, rs.GetObjects = old_doc, old_get
     out.write("OK\n")
