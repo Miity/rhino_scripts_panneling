@@ -5,6 +5,7 @@ Select two or more curves in one plane: a closed panel and an open curve that to
 The outer line of everything they enclose together becomes ONE closed curve; it replaces the panel (the first closed
 curve; none closed — the first picked), so layer / groups / UserText / label stay. The other curves are deleted
 and their groups merge into the panel's group.
+Curves of the selection that do not meet the outer line (seam ticks that came with the panel's group) stay untouched.
 Pieces that are NOT on the outer line (e.g. the old panel edge now inside) are cut off from the old curve and stay as
 open curves: one per source curve, the source's layer and groups, UserText Part (panel number) removed. Drawing
 is made of the original segments (lines stay lines, arcs stay arcs) — nothing is refitted.
@@ -68,8 +69,24 @@ def pieces(src, border, tol):
 
 
 def merge(curves, tol):
-    """curves — [source curve]; the first one is the panel. Returns (outline, [(source index, [open pieces])]) or an
-    error string."""
+    """curves — [source curve]; the first one is the panel. Returns (outline, [(source index, [open pieces])],
+    [indices of curves left out]) or an error string. A curve that has no part in the outer line (a seam tick or any
+    stray curve that came with the selection) is left out and the rest are merged."""
+    use = list(range(len(curves)))
+    while True:
+        res = merge_set([curves[k] for k in use], tol)
+        if not isinstance(res, tuple):
+            return res
+        outline, rest, idle = res
+        if not idle:
+            return outline, [(use[k], parts) for k, parts in rest], [k for k in range(len(curves)) if k not in use]
+        use = [k for j, k in enumerate(use) if j not in idle]
+        if len(use) < 2:
+            return u"fewer than two curves take part in the outer line (the others do not meet them)"
+
+
+def merge_set(curves, tol):
+    """merge() for one set of curves; the third item is the list of curves with no part in the outer line."""
     plane = plane_of(curves, tol)
     if plane is None:
         return u"the curves are not in one plane"
@@ -80,15 +97,17 @@ def merge(curves, tol):
     if len(border) != 1:
         return u"the curves enclose separate areas (%d): they must form one panel" % len(border)
     border = border[0]
-    on, inner = [], []
+    on, inner, idle = [], [], []
     for k, c in enumerate(curves):
         rest, mine = [], 0
         for p, is_on in pieces(c, border, tol):
             (on if is_on else rest).append(p)
             mine += is_on
         if not mine:
-            return u"curve %d is not part of the outer line (it does not meet the others, or lies entirely inside)" % (k + 1)
+            idle.append(k)
         inner.append((k, rest))
+    if idle:
+        return None, None, idle
     joined = Curve.JoinCurves(on, tol * 2)
     if len(joined) != 1 or not joined[0].IsClosed:
         return u"the outer line did not join into one closed curve (%d pieces)" % len(joined)
@@ -97,7 +116,7 @@ def merge(curves, tol):
     if ok:
         pl.ReduceSegments(tol)  # also drops the vertices left where the pieces were joined
         outline = Rhino.Geometry.PolylineCurve(pl)
-    return outline, [(k, Curve.JoinCurves(rest, tol * 2)) for k, rest in inner if rest]
+    return outline, [(k, Curve.JoinCurves(rest, tol * 2)) for k, rest in inner if rest], []
 
 
 HELP = u"""Select the closed panel and the curve(s) to merge into it (Enter — done).
@@ -119,8 +138,9 @@ def main():
     if not isinstance(res, tuple):
         print(u"Merge Outline: not done — %s" % res)
         return
-    outline, rest = res
-    keep = ids[0]
+    outline, rest, left = res
+    used = [i for k, i in enumerate(ids) if k not in left]  # curves that took part; the first of them is the panel
+    keep = used[0]
     undo = doc.BeginUndoRecord(u"Merge Outline")
     try:
         new = []
@@ -128,7 +148,7 @@ def main():
             attrs = doc.Objects.FindId(ids[k]).Attributes.Duplicate()
             attrs.DeleteUserString(KEY)
             new += [doc.Objects.AddCurve(p, attrs) for p in parts]
-        for i in ids[1:]:
+        for i in used[1:]:
             merge_groups(keep, i)
             doc.Objects.Delete(i, True)
         doc.Objects.Replace(keep, outline)
@@ -137,7 +157,8 @@ def main():
     rs.UnselectAllObjects()
     rs.SelectObjects([keep] + [n for n in new if n])
     doc.Views.Redraw()
-    print(u"Merge Outline: %d curves → one panel; open curves left inside: %d" % (len(ids), len(new)))
+    print(u"Merge Outline: %d curves → one panel; open curves left inside: %d%s" % (
+        len(used), len(new), u"; untouched (do not meet the outer line, e.g. seam ticks): %d" % len(left) if left else u""))
 
 
 if __name__ == "__main__":

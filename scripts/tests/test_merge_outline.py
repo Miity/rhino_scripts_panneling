@@ -37,7 +37,8 @@ try:
         Curve.JoinCurves([B, right], tol)[0]).Area
     res = M.merge([A, B], tol)
     assert isinstance(res, tuple), res
-    outline, rest = res
+    outline, rest, left = res
+    assert not left
     assert outline.IsClosed and abs(area(outline) - area_union) < 0.01, (area(outline), area_union)
     assert [k for k, _ in rest] == [0] and len(rest[0][1]) == 1, rest  # old right edge, one open curve of A
     inner = rest[0][1][0]
@@ -50,7 +51,7 @@ try:
     # polylines stay one clean polyline: 100×100 square + open U strip around its right side
     sq = pl((0, 0), (100, 0), (100, 100), (0, 100), closed=True)
     u = pl((100, 0), (110, 0), (110, 100), (100, 100))
-    outline, rest = M.merge([sq, u], tol)
+    outline, rest, _ = M.merge([sq, u], tol)
     ok, poly = outline.TryGetPolyline()
     # 4 corners + closing point (+ the seam vertex left where the pieces were joined)
     assert ok and poly.Count <= 6 and  abs(area(outline) - 11000) < 1e-6, (ok, poly.Count, list(poly))
@@ -58,9 +59,15 @@ try:
 
     # two overlapping panels: outline of both, the edges inside stay as open curves (one per source)
     p1, p2 = pl((0, 0), (10, 0), (10, 10), (0, 10), closed=True), pl((5, 5), (15, 5), (15, 15), (5, 15), closed=True)
-    outline, rest = M.merge([p1, p2], tol)
+    outline, rest, _ = M.merge([p1, p2], tol)
     assert abs(area(outline) - (100 + 100 - 25)) < 1e-6, area(outline)
     assert sorted(k for k, _ in rest) == [0, 1] and all(abs(total(c) - 10) < 1e-6 for _, c in rest), rest
+
+    # a stray tick (touching the panel from inside, as seam ticks do) and a far curve are left out, not an error
+    tick = pl((50, 0), (50, 10))
+    far = pl((300, 0), (310, 0))
+    outline, rest, left = M.merge([sq, u, tick, far], tol)
+    assert left == [2, 3] and abs(area(outline) - 11000) < 1e-6 and [k for k, _ in rest] == [0], (left, rest)
 
     # errors (a message, not a tuple): no area, separate areas, different planes
     for bad in (pl((200, 0), (210, 0), (210, 10)), pl((200, 0), (210, 0), (210, 10), (200, 10), closed=True),
