@@ -27,16 +27,8 @@ try:
     assert abs(r - 150) < 1e-6 and abs(AreaMassProperties.Compute(c).Area - pi * 150 * 150 / 4) < 1e-1
     bb = c.GetBoundingBox(True)
     assert bb.Max.Y < 300 + 1e-3 and bb.Max.X < 500 + 1e-3, bb
-    # SA 10: cut — circle R150 trimmed by panel + 10 → sides 10 outside, the arc stays at R150
-    cut, seams, r = M.reinf([panel], Point3d(500, 300, 0), Point3d(400, 300, 0), 50, 10, Z, tol)
-    ob = cut.GetBoundingBox(True)
-    assert cut.IsClosed and abs(r - 150) < 1e-6
-    assert abs(ob.Max.Y - 310) < 1e-3 and abs(ob.Max.X - 510) < 1e-3, ob
-    assert abs(ob.Min.X - (500 - 150)) < 1e-3 and abs(ob.Min.Y - (300 - 150)) < 1e-3, ob  # arc not moved
-    # seam — two panel edges inside the circle (150 + 150), without the arc
-    assert abs(sum(c.GetLength() for c in seams) - 300) < 1e-3, [c.GetLength() for c in seams]
     # label at the middle of arc R150 (angle 225°), tangent reads left to right, moved 5 towards the centre
-    pl, va = M.arc_label(cut, Point3d(500, 300, 0), 150, Z, 5, tol)
+    pl, va = M.arc_label(c, Point3d(500, 300, 0), 150, Z, 5, tol)
     assert abs(pl.Origin.DistanceTo(Point3d(500, 300, 0)) - 145) < 1e-3, pl.Origin
     assert pl.XAxis.X > 0 and abs(pl.XAxis * (pl.Origin - Point3d(500, 300, 0))) < 1e-3, pl.XAxis
     # no boundary — full circle R = 100 + 50

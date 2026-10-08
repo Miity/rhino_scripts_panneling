@@ -7,9 +7,7 @@ first point — top corner of the pocket (circle centre), second — a click on 
 R = distance to the click + Plus (option, default 5 cm, remembered). The circle is shown live. Enter — done.
 With a panel (closed curve) only the part of the circle inside the panel touching the centre is kept;
 with open lines — the part between them on the side of the second click.
-Option SA — seam allowance (default 1 cm, panel only): sides along the panel edge extend outward by SA
-(the arc stays at R — no seam on it); seam line — panel edges inside the circle, in the group.
-SA=0 — no allowance. Plus and SA — in the second click prompt.
+Plus — in the second click prompt.
 The part lies in place,
 layer Parts::Reinforcements, label "RO<n>" along the arc (inside) in a group; RO numbering continues between runs.
 Option Layout (default Yes, in the second click prompt): on the panel — markup (arc only, without panel edges),
@@ -21,7 +19,7 @@ import sys
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, CurveOffsetCornerStyle, Plane, PointContainment, Vector3d
+from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, Plane, PointContainment, Vector3d
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino keeps modules from the first run for the session
@@ -58,35 +56,8 @@ def o_shape(curves, center, edge, plus, normal, tol):
     return circle, r
 
 
-def outward(crv, d, normal, tol):
-    """Offset of closed crv by d outward (of the two sides, the larger one). None — failed."""
-    plane = Plane(crv.PointAtStart, normal)
-    best = None
-    for s in (d, -d):
-        offs = crv.Offset(plane, s, tol, CurveOffsetCornerStyle.Sharp)
-        offs = Curve.JoinCurves(offs, tol) if offs else None
-        if offs and offs[0].IsClosed:
-            a = AreaMassProperties.Compute(offs[0]).Area
-            if best is None or a > best[0]:
-                best = (a, offs[0])
-    return best[1] if best else None
-
-
-def grow(curves, sa, normal, tol):
-    """Closed panels grown outward by sa (for the cut line). [] — no panel or sa = 0."""
-    if sa <= 0:
-        return []
-    return [g for g in (outward(c, sa, normal, tol) for c in curves if c.IsClosed) if g]
-
-
 def on_circle(s, center, r, tol):
     return all(abs(center.DistanceTo(s.PointAtNormalizedLength(t)) - r) <= tol for t in (0.25, 0.5, 0.75))
-
-
-def seam_lines(crv, center, r, tol):
-    """Panel edges on contour crv — everything except the circle arc (centre center, radius r)."""
-    keep = [s for s in crv.DuplicateSegments() or [crv] if not on_circle(s, center, r, tol)]
-    return list(Curve.JoinCurves(keep, tol)) if keep else []
 
 
 def arc_label(crv, center, r, normal, gap, tol):
@@ -107,41 +78,20 @@ def arc_label(crv, center, r, normal, gap, tol):
     return plane, (va.Bottom if plane.YAxis * inward > 0 else va.Top)
 
 
-def reinf(curves, center, edge, plus, sa, normal, tol, grown=None):
-    """(cut, [seam lines], R): cut = circle trimmed by panel + sa; seam — panel edges inside the circle. cut None — failed."""
-    crv, r = o_shape(curves, center, edge, plus, normal, tol)
-    if grown is None:
-        grown = grow(curves, sa, normal, tol)
-    if crv is None or not grown:
-        return crv, [], r
-    cut = o_shape(grown, center, edge, plus, normal, tol)[0]
-    return cut, (seam_lines(crv, center, r, tol) if cut else []), r
-
-
 def get_edge(curves, center, normal, tol):
-    """Second point with a live O and options Plus, SA. (point, plus, sa) or None."""
+    """Second point with a live O and option Plus. (point, plus) or None."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     plus = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 50.0 * unit), 0.0, 1e6)
-    sa = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_sa", 10.0 * unit), 0.0, 1e6)
-
-    grown = {}  # SA → grown panels: the panel offset is not recomputed on every mouse move
 
     def draw(sender, e):
-        s = sa.CurrentValue
-        if s not in grown:
-            grown[s] = grow(curves, s, normal, tol)
-        cut, seams, _ = reinf(curves, center, e.CurrentPoint, plus.CurrentValue, s, normal, tol, grown[s])
-        color = sc.doc.Layers.CurrentLayer.Color
+        cut = o_shape(curves, center, e.CurrentPoint, plus.CurrentValue, normal, tol)[0]
         if cut:
-            e.Display.DrawCurve(cut, color, 2)
-        for c in seams:
-            e.Display.DrawCurve(c, color, 1)
+            e.Display.DrawCurve(cut, sc.doc.Layers.CurrentLayer.Color, 2)
     gp = Rhino.Input.Custom.GetPoint()
     gp.SetCommandPrompt(u"Click on a line: R = distance to it + Plus")
     gp.SetBasePoint(center, True)
     gp.DrawLineFromPoint(center, True)
     gp.AddOptionDouble("Plus", plus)
-    gp.AddOptionDouble("SA", sa)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
     up = up_option(gp)
@@ -151,13 +101,12 @@ def get_edge(curves, center, normal, tol):
         while True:
             res = gp.Get()
             sc.sticky[STICKY] = plus.CurrentValue
-            sc.sticky[STICKY + "_sa"] = sa.CurrentValue
             sc.sticky[STICKY + "_layout"] = lay.CurrentValue
             sc.sticky[UP_KEY] = up.CurrentValue
             if res == Rhino.Input.GetResult.Option and gp.OptionIndex() == i_style:
                 pick_style(sc.doc, STICKY)
             if res != Rhino.Input.GetResult.Option:
-                return (gp.Point(), plus.CurrentValue, sa.CurrentValue) if res == Rhino.Input.GetResult.Point else None
+                return (gp.Point(), plus.CurrentValue) if res == Rhino.Input.GetResult.Point else None
     finally:
         gp.DynamicDraw -= draw
 
@@ -176,7 +125,6 @@ def get_center():
 
 HELP = u"""Options:
   Plus — how far the O arc extends past the line you clicked
-  SA — seam allowance along the panel edges (no seam on the arc; 0 — none)
   Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
   Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
   Style — label text style (default PAT 14 mm)
@@ -207,12 +155,10 @@ def main():
         got = get_edge(curves, center, normal, tol)
         if got is None:
             break
-        crv, seams, r = reinf(curves, center, got[0], got[1], got[2], normal, tol)
+        crv, r = o_shape(curves, center, got[0], got[1], normal, tol)
         if crv is None:
             print(u"Could not cut the circle (points coincide? curves not in the CPlane?)")
             continue
-        if got[2] > 0 and not seams:  # ponytail: SA only with a closed panel; with corner lines — no allowance
-            print(u"SA skipped: a closed panel is needed")
         label = u"%s%d" % (PREFIX, n)
         style = label_style(doc, STICKY)
         tp, valign = arc_label(crv, center, r, normal, style.TextHeight * 0.5, tol) or \
@@ -223,8 +169,7 @@ def main():
         te = Rhino.Geometry.TextEntity.Create(label, tp, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign
-        fin = o_shape(curves, center, got[0], got[1], normal, tol)[0] or crv  # without SA: what is visible on the panel
-        add_part(doc, [crv] + seams, te, off_panel(fin, curves, tol), attrs, sc.sticky[STICKY + "_layout"])
+        add_part(doc, [crv], te, off_panel(crv, curves, tol), attrs, sc.sticky[STICKY + "_layout"])
         doc.Views.Redraw()
         print(label)
         n += 1
