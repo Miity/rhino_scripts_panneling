@@ -42,7 +42,7 @@ def read_pocket(ids, tol):
     if not js and not opened:
         # ponytail: an old pocket with SA=0 has no separate seam line — rebuilding from the contour is not done.
         return u"no seam line (SA=0) — rebuild with TubePockets"
-    seg = Rhino.Geometry.CommonObject.FromJSON(js) if js else opened[0]
+    seg = Rhino.Runtime.CommonObject.FromJSON(js) if js else opened[0]
     outline = outline[0]
     ok, plane = outline.TryGetPlane(tol)
     normal = plane.ZAxis if ok else rs.ViewCPlane().ZAxis

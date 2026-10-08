@@ -55,6 +55,10 @@ Each group is a separate toolbar; all six sit as **tabs** in the top Rhino panel
 | Hover | tooltip |
 | Drag a tab | move it elsewhere / tear it off into a separate window |
 
+Scripts that work click after click (ZipCover, Join Corner, Battute, Panels, Reinf Circle / D / O, Rinforzo, Tube Pockets,
+ZipStops, DotToPanelText) have the option **Undo** in the click prompt: it takes back the last click (again — the one
+before it) without leaving the command; a number given in that click is reused. After the command ends, Rhino's own Undo works as usual.
+
 ### Groups
 
 **Sizes** — `scripts/sizes/`

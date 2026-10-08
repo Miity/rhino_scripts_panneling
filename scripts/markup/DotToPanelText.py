@@ -13,6 +13,9 @@ import scriptcontext as sc
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
 import PatternTextStyles as pts
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
+sys.modules.pop("click_undo", None)
+from click_undo import UNDO, Steps  # option Undo: take back the last click
 
 LAYER = "INK"
 
@@ -63,8 +66,8 @@ def find_spot(poly, tx, ty, width, hgt, row, down, ymin, ymax):
 STICKY = "DotToPanelText"
 
 
-def get_one(doc, geom, prompt, closed=False):
-    """Pick one object with the Style option. Returns ObjRef or None."""
+def get_one(doc, geom, prompt, closed=False, undo=False):
+    """Pick one object with the Style option (+ Undo if undo). Returns ObjRef, UNDO or None."""
     while True:
         go = Rhino.Input.Custom.GetObject()
         go.GeometryFilter = geom
@@ -72,7 +75,10 @@ def get_one(doc, geom, prompt, closed=False):
             go.GeometryAttributeFilter = Rhino.Input.Custom.GeometryAttributeFilter.ClosedCurve
         go.SetCommandPrompt(u"%s (style: %s)" % (prompt, pts.label_style(doc, STICKY).Name))
         opt = go.AddOption("Style")
+        i_undo = go.AddOption("Undo") if undo else -1
         res = go.Get()
+        if res == Rhino.Input.GetResult.Option and go.OptionIndex() == i_undo:
+            return UNDO
         if res == Rhino.Input.GetResult.Option and go.OptionIndex() == opt:
             pts.pick_style(doc, STICKY)
             continue
@@ -123,11 +129,12 @@ def place_text(doc, text, crv, click, style, attr, tol):
     return None
 
 
-def place(doc, dot_id, crv, click, style, attr, tol):
+def place(doc, dot_id, crv, click, style, attr, tol, delete=None):
+    """delete — how to delete the dot (click_undo.Steps.delete keeps it for Undo)."""
     text = rs.coercegeometry(dot_id).Text
     tid = place_text(doc, text, crv, click, style, attr, tol)
     if tid:
-        doc.Objects.Delete(dot_id, True)
+        (delete or (lambda i: doc.Objects.Delete(i, True)))(dot_id)
         doc.Views.Redraw()
     else:
         print(u"'%s': text does not fit in the panel, dot kept" % text)
@@ -135,7 +142,8 @@ def place(doc, dot_id, crv, click, style, attr, tol):
 
 
 HELP = u"""Options:
-  Style — text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
+  Style — text style (default PAT 14 mm)
+  Undo (at "Select a dot") — take back the last text: it is deleted, the dot comes back"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -148,12 +156,17 @@ def main():
     attr.LayerIndex = doc.Layers.FindByFullPath(LAYER, -1)
     rs.UnselectAllObjects()
     made = []
+    steps = Steps(doc)
 
     # "dot -> panel -> corner" in a loop, Enter/Esc — exit.
     while True:
-        dot = get_one(doc, Rhino.DocObjects.ObjectType.TextDot, u"Select a dot")
+        dot = get_one(doc, Rhino.DocObjects.ObjectType.TextDot, u"Select a dot", undo=True)
         if dot is None:
             break
+        if dot == UNDO:
+            if steps.undo():
+                made.pop()
+            continue
         rs.UnselectAllObjects()
         panel = get_one(doc, Rhino.DocObjects.ObjectType.Curve,
                               u"Select the panel for '%s'" % dot.TextDot().Text, closed=True)
@@ -163,7 +176,8 @@ def main():
         click = get_corner(panel.Curve())
         if click is None:
             break
-        tid = place(doc, dot.ObjectId, panel.Curve(), click, pts.label_style(doc, STICKY), attr, tol)
+        steps.start()
+        tid = place(doc, dot.ObjectId, panel.Curve(), click, pts.label_style(doc, STICKY), attr, tol, steps.delete)
         if tid:
             made.append(tid)
 

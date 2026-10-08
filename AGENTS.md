@@ -30,6 +30,7 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
 - Preserve the original layer, group membership and selection state of any object you modify or replace.
 - Prefer click-based interaction (e.g., 'click near the end to trim') over abstract options like Start/End, because the user can't tell curve direction.
 - Each new script needs: the script in its category subfolder, a toolbar button, and a README entry.
+- Scripts that work in a click loop (click after click, Enter — done): option `Undo` in the click prompt that takes back the last click — shared `scripts/click_undo.py` (`Steps`: `start()` before each click's changes, `change(id)` before Replace / attribute changes, `delete(id)` instead of deleting; objects added during the click are found by themselves); numbers given in that click are reused.
 - Scripts with command options (`AddOption*`): a `HELP` string right before `main()` explaining every option letter ("W — …"), printed as the first line of `main()` — on Mac the command history shows under the option fields.
 - Syntax-checking is not verification. At the end, state clearly which scripts were NOT run in Rhino and give a 3-step manual test for each.
 

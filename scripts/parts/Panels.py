@@ -27,6 +27,10 @@ import DotToPanelText as D
 
 LAYER = "Parts::Panels"
 DOTS = LAYER + "::Dots"  # TextDot — in a separate sublayer, everything else in LAYER
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
+sys.modules.pop("click_undo", None)
+from click_undo import UNDO, Steps  # option Undo: take back the last click
+
 PREFIX = "P"
 KEY = "Part"  # UserText key with the panel number
 STYLE = "Panels"  # sticky key of the label style (PatternTextStyles.label_style)
@@ -91,14 +95,17 @@ def used_numbers(lay):
 
 
 def get_corner(doc, crv, name):
-    """Click near a panel corner for the text; Enter — top right; option Style. Returns point or None."""
+    """Click near a panel corner for the text; Enter — top right; options Style, Undo. Point, UNDO or None."""
     while True:
         gp = Rhino.Input.Custom.GetPoint()
         gp.SetCommandPrompt(u"Click near a panel corner for %s (Enter — top right, style: %s)"
                            % (name, D.pts.label_style(doc, STYLE).Name))
         gp.AcceptNothing(True)
         opt = gp.AddOption("Style")
+        i_undo = gp.AddOption("Undo")
         res = gp.Get()
+        if res == Rhino.Input.GetResult.Option and gp.OptionIndex() == i_undo:
+            return UNDO
         if res == Rhino.Input.GetResult.Option and gp.OptionIndex() == opt:
             D.pts.pick_style(doc, STYLE)
             continue
@@ -110,7 +117,8 @@ def get_corner(doc, crv, name):
 
 
 HELP = u"""Options:
-  Style — text style of the number P<n> (default PAT 14 mm)"""  # printed at start — visible under the option fields
+  Style — text style of the number P<n> (default PAT 14 mm)
+  Undo — take back the previous panel (its number is freed, the input curve is back) and label it again"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -141,9 +149,12 @@ def main():
     dot_attrs.LayerIndex = doc.Layers.FindByFullPath(DOTS, -1)
     used = used_numbers(LAYER)
     made = 0
-    for i, hole_idx in classify(curves, plane, tol):
+    steps = Steps(doc)
+    items = list(classify(curves, plane, tol))
+    done_n = []  # numbers given, per labelled panel — for Undo
+    while made < len(items):
+        i, hole_idx = items[made]
         n = min(k for k in range(1, len(used) + 2) if k not in used)  # smallest free: a gap after deletion is filled
-        used.add(n)
         name = u"%s%d" % (PREFIX, n)
         crv = curves[i]
         rs.UnselectAllObjects()
@@ -151,6 +162,16 @@ def main():
         click = get_corner(doc, crv, name)
         if click is None:
             break
+        if click == UNDO:
+            if done_n and steps.undo():
+                used.discard(done_n.pop())
+                made -= 1
+            elif not done_n:
+                print(u"Nothing to undo")
+            continue
+        used.add(n)
+        done_n.append(n)
+        steps.start()
         ds = D.pts.label_style(doc, STYLE)
         # TextDot near the top-left of the panel: curve point closest to the bbox corner, slightly up-left
         x0, y0, x1, y1 = bbox(crv, plane)
@@ -162,7 +183,7 @@ def main():
         tagged.SetUserString(KEY, name)
         new = [doc.Objects.AddCurve(curves[k], tagged) for k in [i] + hole_idx]
         for k in [i] + hole_idx:  # input curves are deleted (Undo restores them)
-            doc.Objects.Delete(ids[k], True)
+            steps.delete(ids[k])
         tid = D.place_text(doc, name, crv, click, ds, attrs, tol)
         if not tid:
             print(u"%s: text does not fit in the panel (smaller style — option Style), TextDot kept" % name)

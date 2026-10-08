@@ -39,6 +39,10 @@ from OffsetRigid import shift  # rigid offset: move along the normal at a point
 sys.modules.pop("ReinfCircle", None)
 from ReinfCircle import UP, UP_KEY, up_option  # option Up, shared with Reinf*
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
+sys.modules.pop("click_undo", None)
+from click_undo import UNDO, Steps  # option Undo: take back the last click
+
 STICKY = "TubePockets"
 LAYER = "Parts::Pockets"
 PREFIX = "T"  # tasca
@@ -251,7 +255,7 @@ def inward(panel, edge, normal):
 
 
 def ask(gp):
-    """Click near an edge with options W, H, Trim, SA, Hem, Notch, Rigid, Angle, Style. (point, values) or None."""
+    """Click near an edge with options W, H, Trim, SA, Hem, Notch, Rigid, Angle, Style, Undo. (point, values), UNDO or None."""
     get = sc.sticky.get
     w = Rhino.Input.Custom.OptionDouble(get(STICKY + "_w", 2000.0), 0.0, 1e7)
     h = Rhino.Input.Custom.OptionDouble(get(STICKY + "_h", 130.0), 0.001, 1e6)
@@ -273,6 +277,7 @@ def ask(gp):
     up = up_option(gp)
     gp.AddOptionDouble("Angle", angle)
     i_style = gp.AddOption("Style")
+    i_undo = gp.AddOption("Undo")
     while True:
         r = gp.Get()
         vals = (w.CurrentValue, h.CurrentValue, trim.CurrentValue, sa.CurrentValue, notch.CurrentValue, rigid.CurrentValue,
@@ -283,6 +288,8 @@ def ask(gp):
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         sc.sticky[UP_KEY] = up.CurrentValue
         if r == Rhino.Input.GetResult.Option:
+            if gp.OptionIndex() == i_undo:
+                return UNDO
             if gp.OptionIndex() == i_style:
                 pick_style(sc.doc, STICKY)
             continue
@@ -300,7 +307,8 @@ HELP = u"""Options:
   Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
   Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
-  Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
+  Style — label text style (default PAT 14 mm)
+  Undo — take back the last pocket (again — the one before it); its number is reused"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -317,6 +325,7 @@ def main():
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
     n = next_number(LAYER)
     made = 0
+    steps = Steps(doc)
     while True:
         gp = Rhino.Input.Custom.GetPoint()
         gp.SetCommandPrompt(u"Click near the edge for a pocket (W=0 — whole edge; Enter — done)")
@@ -324,6 +333,11 @@ def main():
         got = ask(gp)
         if got is None:
             break
+        if got == UNDO:
+            if steps.undo():
+                n, made = n - 1, made - 1
+            continue
+        steps.start()
         click, (w, h, trim, sa, notch, rigid, hem, angle) = got
         res = pick_edge(panel, click, angle, tol)
         if not isinstance(res, tuple):

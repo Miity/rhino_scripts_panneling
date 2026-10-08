@@ -32,6 +32,10 @@ for _m in ("DotToPanelText", "PatternTextStyles"):  # Rhino keeps modules from t
 import DotToPanelText as D
 
 # type → (prefix, layer, in the prompt, from how many lines to ask about junctions, default Trim in cm)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
+sys.modules.pop("click_undo", None)
+from click_undo import UNDO, Steps  # option Undo: take back the last click
+
 TYPES = {"Zip": ("Z", "Parts::Zip", u"of the zip (both sides)", 3, 4.0),
          "Track": ("Can", "Parts::Track", u"of the track", 2, 0.0)}
 KEY = "Zip"          # UserText on the text: number (Z<n> or Can<n>)
@@ -104,11 +108,24 @@ def flip_label(doc, t):
 
 
 def flip_stage(doc):
+    steps = Steps(doc)
     while True:
-        t = rs.GetObject(u"Click a zip number to move it to the other side of the line (Enter — done)",
-                         rs.filter.annotation, custom_filter=is_number)
-        if not t:
+        go = Rhino.Input.Custom.GetObject()
+        go.SetCommandPrompt(u"Click a zip number to move it to the other side of the line (Enter — done)")
+        go.GeometryFilter = Rhino.DocObjects.ObjectType.Annotation
+        go.SetCustomGeometryFilter(is_number)
+        go.EnablePreSelect(False, True)
+        go.AcceptNothing(True)
+        i_undo = go.AddOption("Undo")
+        res = go.Get()
+        if res == Rhino.Input.GetResult.Option and go.OptionIndex() == i_undo:
+            steps.undo()
+            continue
+        if res != Rhino.Input.GetResult.Object:
             return
+        t = go.Object(0).ObjectId
+        steps.start()
+        steps.change(t)
         if not flip_label(doc, t):
             print(u"%s: its line is gone (deleted?)" % rs.GetUserText(t, KEY))
         doc.Views.Redraw()
@@ -128,7 +145,8 @@ def next_number(kind):
 
 
 def get_lines(kind, nums, last, cm):
-    """Picking the lines of one zip / track with the Type and Trim options. Returns (ids or None, type, trim)."""
+    """Picking the lines of one zip / track with the Type, Trim and Undo options.
+    Returns (ids, UNDO or None, type, trim)."""
     go = Rhino.Input.Custom.GetObject()
     go.GeometryFilter = Rhino.DocObjects.ObjectType.Curve
     go.EnablePreSelect(not nums, True)  # preselection — only for the first one
@@ -140,8 +158,11 @@ def get_lines(kind, nums, last, cm):
         go.ClearCommandOptions()
         opt_type = go.AddOption("Type", kind)
         go.AddOptionDouble("Trim", trim)
+        opt_undo = go.AddOption("Undo")
         res = go.GetMultiple(1, 0)
         if res == Rhino.Input.GetResult.Option:
+            if go.OptionIndex() == opt_undo:
+                return UNDO, kind, trim.CurrentValue
             if go.OptionIndex() == opt_type:
                 kind = "Track" if kind == "Zip" else "Zip"
                 sc.sticky[KIND] = kind
@@ -174,13 +195,31 @@ def mark_line(doc, oid, crv, name, trim, size, normal, ds, gap, attrs):
 def junction_stage(doc, name, lines, trim, size, normal, gap):
     """Click near an end: stop Trim in ↔ tick at the very end (junction); the text follows the middle."""
     notch = set()
+    steps, toggled = Steps(doc), []
     while True:
-        pt = rs.GetPoint(u"%s: click near a junction — the end where it continues on another panel (Enter — done)" % name)
-        if pt is None:
+        gp = Rhino.Input.Custom.GetPoint()
+        gp.SetCommandPrompt(u"%s: click near a junction — the end where it continues on another panel (Enter — done)" % name)
+        gp.AcceptNothing(True)
+        i_undo = gp.AddOption("Undo")
+        res = gp.Get()
+        if res == Rhino.Input.GetResult.Option and gp.OptionIndex() == i_undo:
+            if toggled and steps.undo():  # stop and text back; the end is a normal / junction end again
+                i, e = toggled.pop()
+                notch ^= set([(i, e)])
+                lines[i][4][e] = 0.0 if (i, e) in notch else trim
+            elif not toggled:
+                print(u"Nothing to undo")
+            continue
+        if res != Rhino.Input.GetResult.Point:
             return
+        pt = gp.Point()
         d, i, e = min((pt.DistanceTo(l[1].PointAt((l[1].Domain.T0, l[1].Domain.T1)[e])), i, e)
                       for i, l in enumerate(lines) for e in (0, 1))
         oid, crv, stops, tid, trims = lines[i]
+        steps.start()
+        steps.change(stops[e])
+        steps.change(tid)
+        toggled.append((i, e))
         notch ^= set([(i, e)])
         trims[e] = 0.0 if (i, e) in notch else trim
         s = trims[e] if e == 0 else crv.GetLength() - trims[e]
@@ -197,7 +236,9 @@ def junction_stage(doc, name, lines, trim, size, normal, gap):
 HELP = u"""Options:
   Type — Zip: zip (both sides, Z<n>); Track: canalina (one side, Can<n>)
   Trim — stops this far in from the real line ends (zip shorter than the line); remembered per type
-  Style — number text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
+  Style — number text style (default PAT 14 mm)
+  Undo — take back the last step: at line picking — the whole previous zip / track (its number is reused);
+         at junction clicks — the last junction; at number flipping — the last flip"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -208,7 +249,10 @@ def main():
     nums = {}  # type → next number in this run
     kind = sc.sticky.get(KIND) if sc.sticky.get(KIND) in TYPES else "Zip"  # old sessions may remember "Can"
     ids, kind, trim = get_lines(kind, nums, u"only flip numbers", cm)
-    if not ids:
+    if ids == UNDO:
+        print(u"Nothing to undo")
+        ids, kind, trim = get_lines(kind, nums, u"only flip numbers", cm)
+    if not ids or ids == UNDO:
         flip_stage(doc)
         return
     size = D.pts.get_number(u"Stop length", sc.sticky.get("zip_stop_size", cm), STYLE)
@@ -219,8 +263,18 @@ def main():
     gap = 0.5 * ds.TextHeight * ds.DimensionScale
     normal = rs.ViewCPlane().ZAxis
     done = marked_lines()
+    steps, history = Steps(doc), []  # one step per zip / track: (type, its lines) — for Undo
 
     while ids:
+        if ids == UNDO:
+            if history and steps.undo():
+                k, marked = history.pop()
+                nums[k] -= 1
+                done.difference_update(marked)
+            elif not history:
+                print(u"Nothing to undo")
+            ids, kind, trim = get_lines(kind, nums, u"done", cm)
+            continue
         prefix, layer, _, junctions, _ = TYPES[kind]
         todo = [i for i in ids if not rs.IsCurveClosed(i) and str(i) not in done  # closed: no ends
                 and rs.CurveLength(i) - 2 * trim > tol]
@@ -236,6 +290,8 @@ def main():
             n = nums.get(kind) or next_number(kind)
             nums[kind] = n + 1
             name = prefix + str(n)
+            steps.start()
+            history.append((kind, [str(i) for i in todo]))
             lines = [mark_line(doc, oid, rs.coercecurve(oid), name, trim, size, normal, ds, gap, attrs) for oid in todo]
             done.update(str(i) for i in todo)
             rs.UnselectAllObjects()
