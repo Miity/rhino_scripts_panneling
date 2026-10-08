@@ -48,14 +48,16 @@ try:
     det = rs.AddRectangle(Plane(Point3d(0, 1000, 0), Rhino.Geometry.Vector3d.ZAxis), 40, 20)
     seam = rs.AddLine((0, 1005, 0), (40, 1005, 0))
     dlbl = T("RC3  r=4", 10, 1010, 3)
-    rs.AddObjectsToGroup([det, seam, dlbl], rs.AddGroup())
+    mlbl = T("RC3", 60, 30, 3)  # its markup label on the panel (add_part): same group as the detail up
+    rs.SetUserText(mlbl, "PartMarkup", "1")
+    rs.AddObjectsToGroup([det, seam, dlbl, mlbl], rs.AddGroup())
 
     sel = [panel, dot, circ, zipl, inner, stop, ztxt, long_txt, det] + pts + cross
     new, skipped = M.layout(doc, sel, 10.0, Plane.WorldXY, Point3d(0, 2000, 0), 20.0)
     assert skipped == 0, skipped
     objs = [doc.Objects.FindId(i) for i in new]
     texts = sorted(o.Geometry.PlainText for o in objs if isinstance(o.Geometry, Rhino.Geometry.TextEntity))
-    assert texts == ["P4", "RC3", "Z15"], texts
+    assert texts == ["P4", "RC3", "RC3", "Z15"], texts  # RC3 on the panel copy (markup) and on the detail
     assert not [o for o in objs if isinstance(o.Geometry, Rhino.Geometry.TextDot)]
     assert len([o for o in objs if isinstance(o.Geometry, Rhino.Geometry.Point)]) == 3
     lines = [o.Geometry for o in objs if isinstance(o.Geometry, Rhino.Geometry.Curve) and o.Geometry.IsLinear()

@@ -13,8 +13,8 @@ moved by H along the normal at the pocket centre (Rigid=No — standard offset).
 Option Hem — hem allowance at the ends (+Hem left and right): the end moves outward by Hem, the top and bottom
 of the pocket are extended to it straight; the old end stays in the group as a fold line, in sublayer <layer>::Fold (Hem=0 — none).
 Only markup stays on the panel (in place): ends + pocket top as one open curve (without the edge and Hem)
-+ label, its own group (UserText TP_Markup). The full part for cutting — UP (10000) up along CPlane Y
-(UserText TP_Up), that is what Layout lays out. Both groups are linked by number (UserText TP_N).
++ label (UserText TP_Markup). The full part for cutting — UP (10000) up along CPlane Y
+(UserText TP_Up), that is what Layout lays out. Markup and full part — one group, also linked by number (UserText TP_N).
 Option Layout (default Yes): No — full part in place, no markup (like old pockets).
 Options W / H / Trim / Hem / Notch / Rigid / Layout / Up / Angle / Style — in the click prompt, remembered between runs.
 """
@@ -202,7 +202,7 @@ def add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid=False, hem
                 rs.SetUserText(o, "TP_Up", "%r,%r,%r" % (up.X, up.Y, up.Z))
             if i == 1:
                 rs.SetUserText(o, "TP_Markup", "1")
-        rs.AddObjectsToGroup(ids, rs.AddGroup())
+    rs.AddObjectsToGroup(sum(groups, []), rs.AddGroup())  # markup on the panel + full part up — one group
     doc.Views.Redraw()
     return label(n, h)
 

@@ -90,12 +90,13 @@ def main():
         if g is None or g in groups:
             continue
         groups.add(g)
-        ids = rs.ObjectsByGroup(g)
-        if rs.GetUserText(ids[0], "TP_Markup"):  # markup on the panel selected → full part above
-            full = tagged(ids[0], rs.GetUserText(ids[0], "TP_N"), False)
+        ids = [i for i in rs.ObjectsByGroup(g) if not rs.GetUserText(i, "TP_Markup")]  # one group: markup + full part
+        if not ids:  # older drawings: markup in its own group → full part above
+            m = rs.ObjectsByGroup(g)[0]
+            full = tagged(m, rs.GetUserText(m, "TP_N"), False)
             g = full and (rs.ObjectGroups(full[0]) or [None])[0]
             if not g:
-                print(u"Skipped: no full part for markup TP%s" % rs.GetUserText(ids[0], "TP_N"))
+                print(u"Skipped: no full part for markup TP%s" % rs.GetUserText(m, "TP_N"))
                 continue
             if g in groups:
                 continue

@@ -30,7 +30,8 @@ CODE = re.compile(r"\s*([A-Za-z]+\d+(?:\.\d+)?)\b")  # label → code: "RC3  r=4
 
 
 def parts(ids):
-    """List of parts: each is a list of ids (the whole top-level group or one object)."""
+    """List of parts: each is a list of ids (the whole top-level group or one object). A group with the markup on the
+    panel and the full part up (add_part, TubePockets) — two: the markup and the part."""
     seen, out = set(), []
     for i in ids:
         if str(i) in seen:
@@ -38,7 +39,8 @@ def parts(ids):
         g = rs.ObjectTopGroup(i)
         members = rs.ObjectsByGroup(g) if g else [i]
         seen.update(str(m) for m in members)
-        out.append(members)
+        mark = [m for m in members if any(rs.GetUserText(m, k) for k in MARKUP)]
+        out.extend(p for p in (mark, [m for m in members if m not in mark]) if p)
     return out
 
 

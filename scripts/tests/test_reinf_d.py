@@ -57,7 +57,8 @@ try:
         assert len(full) == 2 and len(markup) == 2
         assert abs(rs.BoundingBox(full[0])[0].Y - (-100 + dy)) < 1e-6
         assert abs(rs.BoundingBox(markup[0])[0].Y) < 1e-6
-        assert rs.ObjectGroups(full[0]) == rs.ObjectGroups(full[1]) != rs.ObjectGroups(markup[0])
+        g = rs.ObjectGroups(full[0])  # part up and its markup in place — one group
+        assert len(g) == 1 and all(rs.ObjectGroups(o) == g for o in full + markup), g
     finally:
         rs.DeleteObjects(full + markup)
     rs.ViewCPlane = lambda *a: rs.WorldXYPlane()

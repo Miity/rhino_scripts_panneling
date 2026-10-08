@@ -44,6 +44,7 @@ try:
         assert abs(bb.Min.Y - 400) < 1e-6 and abs(bb.Max.Y - 500) < 1e-6, bb
         assert abs(AreaMassProperties.Compute(outline).Area - 55000) < 1e-3
     # UpdateTubePockets.read_pocket: pocket in the document → parameters; without UserText — from geometry
+    import Rhino
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
     sys.modules.pop("UpdateTubePockets", None)
@@ -60,6 +61,9 @@ try:
                 for o in ids:
                     for k in U.KEYS:
                         rs.SetUserText(o, "TP_" + k, None)
+                    if rs.IsText(o):  # old pockets: h in the label (cm)
+                        rs.TextObjectText(o, u"T7  h=%g" % (100 * Rhino.RhinoMath.UnitScale(
+                            sc.doc.ModelUnitSystem, Rhino.UnitSystem.Centimeters)))
             p = U.read_pocket(ids, tol)
             assert p["n"] == 7 and p["H"] == 100 and abs(p["Trim"] - 50) < 1e-6, p
             assert p["Notch"] == 1 and abs(p["seg"].GetLength() - 600) < 1e-6, (legacy, p)
@@ -96,11 +100,37 @@ try:
         assert all(rs.BoundingBox(o)[0].Y < 1000 for o in markup)
         assert all(rs.BoundingBox(o)[0].Y > 9000 for o in full) and len(full) == 5  # contour, 2 folds, mark, text (seam line not drawn)
         assert set(U.tagged(markup[0], "9", False)) == set(o for o in full if rs.ObjectLayer(o) == rs.ObjectLayer(markup[0]))
-        p = U.read_pocket(rs.ObjectsByGroup(rs.ObjectGroups(full[0])[0]), tol)
+        assert len(rs.ObjectGroups(full[0])) == 1 and all(rs.ObjectGroups(o) == rs.ObjectGroups(full[0]) for o in ids)  # one group
+        p = U.read_pocket([o for o in rs.ObjectsByGroup(rs.ObjectGroups(full[0])[0]) if not rs.GetUserText(o, "TP_Markup")], tol)
         assert p["up"] == up and set(p["markup"]) == set(markup) and p["n"] == 9, p
         seg = p["seg"].DuplicateCurve()
         seg.Translate(-up)
         assert abs(seg.PointAtStart.Y) < 1e-6  # the edge returns to the markup position
+        # UpdateTubePockets: select the markup on the panel, H 100 → 120: rebuilt, again one group (markup + part up)
+        class Opts(object):  # the option prompt: H changed, Enter
+            def __getattr__(self, name):
+                return lambda *a: None
+            def AddOptionDouble(self, name, o):
+                if name == "H":
+                    o.CurrentValue = 120.0
+            def Get(self):
+                return Rhino.Input.GetResult.Nothing
+        class NS(object):  # Rhino as U sees it, with some names replaced (.NET namespaces can't be patched)
+            def __init__(self, real, **over):
+                self.real, self.over = real, over
+            def __getattr__(self, name):
+                return self.over[name] if name in self.over else getattr(self.real, name)
+        get_objects = rs.GetObjects
+        U.Rhino = NS(Rhino, Input=NS(Rhino.Input, Custom=NS(Rhino.Input.Custom, GetOption=Opts)))
+        rs.GetObjects = lambda *a, **k: [markup[0]]
+        try:
+            U.main()
+        finally:
+            U.Rhino, rs.GetObjects = Rhino, get_objects
+        ids = [o for o in rs.AllObjects() if o not in before]
+        g = rs.ObjectGroups(ids[0])
+        assert len(ids) == 7 and len(g) == 1 and all(rs.ObjectGroups(o) == g for o in ids), (len(ids), g)
+        assert all(rs.GetUserText(o, "TP_H") == "120" for o in ids)
     finally:
         rs.DeleteObjects(ids)
         if rs.IsLayer(base + "::Fold"):

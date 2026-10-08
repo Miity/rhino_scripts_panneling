@@ -55,8 +55,8 @@ def off_panel(crv, curves, tol):
 
 
 def add_part(doc, full, te, markup, attrs, layout=True):
-    """layout: full part (geometry full + label te) — UP up along CPlane Y, its own group;
-    in place — markup (curves markup + the same label), its own group. Returns (full id, markup ids).
+    """layout: full part (geometry full + label te) — UP up along CPlane Y; in place — markup (curves markup + the same
+    label); both in one group (selected / moved / deleted together). Returns (full ids, markup ids).
     Without layout — full part in place, no markup (markup ids = []).
     The pair is linked by UserText PartLink (common id); the full part has LayoutUp (offset vector), the markup — PartMarkup.
     """
@@ -78,9 +78,7 @@ def add_part(doc, full, te, markup, attrs, layout=True):
             rs.SetUserText(o, "LayoutUp", "%r,%r,%r" % (up.X, up.Y, up.Z))
         for o in ids[1]:
             rs.SetUserText(o, "PartMarkup", "1")
-    for g in ids:
-        if g:
-            rs.AddObjectsToGroup(g, rs.AddGroup())
+    rs.AddObjectsToGroup(ids[0] + ids[1], rs.AddGroup())
     return ids
 
 

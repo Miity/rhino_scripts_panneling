@@ -115,13 +115,10 @@ try:
             up_text = [o for o in doc.Objects if rs.IsText(o.Id) and o.Geometry.PlainText == "B3.5"
                        and o.Geometry.GetBoundingBox(True).Min.Y > 5000]
             assert len(up_text) == 1, len(up_text)
-            # the label on the panel, the part next to it and its label — one group; the copy up — its own
+            # the label on the panel, the part next to it, its label and the copy up — one group
             g = rs.ObjectGroups(t["B3.5"])
-            here = [o for o in doc.Objects if o.Attributes.LayerIndex == rect_layer and
-                    o.Geometry.GetBoundingBox(True).Max.Y < 5000]
-            ids = set(str(o.Id) for o in here)  # the panel label is in Parts::Bordino too
-            assert len(g) == 1 and str(t["B3.5"]) in ids and set(str(i) for i in rs.ObjectsByGroup(g[0])) == ids, g
-            assert len(here) == 3 and not set(rs.ObjectGroups(up_text[0].Id)) & set(g)
+            ids = set(str(o.Id) for o in doc.Objects if o.Attributes.LayerIndex == rect_layer)
+            assert len(ids) == 5 and len(g) == 1 and set(str(i) for i in rs.ObjectsByGroup(g[0])) == ids, (len(ids), g)
             assert not Rhino.Geometry.Intersect.Intersection.CurveCurve(rect[0], pl, 0.001, 0.001).Count
             c = rect[0].GetBoundingBox(True).Center
             assert pl.Contains(c, Plane.WorldXY, 0.001) == PointContainment.Outside

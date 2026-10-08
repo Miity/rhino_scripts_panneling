@@ -60,6 +60,7 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
 - Put new scripts in a subfolder `scripts/<tab>/` (sizes / curves / analysis / cut / parts / markup) or `Grasshoper scripts/` (`.gh`); in `GROUPS` — `py("<folder>/<Script>.py")`.
 - Keep IronPython 2.7 and CPython 3 compatibility unless explicitly told otherwise.
 - Take units and tolerances from the document (`sc.doc.ModelAbsoluteTolerance`), do not hardcode them.
+- A part with a copy `Up` up (Reinf*, Rinforzo, Bordino, TubePockets): the markup on the panel and the copy up are **one group** (`ReinfCircle.add_part`); LayoutParts splits such a group by `PartMarkup` / `TP_Markup`.
 - Scripts that **create parts** (strips, reinforcements etc.) live in `scripts/parts/`, put the result in layer `Parts::<Name>` and go to the **Parts** toolbar tab (`py("parts/<Script>.py")`).
 
 ## Toolbar (`Scripts.rui`)
