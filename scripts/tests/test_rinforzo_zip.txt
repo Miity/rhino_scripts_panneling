@@ -1,3 +1,11 @@
-Traceback (most recent call last):
-  File "file:///Users/dmytro/Documents/Rhino/scripts/tests/test_rinforzo_zip.py", line 82, in <module>
-AssertionError: (0, 'zip first', (-12.63, 14.0, 14.0))
+0°, zip on edge, zip first: ['R6', 'Z1', 'Z1 R6'], gap / height / common (6.3, 14.0, 14.0)
+0°, zip on edge, rinforzo first: ['R6', 'Z1', 'Z1 R6'], gap / height / common (6.3, 14.0, 14.0)
+38°, zip on edge, zip first: ['R6', 'Z1', 'Z1 R6'], gap / height / common (6.3, 14.0, 14.0)
+38°, zip on edge, rinforzo first: ['R6', 'Z1', 'Z1 R6'], gap / height / common (6.3, 14.0, 14.0)
+0°, zip on line, zip first: ['R6', 'Z1', 'Z1 R6'], gap / height / common (6.3, 14.0, 14.0)
+0°, zip on line, rinforzo first: ['R6', 'Z1', 'Z1 R6'], gap / height / common (6.3, 14.0, 14.0)
+38°, zip on line, zip first: ['R6', 'Z1', 'Z1 R6'], gap / height / common (6.3, 14.0, 14.0)
+38°, zip on line, rinforzo first: ['R6', 'Z1', 'Z1 R6'], gap / height / common (6.3, 14.0, 14.0)
+other edge, zip first: ['R6', 'Z1']
+other edge, rinforzo first: ['R6', 'Z1']
+OK

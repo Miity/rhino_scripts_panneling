@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """End to end: Rinforzo label R<w> right after the ZipStops number on the same edge, in both run orders, flip, canvas part;
-a level panel and a turned one (turned text).
+a level panel and a turned one (turned text); the zip on the panel edge or on a zip line inside the strip (old edge after
+ZipCover).
 Rhino 8: DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_rinforzo_zip.txt next to it."""
 import os
@@ -13,7 +14,7 @@ try:
     import Rhino
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
-    from Rhino.Geometry import Plane, Point3d, Polyline, PolylineCurve, Transform, Vector3d
+    from Rhino.Geometry import LineCurve, Plane, Point3d, Polyline, PolylineCurve, Transform, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
     for m in ("ReinfCircle", "ZipCover", "ZipStops", "Rinforzo", "sewing_points", "DotToPanelText", "PatternTextStyles",
               "click_undo"):
@@ -27,7 +28,9 @@ try:
         pts = [Point3d(x, y, 0) for x, y in ((0, 0), (500, 0), (500, 300), (0, 300), (0, 0))]
         pl = PolylineCurve(Polyline(pts))
         pl.Transform(turn)
-        return doc, doc.Objects.AddCurve(pl)
+        line = LineCurve(Point3d(0, 30, 0), Point3d(500, 30, 0))  # zip line 3 cm inside, within the 6 cm strip
+        line.Transform(turn)
+        return doc, doc.Objects.AddCurve(pl), doc.Objects.AddCurve(line)
 
     sc.sticky[Z.ANGLE] = 30.0
     sc.sticky.update({R.STICKY: 60.0, R.STICKY + "_plus": 100.0, R.STICKY + "_layout": True, R.UP_KEY: 10000.0,
@@ -35,6 +38,7 @@ try:
     rs.ViewCPlane = lambda *a, **k: Plane.WorldXY
     def run_zip(doc, pid, click):
         rs.GetObjects = lambda *a, **k: [pid]
+        click = zip_click
         Z.D.pts.get_number = lambda *a, **k: 10.0
         seq = [(click, "Zip", 40.0), (None, "Zip", 40.0), (None, "Zip", 40.0)]
         Z.ask_click = lambda *a, **k: seq.pop(0)
@@ -66,14 +70,16 @@ try:
         gap, common = bb.Min.X - ba.Max.X, min(ba.Max.Y, bb.Max.Y) - max(ba.Min.Y, bb.Min.Y)
         return 0 <= gap < h and common > 0.5 * h, (round(gap, 2), round(h, 2), round(common, 2))
 
-    for deg in (0, 38):
+    for deg, on in ((0, "edge"), (38, "edge"), (0, "line"), (38, "line")):
         turn = Transform.Rotation(deg * 3.141592653589793 / 180, Vector3d.ZAxis, Point3d.Origin)
         click = Point3d(250, -5, 0)
         click.Transform(turn)
+        zip_click = Point3d(250, -5 if on == "edge" else 25, 0)
+        zip_click.Transform(turn)
         for order in ("zip first", "rinforzo first"):
-            doc, pid = fresh(turn)
+            doc, pid, lid = fresh(turn)
             for run in ((run_zip, run_rinforzo) if order == "zip first" else (run_rinforzo, run_zip)):
-                run(doc, pid, click)
+                run(doc, lid if on == "line" and run is run_zip else pid, click)
             t = {o.Geometry.PlainText: o.Id for o in doc.Objects if rs.IsText(o.Id)}
             names = sorted(t)
             assert "Z1" in names and "R6" in names, (deg, order, names)
@@ -88,7 +94,16 @@ try:
             Z.flip_label(doc, t["Z1"], doc.ModelAbsoluteTolerance)
             ok, d2 = right_of(doc, t["Z1"], t["R6"])
             assert ok, (deg, order, "flip", d2)
-            out.write("%d°, %s: %s, gap / height / common %s\n" % (deg, order, names, d))
+            out.write("%d°, zip on %s, %s: %s, gap / height / common %s\n" % (deg, on, order, names, d))
+    # zip on another edge (top) — the strip on the bottom edge keeps its label where it was, the canvas part only "R6"
+    for order in ("zip first", "rinforzo first"):
+        doc, pid, lid = fresh(Transform.Identity)
+        zip_click, click = Point3d(250, 305, 0), Point3d(250, -5, 0)
+        for run in ((run_zip, run_rinforzo) if order == "zip first" else (run_rinforzo, run_zip)):
+            run(doc, pid, click)
+        t = {o.Geometry.PlainText: o.Id for o in doc.Objects if rs.IsText(o.Id)}
+        assert sorted(t) == ["R6", "Z1"] and not right_of(doc, t["Z1"], t["R6"])[0], (order, sorted(t))
+        out.write("other edge, %s: %s\n" % (order, sorted(t)))
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())

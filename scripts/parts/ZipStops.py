@@ -169,31 +169,49 @@ def marked_edges():
     return out
 
 
-RINF_LINE = "RinfLine"  # UserText on a Rinforzo markup label: id of its panel
-RINF_EDGE = "RinfEdge"  # UserText on a Rinforzo markup label: "x,y,z" — edge midpoint
+RINF_LINE = "RinfLine"  # UserText on a Rinforzo markup label: id of its panel (marks the label)
 
 
-def text_on_edge(texts, line_key, edge_key, line, mid, near):
-    """First of texts whose UserText line_key is this panel / curve id and edge_key a point within near of mid."""
-    for o in texts:
-        if rs.GetUserText(o, line_key) == str(line):
+def holds(strip, pt, tol):
+    """pt inside the closed strip outline or on it."""
+    ok, pl = strip.TryGetPlane(tol)
+    return strip.Contains(pt, pl if ok else Plane.WorldXY, 100 * tol) != PointContainment.Outside
+
+
+def canvas_part(doc, link):
+    """(objects, LayoutUp vector) of the full part up on the canvas linked by PartLink link; ([], None) — none."""
+    full = [o for o in doc.Objects if link and o.Attributes.GetUserString("PartLink") == link
+            and not o.Attributes.GetUserString("PartMarkup") and o.Attributes.GetUserString("LayoutUp")]
+    if not full:
+        return [], None
+    return full, Vector3d(*[float(x) for x in full[0].Attributes.GetUserString("LayoutUp").split(",")])
+
+
+def zip_text(strip, tol):
+    """The number text (Z<n> / Can<n>) whose edge midpoint lies on the strip — the panel edge itself or a zip line
+    inside it (the old edge after ZipCover) — or None."""
+    for t in TYPES.values():
+        for o in (rs.ObjectsByLayer(t[1]) or []) if rs.IsLayer(t[1]) else []:
             try:
-                pt = Point3d(*[float(x) for x in rs.GetUserText(o, edge_key).split(",")])
+                pt = Point3d(*[float(x) for x in rs.GetUserText(o, EDGE).split(",")])
             except Exception:
                 continue
-            if pt.DistanceTo(mid) < near:
+            if rs.IsText(o) and holds(strip, pt, tol):
                 return o
 
 
-def zip_text(line, mid, near):
-    """The number text (Z<n> / Can<n>) of this edge, or None."""
-    return text_on_edge([o for t in TYPES.values() if rs.IsLayer(t[1]) for o in rs.ObjectsByLayer(t[1]) or []
-                         if rs.IsText(o)], LINE, EDGE, line, mid, near)
-
-
-def rinforzo_text(line, edge, tol):
-    """The Rinforzo markup label (text, R<w>) of this edge, or None."""
-    return text_on_edge(rs.ObjectsByType(512) or [], RINF_LINE, RINF_EDGE, line, mid_point(edge), 100 * tol)
+def rinforzo_text(doc, mid, tol):
+    """The Rinforzo markup label (R<w>) whose strip holds mid (a zip edge midpoint), or None.
+    The strip in place = its full part on the canvas moved back down."""
+    for o in rs.ObjectsByType(512) or []:
+        if rs.GetUserText(o, RINF_LINE):
+            full, up = canvas_part(doc, rs.GetUserText(o, "PartLink"))
+            for f in full:
+                if isinstance(f.Geometry, Curve) and f.Geometry.IsClosed:
+                    c = f.Geometry.DuplicateCurve()
+                    c.Translate(-up)
+                    if holds(c, mid, tol):
+                        return o
 
 
 def beside(doc, zid, rid, steps=None):
@@ -219,11 +237,9 @@ def beside(doc, zid, rid, steps=None):
 def to_part(doc, link, marks, text, steps):
     """Zip marks (curves) and the number text onto the full part of a Rinforzo strip (PartLink link) up on the canvas:
     marks copied by its LayoutUp, its label becomes text ('Z20 R6')."""
-    full = [o for o in doc.Objects if o.Attributes.GetUserString("PartLink") == link
-            and not o.Attributes.GetUserString("PartMarkup") and o.Attributes.GetUserString("LayoutUp")]
+    full, up = canvas_part(doc, link)
     if not full:
         return
-    up = Vector3d(*[float(x) for x in full[0].Attributes.GetUserString("LayoutUp").split(",")])
     group = rs.ObjectGroups(full[0].Id)
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = full[0].Attributes.LayerIndex  # the part's own layer
@@ -338,7 +354,7 @@ def flip_label(doc, t, tol, steps=None):
     te.TextVerticalAlignment = (TextVerticalAlignment.Top if te.TextVerticalAlignment == TextVerticalAlignment.Bottom
                                 else TextVerticalAlignment.Bottom)
     doc.Objects.Replace(t, te)
-    rid = rinforzo_text(rs.GetUserText(t, LINE), edge, tol)
+    rid = rinforzo_text(doc, mid_point(edge), tol)
     if rid:
         beside(doc, t, rid, steps)
     try:
@@ -502,7 +518,7 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
     for i, l in enumerate(lines):
         edge, panel = l["edge"], l["panel"]
         s_c = (l["trims"][0] + edge.GetLength() - l["trims"][1]) / 2.0
-        rid = rinforzo_text(l["id"], edge, tol)  # a Rinforzo strip made before this zip on the same edge
+        rid = rinforzo_text(doc, mid_point(edge), tol)  # a Rinforzo strip made before, this zip on it
         te, corners, free, side = place_text(name, edge, panel, s_c, ds, gap, up, tol, obs)
         if not free:
             print(u"%s: no free spot for the number — placed anyway, move / flip it" % name)
