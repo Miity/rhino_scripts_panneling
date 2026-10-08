@@ -4,11 +4,12 @@ Typical case: two ZipCover / Seam markups on neighbouring panel edges leave a no
 Select curves (window selection is fine: texts, points and closed curves are ignored), then click near the
 corner (several corners in a row, Enter — done). The two curve ends nearest the click are taken (two curves,
 or both ends of one curve). An edge runs corner to corner (corner — a break larger than Angle).
-For each end the script either joins its last edge or drops it (the short end to the panel) and joins the next
-one — whichever pair of edges meets nearest the click. The two edges are extended (straight, along the tangent)
+For each end the script either joins its last edge or drops the short end to the panel (its last segment, or
+the whole last edge) and joins the edge before it — whichever pair of edges meets nearest the click. The two edges are extended (straight, along the tangent)
 or trimmed to their intersection, everything beyond it is removed, the curves are joined into one.
 Two curves → the first keeps its object (layer, groups, UserText), the second is deleted and its group (label,
 seam points) merges into the first's group. Both ends of one curve (frame around a panel) → it closes.
+If after a join the two far ends also touch (markups end exactly on the panel corner), that corner is joined too.
 Parallel edges — skipped with a message.
 """
 import math
@@ -22,22 +23,36 @@ from Rhino.Geometry.Intersect import Intersection
 STICKY = "JoinCorner"
 
 
-def edges(crv, angle, tol):
-    """Edges corner to corner of an open curve, in curve order (corner — a break larger than angle)."""
+def segments(crv, tol):
+    return [s for s in crv.DuplicateSegments() or [crv.DuplicateCurve()] if s.GetLength() > tol]
+
+
+def tail(segs, at_end, angle):
+    """Number of segments in the edge at that end of segs (corner to corner: breaks up to angle stay in the edge)."""
+    order = list(reversed(segs)) if at_end else segs
+    n = 1
+    while n < len(order):
+        a, b = (order[n], order[n - 1]) if at_end else (order[n - 1], order[n])
+        if Vector3d.VectorAngle(a.TangentAtEnd, b.TangentAtStart) > math.radians(angle):
+            break
+        n += 1
+    return n
+
+
+def drops(segs, at_end, angle):
+    """How many segments may be dropped at that end: none, the last segment, the whole last edge.
+    Segment matters when the short end bends less than angle into a curved edge (it is not an edge of its own)."""
+    return sorted(set(k for k in (0, 1, tail(segs, at_end, angle)) if k < len(segs)))
+
+
+def flip(cs):
+    """Curves in reverse order, each reversed."""
     out = []
-    for s in crv.DuplicateSegments() or [crv.DuplicateCurve()]:
-        if s.GetLength() <= tol:
-            continue
-        if out and Vector3d.VectorAngle(out[-1][-1].TangentAtEnd, s.TangentAtStart) <= math.radians(angle):
-            out[-1].append(s)
-        else:
-            out.append([s])
-    return [Curve.JoinCurves(g, tol)[0] for g in out]
-
-
-def plan(es, at_end, drop):
-    """(index of the edge to join, its corner end is its end?) for the curve end at_end with drop edges dropped."""
-    return (len(es) - 1 - drop, True) if at_end else (drop, False)
+    for c in reversed(cs):
+        c = c.DuplicateCurve()
+        c.Reverse()
+        out.append(c)
+    return out
 
 
 def extended(e, at_end, big):
@@ -52,49 +67,63 @@ def cut(e, at_end, x):
 
 
 def join(ends, click, angle, tol):
-    """ends — two (curve, at_end) (the same curve twice for a frame). Joined curve or an error string."""
+    """ends — two (curve, at_end) (the same curve twice for a frame). Joined curve or an error string.
+    For each end: drop 0 / 1 segment / the last edge, then the edge at the new end (corner to corner) is extended
+    or trimmed to meet the other one; the pair meeting nearest the click wins."""
     (ca, ea), (cb, eb) = ends
     same = ca is cb
-    la, lb = edges(ca, angle, tol), (None if same else edges(cb, angle, tol))
-    lb = la if same else lb
+    sa = segments(ca, tol)
+    sb = sa if same else segments(cb, tol)
     big = 10 * (ca.GetLength() + cb.GetLength())
+    now = (ca.PointAtEnd if ea else ca.PointAtStart, cb.PointAtEnd if eb else cb.PointAtStart)
     best = None
-    for da in (0, 1):
-        for db in (0, 1):
-            ia, fa = plan(la, ea, da)
-            ib, fb = plan(lb, eb, db)
-            if not (0 <= ia < len(la) and 0 <= ib < len(lb)):
-                continue
-            if same and (ia >= ib if not fa else ib >= ia):  # frame: start edge before end edge, not the same one
-                continue
-            xa, xb = extended(la[ia], fa, big), extended(lb[ib], fb, big)
+    for da in drops(sa, ea, angle):
+        for db in drops(sb, eb, angle):
+            ra = sa[:len(sa) - da] if ea else sa[da:]
+            if same:  # frame: both ends cut from one list (ea is the start or the end, eb the other)
+                lo, hi = (db, len(sa) - da) if ea else (da, len(sa) - db)
+                ra = rb = sa[lo:hi]
+                if len(ra) < 2:
+                    continue
+            else:
+                rb = sb[:len(sb) - db] if eb else sb[db:]
+            na, nb = tail(ra, ea, angle), tail(rb, eb, angle)
+            if same and na + nb > len(ra):
+                continue  # the two edges would overlap
+            ga = ra[len(ra) - na:] if ea else ra[:na]
+            gb = rb[len(rb) - nb:] if eb else rb[:nb]
+            ta, tb = Curve.JoinCurves(ga, tol)[0], Curve.JoinCurves(gb, tol)[0]
+            xa, xb = extended(ta, ea, big), extended(tb, eb, big)
             if xa is None or xb is None:
                 continue
-            ev = Intersection.CurveCurve(xa, xb, tol, tol)
-            pts = [e.PointA for e in ev or []]
+            pts = [ev.PointA for ev in Intersection.CurveCurve(xa, xb, tol, tol) or []]
             if not pts:
                 continue
             x = min(pts, key=click.DistanceTo)
-            ends_now = (ca.PointAtEnd if ea else ca.PointAtStart, cb.PointAtEnd if eb else cb.PointAtStart)
-            if all(p.DistanceTo(x) <= tol for p in ends_now) and da == db == 0:
+            if da == db == 0 and all(p.DistanceTo(x) <= tol for p in now):
                 continue  # already joined there — nothing to do
             if best is None or x.DistanceTo(click) < best[0]:
-                best = (x.DistanceTo(click), ia, fa, ib, fb, x)
+                best = (x.DistanceTo(click), ra, rb, na, nb, ta, tb, x)
     if best is None:
         return u"the edges near the click do not meet (parallel?)"
-    _, ia, fa, ib, fb, x = best
-    if same:  # frame: both ends of one curve → closed loop
-        es = list(la)
-        es[ia], es[ib] = cut(es[ia], fa, x), cut(es[ib], fb, x)
-        keep = es[min(ia, ib):max(ia, ib) + 1]
-    else:
-        ka = la[:ia] + [cut(la[ia], fa, x)] if fa else [cut(la[ia], fa, x)] + la[ia + 1:]
-        kb = lb[:ib] + [cut(lb[ib], fb, x)] if fb else [cut(lb[ib], fb, x)] + lb[ib + 1:]
-        keep = ka + kb
-    joined = Curve.JoinCurves(keep, tol)
-    if len(joined) != 1:
-        return u"the result did not join into one curve"
-    out = joined[0]
+    _, ra, rb, na, nb, ta, tb, x = best
+    ka = cut(ta, ea, x)
+    kb = cut(tb, eb, x)
+    if same:  # rest of the frame between the two edges + both cut edges → closed
+        mid = ra[nb:len(ra) - na] if ea else ra[na:len(ra) - nb]
+        joined = Curve.JoinCurves([ka, kb] + mid, tol)
+        if len(joined) != 1:
+            return u"the result did not join into one curve"
+        out = joined[0]
+    else:  # A ending at x, then B from x — in this order (JoinCurves would also join where the far ends touch)
+        pa = ra[:len(ra) - na] + [ka] if ea else flip([ka] + ra[na:])
+        pb = [kb] + rb[nb:] if not eb else flip(rb[:len(rb) - nb] + [kb])
+        out = Rhino.Geometry.PolyCurve()
+        for c in pa + pb:
+            out.AppendSegment(c)
+        out.RemoveNesting()
+        if out.PointAtStart.DistanceTo(out.PointAtEnd) <= tol:  # far ends touch at another corner (markups end
+            return join([(out, False), (out, True)], out.PointAtStart, angle, tol)  # on the panel) → join it too
     ok, pl = out.TryGetPolyline()  # a clean polyline if everything is straight (for PreparePanelCut)
     if ok:
         pl.DeleteShortSegments(tol)

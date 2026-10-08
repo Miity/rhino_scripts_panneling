@@ -37,6 +37,22 @@ try:
     j = M.join([(fr, False), (fr, True)], Point3d(0.5, 0.5, 0), 30, tol)
     assert j.IsClosed and abs(AreaMassProperties.Compute(j).Area - 100) < 1e-6
 
+    # four markups around a panel (all ending exactly on the panel corners): the 3rd corner closes the 4th too —
+    # no zigzag through the panel corner left (it used to close there and the 4th corner could not be clicked)
+    pan = pl((0, 0), (100, 0), (100, 60), (0, 60), closed=True)
+    marks = [off_panel(ZipCover.flap(pan, c, w, 30, Z, tol)[0], [pan], tol)[0]
+             for c, w in ((Point3d(50, 61, 0), 20), (Point3d(-1, 30, 0), 20), (Point3d(101, 30, 0), 20), (Point3d(50, -1, 0), 10))]
+    def ends_at(c, p):
+        return c.PointAtEnd.DistanceTo(p) < c.PointAtStart.DistanceTo(p)
+    j = marks[0]
+    for m, corner, click in ((marks[1], Point3d(0, 60, 0), Point3d(-5, 65, 0)), (marks[2], Point3d(100, 60, 0), Point3d(105, 65, 0)),
+                             (marks[3], Point3d(100, 0, 0), Point3d(105, -5, 0))):
+        j = M.join([(j, ends_at(j, corner)), (m, ends_at(m, corner))], click, 30, tol)
+        assert isinstance(j, Curve), j
+    assert j.IsClosed, "the last corner was not closed"
+    assert abs(AreaMassProperties.Compute(j).Area - 140 * 90) < 1e-3, AreaMassProperties.Compute(j).Area  # x -20..120, y -10..80
+    assert min(pan.PointAt(pan.ClosestPoint(p)[1]).DistanceTo(p) for p in j.TryGetPolyline()[1]) > 9.99  # off the panel
+
     # crossing lines → trimmed at the crossing, joined
     a, b = LineCurve(Point3d(0, 0, 0), Point3d(12, 0, 0)), LineCurve(Point3d(10, -2, 0), Point3d(10, 10, 0))
     j = M.join([(a, True), (b, False)], Point3d(11, -1, 0), 30, tol)
