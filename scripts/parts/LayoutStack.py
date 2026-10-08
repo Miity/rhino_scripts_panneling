@@ -7,9 +7,9 @@ on a rinforzo (line, stops, ticks), full labels "Z20 R6 P4" (not shortened as in
 <layer>::Layout with UserText LayoutOf (as LayoutParts), turned so it lies flattest along CPlane X (label reading left
 to right), and stacked one under another from the click point (top-left corner),
 Gap apart (0 — touching, as the fascia strips): Rinforzo first, then Bordini, longest first in each.
-Already laid out parts (a copy with LayoutOf exists) are skipped; to lay out again — delete the copy.
-Layout then skips them too. Option Hide=Yes — the parts laid out now and the ones of the selection laid out before are
-hidden (only the part itself, the copy up; the markup on the panel stays); Show brings them back. Enter instead of
+Already stacked parts (a copy made by this script — UserText Stacked — exists) are skipped; to stack again — delete
+the copy. Copies made by Layout (Piazzamento) do not count; Layout skips the stacked parts (LayoutOf).
+Option Hide=Yes — the parts stacked now and the ones of the selection stacked before are hidden (only the part itself, the copy up; the markup on the panel stays); Show brings them back. Enter instead of
 the click — nothing stacked, only Hide.
 """
 import math
@@ -27,6 +27,7 @@ sys.modules.pop("LayoutParts", None)  # Rhino keeps modules from the first run f
 from LayoutParts import KEY, is_part, outer, parts, place
 
 STICKY = "LayoutStack"
+STACK = "Stacked"  # UserText on the copies made here: only these make a part "already stacked"
 KINDS = [  # (option, layer, label code) — parts that may be turned along the grain
     (u"Rinforzo", "Parts::Reinforcements", re.compile(r"(?:^|\s)R\d")),
     (u"Bordini", "Parts::Bordino", re.compile(r"(?:^|\s)B\d")),
@@ -41,8 +42,8 @@ def kind_of(doc, u, kinds):
 
 
 def pick(doc, ids, kinds):
-    """Parts of kinds in the selection: (not laid out yet, already laid out), each [(kind index, [objects])]."""
-    copied = set(o.Attributes.GetUserString(KEY) for o in doc.Objects)
+    """Parts of kinds in the selection: (not stacked yet, already stacked), each [(kind index, [objects])]."""
+    copied = set(o.Attributes.GetUserString(KEY) for o in doc.Objects if o.Attributes.GetUserString(STACK))
     found = []
     for p in parts(ids):
         u = [doc.Objects.FindId(i) for i in p]
@@ -94,7 +95,9 @@ def stack(doc, todo, plane, start, gap):
         geo = [(o, o.Geometry.Duplicate()) for o in u]  # the whole part: zip line, stops, full label
         for _, g in geo:
             g.Transform(xf)
-        new += place(doc, geo)
+        for i in place(doc, geo):
+            rs.SetUserText(i, STACK, "1")
+            new.append(i)
         y -= bb.Max.Y - bb.Min.Y + gap
     return new
 
@@ -103,7 +106,7 @@ HELP = u"""Options:
   Rinforzo — stack the R<w> strips (Parts::Reinforcements; RC / RD / RO are not taken)
   Bordini — stack the bordini (Parts::Bordino; Pettola is not taken)
   Gap — space between the stacked parts (0 — touching)
-  Hide — hide the laid out parts of the selection (now and before; the copy up only), Show brings them back
+  Hide — hide the stacked parts of the selection (now and before; the copy up only), Show brings them back
   Enter instead of a click — nothing stacked, only Hide"""  # printed at start — visible under the option fields
 
 
@@ -136,10 +139,10 @@ def main():
     if gp.Result() == Rhino.Input.GetResult.Point:
         stack(doc, todo, rs.ViewCPlane(), gp.Point(), gap.CurrentValue)
     else:
-        todo = []  # Enter: nothing laid out now
+        todo = []  # Enter: nothing stacked now
     hidden = rs.HideObjects([o.Id for _, u in todo + done for o in u]) if on["Hide"] else 0
     doc.Views.Redraw()
-    print(u"Stacked: %s; already laid out: %d; hidden: %d objects" % (
+    print(u"Stacked: %s; already stacked: %d; hidden: %d objects" % (
         u", ".join(u"%s %d" % (k[0], sum(1 for i, _ in todo if i == j)) for j, k in enumerate(kinds)), len(done),
         hidden or 0))
 

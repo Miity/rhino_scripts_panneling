@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """End to end: real Bordino / Pettola / Rinforzo parts on a panel turned 30° + an RC part; LayoutStack.main (click prompt
 faked: options + click / Enter) on the whole selection → only the ticked kinds (Rinforzo, Bordini; never Pettola / RC), copies along X reading left to
-right, stacked down from the click Gap apart, Rinforzo first, longest first; a second run skips them, LayoutParts too; Enter + Hide=Yes, Rinforzo=No → only the
+right, stacked down from the click Gap apart, Rinforzo first, longest first; a second run skips them, LayoutParts too, a Layout copy made before does not; Enter + Hide=Yes, Rinforzo=No → only the
 bordini parts up are hidden.
 Rhino 8: DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_layout_stack.txt next to it."""
@@ -103,10 +103,13 @@ try:
             return run["at"]
     L.Rhino = types.SimpleNamespace(Commands=Rhino.Commands, Input=types.SimpleNamespace(
         GetResult=Rhino.Input.GetResult, Custom=types.SimpleNamespace(GetPoint=GP, OptionToggle=Opt, OptionDouble=Opt)))
+    pre, _ = LP.layout(doc, [o.Id for o in [u for k, u in todo if k == 1][0]], 10.0, Plane.WorldXY,
+                       Point3d(0, -20000, 0), 20.0)
+    assert pre  # one bordino already on the Layout canvas: still stacked (only stacked copies count)
     rs.GetObjects = lambda *a, **k: every
     run.update(at=Point3d(0, -5000, 0), set={"Rinforzo": True, "Bordini": True, "Gap": 10.0, "Hide": False})
     L.main()
-    copies = [o for o in doc.Objects if o.Attributes.GetUserString(LP.KEY)]
+    copies = [o for o in doc.Objects if o.Attributes.GetUserString(L.STACK)]
     lay = set(doc.Layers[o.Attributes.LayerIndex].FullPath for o in copies)
     assert lay == {"Parts::Bordino::Layout", "Parts::Reinforcements::Layout"}, lay
     rects = sorted([o.Geometry for o in copies if isinstance(o.Geometry, Rhino.Geometry.Curve) and o.Geometry.IsClosed],
