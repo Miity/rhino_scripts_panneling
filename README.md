@@ -25,7 +25,7 @@ Labels on the drawing are read by the seamstresses, so they are Italian codes; e
 | `Z<n>` | zip | ZipStops, `Type=Zip` |
 | `Can<n>` | canalina — track | ZipStops, `Type=Track` |
 | `R<w>` | rinforzo — strip laid on the panel, not folded | Rinforzo (`R<w>  l=…`), Mark Reinf (` R<w>` on a label) |
-| `RC<n>  r=…` / `RD<n>` / `RO<n>  r=…` | rinforzo cerchio / D / O | Reinf Circle / D / O |
+| `RD<n>` / `RO<n>  r=…` | rinforzo D / O | Reinf D / O (RfD / RfO) |
 | `T<n>  h=…` | tasca — pocket | Tube Pockets |
 | `A–A`, `B–B`… | joint of panel pieces split to the material width | SplitToMaterial |
 
@@ -55,7 +55,7 @@ Each group is a separate toolbar; all six sit as **tabs** in the top Rhino panel
 | Hover | tooltip |
 | Drag a tab | move it elsewhere / tear it off into a separate window |
 
-Scripts that work click after click (ZipCover, Join Corner, Battute, Panels, Reinf Circle / D / O, Rinforzo, Tube Pockets,
+Scripts that work click after click (ZipCover, Join Corner, Battute, Panels, Reinf D / O, Rinforzo, Tube Pockets,
 ZipStops, DotToPanelText) have the option **Undo** in the click prompt: it takes back the last click (again — the one
 before it) without leaving the command; a number given in that click is reused. After the command ends, Rhino's own Undo works as usual.
 
@@ -106,7 +106,6 @@ before it) without leaving the command; a number given in that click is reused. 
 | ZipList | order table: selected numbers (Enter — all). Length measured live: marked line minus `Trim` (a deleted line — warning). Zips: lines of one `Z<n>` → two sides with the closest sums, the longer one is ordered, rounded up to 1 cm; difference > 5 mm or a single line — warning; summary "cm × pcs". Tracks: `Can<n>` full length (sum of lines), rounded up to 1 cm, total in cm. CSV `<file>_zips.csv` next to the `.3dm` + table to the clipboard |
 | Mark Reinf | reinforcement strip as a mark only: select labels (window, on different panels; panel — the nearest closed curve with corners within 20 cm outside `Parts::` or in `Parts::Panels`, no panel nearby — skipped) → ` R<w>` (option `W`, label in cm) appended to the text (an old one is replaced, W=0 removes it); edge length (corner to corner, closest to the label) — UserText `ReinfLen` |
 | RList | strip table: labels with `Reinf` (selected / Enter — all), length = edge + `Plus` (asked, cm, default 10 — half past each end), rounded up to 1 cm; totals by width; CSV `<file>_reinf.csv` + clipboard |
-| Reinf Circle | corner reinforcement circle: click near a corner → sector of radius R between the corner sides (panel or lines), in place, label `RC<n>  r=…` (cm), group; in `Parts::Reinforcements`. Option `Layout` (default Yes): only markup on the panel (lines not on panel edges + label), the full part `Up` (default 10000, shared by all part scripts) up along CPlane Y; `Layout=No` — full part in place |
 | Reinf D | D reinforcement at the end of a tube pocket: click the top corner of the pocket (half-circle centre) → click the bottom corner (where the D starts, the D is shown live); rectangle of width `W` (default 100) + an end `R` past the corner (default 50; W = 2R — half-circle, otherwise half-ellipse W/2 × R); label `RD<n>`, group; in `Parts::Reinforcements`, one for each pocket end. Option `Layout` (default Yes): only markup on the panel (lines not on panel edges + label), the full part `Up` (default 10000, shared by all part scripts) up along CPlane Y; `Layout=No` — full part in place |
 | Reinf O | O reinforcement at the end of a full-width pocket: pick a boundary (panel / corner lines; Enter — no trimming) → click the top corner of the pocket (circle centre) → click on a line: R = distance to the click + `Plus` (default 5 cm; the O is shown live); with a panel only the part of the circle inside the panel is kept; `SA` (default 1 cm) — sides along the panel edge extend outward by SA, the arc stays at R; seam line — panel edges inside the circle, label `RO<n>  r=…` (cm) along the arc, group; in `Parts::Reinforcements`. Option `Layout` (default Yes): only markup on the panel (lines not on panel edges + label), the full part `Up` (default 10000, shared by all part scripts) up along CPlane Y; `Layout=No` — full part in place |
 | Reinf Strip (Rinforzo) | `parts/Rinforzo.py` — reinforcement `R`, a strip laid on the panel without folding: selected panel → click near an edge (corner to corner, `Angle` as in ZipCover) → like ZipCover, but inward: edge + offset by `W` (default 6 cm) into the panel, ends along the neighbouring edges (sharper than 30° — perpendicular); `Plus` (default 10 cm) — the part for cutting is that much longer than the edge (half past each end, straight on), trimmed after sewing; the panel is not changed; label `R<w>  l=…` (cm, l = edge + Plus; ≈ W/10, at a quarter of the edge, along the inner line on the strip side), no number, group; in `Parts::Reinforcements`. Option `Layout` (default Yes): only markup on the panel (the inner line, without Plus, + label), the full part `Up` (default 10000, shared by all part scripts) up along CPlane Y; `Layout=No` — full part in place |
