@@ -1,0 +1,2 @@
+[('B3.5', False), ('B3.5', False), ('B3.5 P7', True), ('F5  l=20', False), ('R6', False), ('R6 P7', True), ('T9', False), ('T9 P5', True)]
+OK

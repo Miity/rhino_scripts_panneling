@@ -8,6 +8,7 @@ The canvas gets only what the cutting needs, the rest stays on the drawing (the 
   - closed curves of the part (contour, holes);
   - points (seam points, seam centres), crosses (buttons) and circles (seams) from markup/PointsToCrosses;
   - labels shortened to the code: "RC3  r=4" → "RC3", "P4", "Z15", "F5", "CZ3.5" (labels without a code — not copied);
+    a panel number at the end (PartPanel) stays: "R6 P4" → "R6 P4";
   - a seam centre tick at the middle of every markup line (zip, reinforcement, pocket): on the contour — Tick
     long into the part, inside the part — across the line. Lines shorter than 4 × Tick (stops) — no tick.
 Open lines, TextDots and long labels are not copied. Copies are placed in a row from the click point
@@ -27,6 +28,7 @@ SUB = "Layout"
 KEY = "LayoutOf"  # copy's UserText: original id
 MARKUP = ("PartMarkup", "TP_Markup")  # markup on the panel, not a part
 CODE = re.compile(r"\s*([A-Za-z]+\d+(?:\.\d+)?)\b")  # label → code: "RC3  r=4" → "RC3", "CZ3.5 R6" → "CZ3.5"
+PANEL = re.compile(r"\s(P\d+)$")  # panel number at the end (PartPanel) is kept: "R6 P4" → "R6 P4"
 
 
 def parts(ids):
@@ -88,7 +90,9 @@ def short(o):
     m = CODE.match(g.PlainText)
     if not m:
         return None
-    t = Rhino.Geometry.TextEntity.Create(m.group(1), g.Plane, sc.doc.DimStyles.FindId(g.DimensionStyleId) or
+    p = PANEL.search(g.PlainText.rstrip())
+    code = m.group(1) + (u" " + p.group(1) if p and p.group(1) != m.group(1) else u"")
+    t = Rhino.Geometry.TextEntity.Create(code, g.Plane, sc.doc.DimStyles.FindId(g.DimensionStyleId) or
                                          sc.doc.DimStyles.Current, False, 0, 0)
     t.TextHeight = g.TextHeight
     t.TextHorizontalAlignment = g.TextHorizontalAlignment

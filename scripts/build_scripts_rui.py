@@ -70,6 +70,7 @@ GROUPS = [
         (u"RList", u"Reinforcement strip table: edge + Plus (10 cm), totals by width; CSV next to the .3dm + clipboard", py("parts/RList.py"), None),
         (u"Tube Pockets", u"Tube pockets T<n>: panel → click near an edge, W centred on the edge, height H, narrowing Trim, no seam allowance, hem allowance at the ends Hem, centre mark, Rigid — rigid offset", py("parts/TubePockets.py"), None),
         (u"Update Pockets", u"Update existing T pockets: new H / Trim / Hem / Notch / Rigid in place, same number (only what you changed changes)", py("parts/UpdateTubePockets.py"), None),
+        (u"Part Panel", u"Panel number on parts: select parts (window) → \" P<n>\" added to each part's label; the panel is found from where the part sits on it (part up → back down; Bordino — its edge)", py("parts/PartPanel.py"), None),
         (u"Layout", u"Canvas: parts with contour, seam points, centre ticks and label codes in a row, in <layer>::Layout; the rest stays on the schema", py("parts/LayoutParts.py"), None),
     ]),
     (u"Markup", u"Markup on INK", [
@@ -128,6 +129,7 @@ IT = {
     u"Reinf Strip": (u"Rf", u"Rinforzo R<w> sul pannello, senza piega: lato (da angolo ad angolo) + offset W (6 cm) verso l'interno, estremità lungo i lati vicini; tagliato più lungo di Plus (10 cm), rifilato dopo la cucitura; etichetta R<w>  l=… (cm)"),
     u"Tube Pockets": (u"Tasche", u"Tasche per tubo T<n>: pannello → clic vicino a un lato, W centrata sul lato, altezza H, restringimento Trim, senza margine di cucitura, orlo alle estremità Hem, tacca al centro, Rigid — offset rigido"),
     u"Update Pockets": (u"Aggiorna tasche", u"Aggiorna le tasche T esistenti: nuovi H / Trim / Hem / Notch / Rigid sul posto, stesso numero (cambia solo quello che hai cambiato)"),
+    u"Part Panel": (u"N. pannello", u"Numero del pannello sui pezzi: seleziona i pezzi (finestra) → \" P<n>\" aggiunto all'etichetta di ogni pezzo; il pannello si trova dalla posizione del pezzo (pezzo in alto → riportato giù; Bordino — dal suo lato)"),
     u"Layout": (u"Piazzamento", u"Piazzamento per il taglio: pezzi con contorno, battute, tacche al centro e codici in fila, in <layer>::Layout; il resto resta sullo schema"),
     u"Markup": (u"Segni", u"Segni su INK"),
     u"Crosses": (u"Croci", u"Punti → croci o cerchi"),
