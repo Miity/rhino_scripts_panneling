@@ -54,10 +54,11 @@ def off_panel(crv, curves, tol):
     return list(Curve.JoinCurves(keep, tol)) if keep else []
 
 
-def add_part(doc, full, te, markup, attrs, layout=True):
+def add_part(doc, full, te, markup, attrs, layout=True, markup_label=True):
     """layout: full part (geometry full + label te) — UP up along CPlane Y, its own group;
     in place — markup (curves markup + the same label), its own group. Returns (full id, markup ids).
-    Without layout — full part in place, no markup (markup ids = []).
+    Without layout — full part in place, no markup (markup ids = []). markup_label=False — markup without the label
+    (it is carried by a zip number text, see ZipStops.add_rinforzo).
     The pair is linked by UserText PartLink (common id); the full part has LayoutUp (offset vector), the markup — PartMarkup.
     """
     up = rs.ViewCPlane().YAxis * (sc.sticky.get(UP_KEY, UP) if layout else 0.0)
@@ -69,7 +70,7 @@ def add_part(doc, full, te, markup, attrs, layout=True):
         return doc.Objects.Add(geo, attrs)
     ids = [add(c) for c in full] + [add(te)], []
     if layout:
-        ids = ids[0], [doc.Objects.AddCurve(c, attrs) for c in markup] + [doc.Objects.AddText(te, attrs)]
+        ids = ids[0], [doc.Objects.AddCurve(c, attrs) for c in markup] + ([doc.Objects.AddText(te, attrs)] if markup_label else [])
     if layout:
         link = str(System.Guid.NewGuid())
         for o in ids[0] + ids[1]:

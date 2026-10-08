@@ -169,6 +169,58 @@ def marked_edges():
     return out
 
 
+RINF_LINE = "RinfLine"  # UserText on a Rinforzo markup label: id of its panel
+RINF_EDGE = "RinfEdge"  # UserText on a Rinforzo markup label: "x,y,z" — edge midpoint
+RINF = re.compile(r"\s+R[\d.]+$")
+
+
+def text_on_edge(texts, line_key, edge_key, line, mid, near):
+    """First of texts whose UserText line_key is this panel / curve id and edge_key a point within near of mid."""
+    for o in texts:
+        if rs.GetUserText(o, line_key) == str(line):
+            try:
+                pt = Point3d(*[float(x) for x in rs.GetUserText(o, edge_key).split(",")])
+            except Exception:
+                continue
+            if pt.DistanceTo(mid) < near:
+                return o
+
+
+def zip_text(line, mid, near):
+    """The number text (Z<n> / Can<n>) of this edge, or None."""
+    return text_on_edge([o for t in TYPES.values() if rs.IsLayer(t[1]) for o in rs.ObjectsByLayer(t[1]) or []
+                         if rs.IsText(o)], LINE, EDGE, line, mid, near)
+
+
+def with_rinforzo(text, label):
+    """'Z20', 'R6' → 'Z20 R6'; the strip mark of the number text is replaced ('Z20 R4' → 'Z20 R6')."""
+    return RINF.sub(u"", text.rstrip()) + u" " + label
+
+
+def to_part(doc, link, marks, text, steps):
+    """Zip marks (curves) and the number text onto the full part of a Rinforzo strip (PartLink link) up on the canvas:
+    marks copied by its LayoutUp, its label becomes text ('Z20 R6')."""
+    full = [o for o in doc.Objects if o.Attributes.GetUserString("PartLink") == link
+            and not o.Attributes.GetUserString("PartMarkup") and o.Attributes.GetUserString("LayoutUp")]
+    if not full:
+        return
+    up = Vector3d(*[float(x) for x in full[0].Attributes.GetUserString("LayoutUp").split(",")])
+    group = rs.ObjectGroups(full[0].Id)
+    attrs = doc.CreateDefaultAttributes()
+    attrs.LayerIndex = full[0].Attributes.LayerIndex  # the part's own layer
+    new = []
+    for c in marks:
+        c = c.DuplicateCurve()
+        c.Translate(up)
+        new.append(doc.Objects.AddCurve(c, attrs))
+    if group:
+        rs.AddObjectsToGroup(new, group[0])
+    for o in full:
+        if rs.IsText(o.Id):
+            steps.change(o.Id)
+            rs.TextObjectText(o.Id, text)
+
+
 def is_marked(marked, oid, mid, near):
     return any(i == str(oid) and (p is None or p.DistanceTo(mid) < near) for i, p in marked)
 
@@ -428,7 +480,13 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
     for i, l in enumerate(lines):
         edge, panel = l["edge"], l["panel"]
         s_c = (l["trims"][0] + edge.GetLength() - l["trims"][1]) / 2.0
-        te, corners, free, side = place_text(name, edge, panel, s_c, ds, gap, up, tol, obs)
+        # a Rinforzo strip made before this zip on the same edge: its label joins the number (Z first, R after)
+        rid = text_on_edge([o for o in rs.ObjectsByType(512) or []], RINF_LINE, RINF_EDGE, l["id"], mid_point(edge), 100 * tol)
+        shown = with_rinforzo(name, rs.TextObjectText(rid)) if rid else name
+        link = rs.GetUserText(rid, "PartLink") if rid else None
+        if rid:
+            steps.delete(rid)
+        te, corners, free, side = place_text(shown, edge, panel, s_c, ds, gap, up, tol, obs)
         if not free:
             print(u"%s: no free spot for the number — placed anyway, move / flip it" % name)
         obs.append((PolylineCurve(Polyline(list(corners) + [corners[0]])).GetBoundingBox(True), None))
@@ -436,6 +494,8 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
         marks = zip_marks(edge, l["trims"], junction, side, size, up)
         new = [doc.Objects.AddCurve(c, attrs) for c in marks]
         obs.extend((c.GetBoundingBox(True), c) for c in marks)
+        if link:  # the strip's part on the cutting canvas shows the zip too
+            to_part(doc, link, marks, shown, steps)
         a = attrs.Duplicate()
         a.SetUserString(KEY, name)
         a.SetUserString(LINE, str(l["id"]))
