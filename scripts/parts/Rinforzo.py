@@ -7,10 +7,9 @@ larger than Angle) + offset by W (default 6 cm) into the panel, ends — along t
 Option Plus — the strip is cut longer than the edge by Plus (default 10 cm: Plus / 2 past each end, straight on),
 trimmed after sewing.
 The panel is not changed. Part in place, layer Parts::Reinforcements, label "R<w>" (cm;
-≈ W/10, at a quarter of the edge, along the inner line) in a group. If the edge already has a zip number (ZipStops)
-the markup gets no label of its own: " R<w>" is appended to the number ("Z20 R6"); a zip made later on this edge takes
-the strip's label the same way (ZipStops.finish_zip). The full part on the canvas then also carries the zip: its stops
-(copies) and the label "Z20 R6". No number, no length in the label.
+≈ W/10, at a quarter of the edge, along the inner line) in a group. If the edge has a zip number (ZipStops), the label stands right after it ("Z20  R6" — two texts, each in its own
+group; a zip made later on this edge pulls the label to its number, flipping the number moves the label with it).
+The full part on the canvas then also carries the zip: its stops (copies) and the label "Z20 R6". No number, no length in the label.
 Option Layout (default Yes): on the panel — markup (only the inner line W, without panel edges and without Plus),
 full part — 10000 up (ReinfCircle.add_part); No — full part in place.
 B / BR (bordino, folded over the edge) are other parts, not this script.
@@ -25,7 +24,7 @@ import scriptcontext as sc
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ReinfCircle", "ZipCover", "ZipStops"):  # Rhino keeps modules from the first run for the session
     sys.modules.pop(_m, None)
-from ZipStops import RINF_EDGE, RINF_LINE, mid_point, with_rinforzo, zip_text
+from ZipStops import RINF_EDGE, RINF_LINE, beside, mid_point, zip_text
 from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, off_panel, label_style, pick_style  # layer, style
 from ZipCover import cm, flap, label_frame  # edge corner to corner + offset, ends along the neighbours; label along the edge
 
@@ -131,21 +130,21 @@ def main():
         plane, valign = label_place(edge, off, normal, style.TextHeight * 0.5)
         layout = sc.sticky[STICKY + "_layout"]
         mid = mid_point(edge)
-        zid = zip_text(oid, mid, 100 * tol) if layout else None  # zip number on this edge: "Z20" → "Z20 R6"
-        shown = with_rinforzo(rs.TextObjectText(zid), label) if zid else label
-        te = Rhino.Geometry.TextEntity.Create(shown, plane, style, False, 0, 0)
+        zid = zip_text(oid, mid, 100 * tol) if layout else None  # zip number on this edge: R goes right after it
+        te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign
-        zip_marks = []  # the zip's stops on this edge go to the part too (copies of the curves of the number's group)
+        zip_marks = []  # the zip's stops on this edge go to the part on the canvas too (copies of the number's group)
         if zid:
-            steps.change(zid)
-            rs.TextObjectText(zid, shown)
             zip_marks = [rs.coercecurve(m) for g in rs.ObjectGroups(zid) or [] for m in rs.ObjectsByGroup(g) or []
                          if rs.IsCurve(m)]
-        _, markup = add_part(doc, [full[0]] + zip_marks, te, off_panel(cut, [panel], tol), attrs, layout, markup_label=not zid)
-        if layout and not zid:  # a zip made later on this edge takes the label (ZipStops.finish_zip)
+        full_ids, markup = add_part(doc, [full[0]] + zip_marks, te, off_panel(cut, [panel], tol), attrs, layout)
+        if layout:  # a zip made later on this edge puts the label after its number (ZipStops.finish_zip)
             rs.SetUserText(markup[-1], RINF_LINE, str(oid))
             rs.SetUserText(markup[-1], RINF_EDGE, u"%r,%r,%r" % (mid.X, mid.Y, mid.Z))
+        if zid:
+            beside(doc, zid, markup[-1], steps)
+            rs.TextObjectText(full_ids[-1], rs.GetUserText(zid, "Zip") + u" " + label)  # canvas part: "Z20 R6"
         doc.Views.Redraw()
         print(u"%s  l=%s" % (label, cm(edge.GetLength() + plus)))  # length only in the command history
         if square:

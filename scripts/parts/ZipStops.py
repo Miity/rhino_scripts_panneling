@@ -171,7 +171,6 @@ def marked_edges():
 
 RINF_LINE = "RinfLine"  # UserText on a Rinforzo markup label: id of its panel
 RINF_EDGE = "RinfEdge"  # UserText on a Rinforzo markup label: "x,y,z" — edge midpoint
-RINF = re.compile(r"\s+R[\d.]+$")
 
 
 def text_on_edge(texts, line_key, edge_key, line, mid, near):
@@ -192,9 +191,26 @@ def zip_text(line, mid, near):
                          if rs.IsText(o)], LINE, EDGE, line, mid, near)
 
 
-def with_rinforzo(text, label):
-    """'Z20', 'R6' → 'Z20 R6'; the strip mark of the number text is replaced ('Z20 R4' → 'Z20 R6')."""
-    return RINF.sub(u"", text.rstrip()) + u" " + label
+def rinforzo_text(line, edge, tol):
+    """The Rinforzo markup label (text, R<w>) of this edge, or None."""
+    return text_on_edge(rs.ObjectsByType(512) or [], RINF_LINE, RINF_EDGE, line, mid_point(edge), 100 * tol)
+
+
+def beside(doc, zid, rid, steps=None):
+    """The Rinforzo label rid right after the number text zid (reading direction), same baseline, a gap apart.
+    Only the label moves — the number's marks depend on its place."""
+    z = rs.coercegeometry(zid)
+    flat = z.Duplicate()
+    flat.Plane = Plane.WorldXY
+    bb = flat.GetBoundingBox(True)  # in the text's own coordinates, relative to its anchor
+    pl = z.Plane
+    r = rs.coercegeometry(rid).Duplicate()
+    r.Plane = Plane(pl.PointAt(bb.Max.X + 0.4 * (bb.Max.Y - bb.Min.Y), 0), pl.XAxis, pl.YAxis)
+    r.TextHorizontalAlignment = TextHorizontalAlignment.Left
+    r.TextVerticalAlignment = z.TextVerticalAlignment
+    if steps:
+        steps.change(rid)
+    doc.Objects.Replace(rid, r)
 
 
 def to_part(doc, link, marks, text, steps):
@@ -319,6 +335,9 @@ def flip_label(doc, t, tol, steps=None):
     te.TextVerticalAlignment = (TextVerticalAlignment.Top if te.TextVerticalAlignment == TextVerticalAlignment.Bottom
                                 else TextVerticalAlignment.Bottom)
     doc.Objects.Replace(t, te)
+    rid = rinforzo_text(rs.GetUserText(t, LINE), edge, tol)
+    if rid:
+        beside(doc, t, rid, steps)
     try:
         side = -int(rs.GetUserText(t, SIDE))
         junction = [x == "1" for x in rs.GetUserText(t, JUNCTION).split(",")]
@@ -480,13 +499,8 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
     for i, l in enumerate(lines):
         edge, panel = l["edge"], l["panel"]
         s_c = (l["trims"][0] + edge.GetLength() - l["trims"][1]) / 2.0
-        # a Rinforzo strip made before this zip on the same edge: its label joins the number (Z first, R after)
-        rid = text_on_edge([o for o in rs.ObjectsByType(512) or []], RINF_LINE, RINF_EDGE, l["id"], mid_point(edge), 100 * tol)
-        shown = with_rinforzo(name, rs.TextObjectText(rid)) if rid else name
-        link = rs.GetUserText(rid, "PartLink") if rid else None
-        if rid:
-            steps.delete(rid)
-        te, corners, free, side = place_text(shown, edge, panel, s_c, ds, gap, up, tol, obs)
+        rid = rinforzo_text(l["id"], edge, tol)  # a Rinforzo strip made before this zip on the same edge
+        te, corners, free, side = place_text(name, edge, panel, s_c, ds, gap, up, tol, obs)
         if not free:
             print(u"%s: no free spot for the number — placed anyway, move / flip it" % name)
         obs.append((PolylineCurve(Polyline(list(corners) + [corners[0]])).GetBoundingBox(True), None))
@@ -494,8 +508,6 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
         marks = zip_marks(edge, l["trims"], junction, side, size, up)
         new = [doc.Objects.AddCurve(c, attrs) for c in marks]
         obs.extend((c.GetBoundingBox(True), c) for c in marks)
-        if link:  # the strip's part on the cutting canvas shows the zip too
-            to_part(doc, link, marks, shown, steps)
         a = attrs.Duplicate()
         a.SetUserString(KEY, name)
         a.SetUserString(LINE, str(l["id"]))
@@ -507,8 +519,12 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
         a.SetUserString(SIDE, str(side))
         a.SetUserString(JUNCTION, u"%d,%d" % tuple(junction))
         a.SetUserString("ZipSize", u"%r" % size)
-        new.append(doc.Objects.AddText(te, a))
+        zid = doc.Objects.AddText(te, a)
+        new.append(zid)
         rs.AddObjectsToGroup(new, rs.AddGroup())
+        if rid:  # its label goes right after the number (Z first, R after); the strip's part on the canvas shows the zip too
+            beside(doc, zid, rid, steps)
+            to_part(doc, rs.GetUserText(rid, "PartLink"), marks, name + u" " + rs.TextObjectText(rid), steps)
 
 
 HELP = u"""Options:
