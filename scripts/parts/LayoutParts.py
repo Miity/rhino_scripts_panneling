@@ -7,7 +7,7 @@ goes to the part that contains it (or the nearest one).
 The canvas gets only what the cutting needs, the rest stays on the drawing (the schema):
   - closed curves of the part (contour, holes);
   - points (seam points, seam centres), crosses (buttons) and circles (seams) from markup/PointsToCrosses;
-  - labels shortened to the code: "RC3  R=40" → "RC3", "P4", "Z15", "S5" (labels without a code — not copied);
+  - labels shortened to the code: "RC3  r=4" → "RC3", "P4", "Z15", "F5", "CZ3.5" (labels without a code — not copied);
   - a seam centre tick at the middle of every markup line (zip, reinforcement, pocket): on the contour — Tick
     long into the part, inside the part — across the line. Lines shorter than 4 × Tick (stops) — no tick.
 Open lines, TextDots and long labels are not copied. Copies are placed in a row from the click point
@@ -26,7 +26,7 @@ STICKY = "LayoutParts"
 SUB = "Layout"
 KEY = "LayoutOf"  # copy's UserText: original id
 MARKUP = ("PartMarkup", "TP_Markup")  # markup on the panel, not a part
-CODE = re.compile(r"\s*([A-Za-z]+\d+)\b")  # label → code: "RC3  R=40" → "RC3"
+CODE = re.compile(r"\s*([A-Za-z]+\d+(?:\.\d+)?)\b")  # label → code: "RC3  r=4" → "RC3", "CZ3.5 R6" → "CZ3.5"
 
 
 def parts(ids):

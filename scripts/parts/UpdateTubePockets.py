@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Update existing TubePockets pockets with new parameters (H / Trim / SA / Hem / Notch / Rigid).
 Select any part of a pocket (or several with a window) — the pocket is rebuilt from its seam line
-in place, with the same number TP<n>, layer and side. Only the parameters you changed in the options
+in place, with the same number T<n>, layer and side. Only the parameters you changed in the options
 change; the rest stay each pocket's own. Parameters are read from UserText (TP_H…); in old pockets
-without UserText — from the geometry (H from the label, SA and Trim — from the contour).
+without UserText — from the geometry (h from the label, in cm; SA and Trim — from the contour).
 Pocket = markup on the panel + full part above (TP_Up): you can select either, both are rebuilt.
 """
 import os
@@ -32,12 +32,12 @@ def read_pocket(ids, tol):
     """dict with the pocket's parameters and geometry from group ids, or a reason string."""
     curves = [(i, rs.coercecurve(i)) for i in ids if rs.IsCurve(i)]
     texts = [i for i in ids if rs.IsText(i)]
-    m = re.match(TP.PREFIX + r"(\d+)\s+H=([\d.]+)", rs.TextObjectText(texts[0]) if texts else "")
+    m = re.match(TP.PREFIX + r"(\d+)\s+h=([\d.]+)", rs.TextObjectText(texts[0]) if texts else "")
     outline_ids = [i for i, c in curves if c.IsClosed]
     outline = [c for i, c in curves if c.IsClosed]
     opened = sorted([c for i, c in curves if not c.IsClosed], key=lambda c: -c.GetLength())
     if not m or len(outline) != 1:
-        return u"does not look like a TP pocket (no TP<n> label or contour)"
+        return u"does not look like a pocket (no T<n> label or contour)"
     if not opened:
         # ponytail: a pocket with SA=0 has no separate seam line — rebuilding from the contour is not done.
         return u"no seam line (SA=0) — rebuild with TubePockets"
@@ -50,7 +50,8 @@ def read_pocket(ids, tol):
     s_in = side(toward)
     pts = [c.PointAtStart for c in outline.DuplicateSegments()]
     sa = max([abs(side(p)) for p in pts if side(p) * s_in < -tol] or [0.0])
-    h = float(m.group(2))
+    h = float(rs.GetUserText(ids[0], "TP_H") or 0) or float(m.group(2)) * Rhino.RhinoMath.UnitScale(
+        Rhino.UnitSystem.Centimeters, sc.doc.ModelUnitSystem)  # label h is rounded to 1 mm, in cm
     inner = [p for p in pts if side(p) * s_in > 0 and abs(abs(side(p)) - h) < 0.01 * h]
     trim = min([seg.GetLength(Rhino.Geometry.Interval(seg.Domain.Min, seg.ClosestPoint(p)[1])) for p in inner] or [0.0])
     vals = {"H": h, "Trim": trim, "SA": sa, "Notch": float(len(opened) > 1), "Rigid": 0.0, "Hem": 0.0}

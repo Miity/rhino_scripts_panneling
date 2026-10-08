@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Reinforcement strip mark on an existing label — without a part.
-Select labels (ZC / SA / RB…, window selection allowed, on different panels): " R<H>" is appended
-to the text (an old R mark is replaced, H=0 — removes it). The panel for each label is the nearest (within NEAR_MM) closed
+Select labels (CZ / C…, window selection allowed, on different panels): " R<w>" (rinforzo, w in cm) is appended
+to the text (an old R mark is replaced, W=0 — removes it). The panel for each label is the nearest (within NEAR_MM) closed
 curve outside Parts:: (or in Parts::Panels) that has an edge (corner to corner, ZipCover.pick_edge): marker circles
-without corners are skipped; Seam / ZC strips too (wrong edge). No panel nearby — the label is skipped; edge — the one closest to the label — its length is written to UserText ReinfLen (cm), H — to Reinf.
+without corners are skipped; Seam / ZipCover strips too (wrong edge). No panel nearby — the label is skipped; edge — the one closest to the label — its length is written to UserText ReinfLen (cm), w (cm) — to Reinf.
 The order table is made by parts/RList.py. Layer, group and label position are not changed.
 """
 import os
@@ -22,21 +22,21 @@ NEAR_MM = 200  # a panel within this radius of the label wins over a part (the l
 MARK = re.compile(r"\s+R[\d.]+$")
 
 
-def relabel(text, h):
-    """'ZC 30 R45', 60 → 'ZC 30 R60'; h=0 — remove the mark."""
+def relabel(text, w):
+    """'CZ3 R4.5', 6 → 'CZ3 R6' (w in cm); w=0 — remove the mark."""
     text = MARK.sub(u"", text.rstrip())
-    return text + (u" R%g" % h if h else u"")
+    return text + (u" R%g" % w if w else u"")
 
 
 def ask(go):
-    """Label picking with options H / Angle → list of ids or None."""
-    h = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0), 0.0, 1e6)
+    """Label picking with options W / Angle → list of ids or None."""
+    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0), 0.0, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
-    go.AddOptionDouble("H", h)
+    go.AddOptionDouble("W", w)
     go.AddOptionDouble("Angle", a)
     while True:
         r = go.GetMultiple(1, 0)
-        sc.sticky[STICKY], sc.sticky[STICKY + "_angle"] = h.CurrentValue, a.CurrentValue
+        sc.sticky[STICKY], sc.sticky[STICKY + "_angle"] = w.CurrentValue, a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
             go.EnablePreSelect(False, True)
             continue
@@ -55,7 +55,7 @@ def closed_curves(doc):
 
 
 HELP = u"""Options:
-  H — reinforcement strip height (R<H> in the label); 0 — remove the mark
+  W — reinforcement strip width (R<w> in the label, cm); 0 — remove the mark
   Angle — a break larger than this angle = panel corner (the edge under the strip — corner to corner)"""
 
 
@@ -71,7 +71,7 @@ def main():
     ids = ask(go)
     if not ids:
         return
-    h, angle = sc.sticky[STICKY], sc.sticky[STICKY + "_angle"]
+    w, angle = round(sc.sticky[STICKY] * to_cm, 1), sc.sticky[STICKY + "_angle"]  # w in cm, as in the label
     cands = closed_curves(sc.doc)
     lim = NEAR_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     made = 0
@@ -88,9 +88,9 @@ def main():
             print(u"Skipped %s: %s" % (rs.TextObjectText(tid), res))
             continue
         cm = res[3].GetLength() * to_cm
-        rs.TextObjectText(tid, relabel(rs.TextObjectText(tid), h))
-        rs.SetUserText(tid, "Reinf", ("%g" % h) if h else None)
-        rs.SetUserText(tid, "ReinfLen", ("%.2f" % cm) if h else None)
+        rs.TextObjectText(tid, relabel(rs.TextObjectText(tid), w))
+        rs.SetUserText(tid, "Reinf", ("%g" % w) if w else None)
+        rs.SetUserText(tid, "ReinfLen", ("%.2f" % cm) if w else None)
         made += 1
         print(u"%s: edge %.1f cm" % (rs.TextObjectText(tid), cm))
     sc.doc.Views.Redraw()

@@ -2,7 +2,7 @@
 """Marks zips and tracks (keder track / guide rail) with stops and a number; the lines themselves are not touched.
 One zip = all its lines on all panels (both sides of the tape, a side may be split over several panels).
 A track is one side, it may also be split over several panels. The kind is the Type option while picking lines
-(Zip / Track, remembered): zips Z1, Z2… in layer Parts::Zip, tracks Trk1, Trk2… in Parts::Track.
+(Zip / Track, remembered): zips Z1, Z2… in layer Parts::Zip, tracks (canalina) Can1, Can2… in Parts::Track.
 Line picking repeats — Enter finishes.
 For each line: cross stops (centred, in the CPlane) Trim in from its real ends — the zip is usually a bit
 shorter than the line (option Trim, remembered per type: Zip 4 cm, Track 0) — and the number as text above
@@ -12,7 +12,7 @@ panel) turns its stop into a tick half as long, right at the line end (no Trim t
 Stops and text are one group per line, in the type's layer; the line stays in its own layer and group.
 The data lives on the text (UserText): Zip = number, ZipLine = line id, ZipTrim = trim at start,end —
 parts/ZipList.py computes the length from the line live. Lines that already have a number are skipped.
-Numbering continues from the largest number in the layer (Z and Trk separately).
+Numbering continues from the largest number in the layer (Z and Can separately).
 Then the flip step: clicking a number moves it to the other side of the line (above ↔ below)
 if it overlaps other text; Enter — done. Enter while picking lines — straight to flipping."""
 import os
@@ -33,8 +33,8 @@ import DotToPanelText as D
 
 # type → (prefix, layer, in the prompt, from how many lines to ask about junctions, default Trim in cm)
 TYPES = {"Zip": ("Z", "Parts::Zip", u"of the zip (both sides)", 3, 4.0),
-         "Track": ("Trk", "Parts::Track", u"of the track", 2, 0.0)}
-KEY = "Zip"          # UserText on the text: number (Z<n> or Trk<n>)
+         "Track": ("Can", "Parts::Track", u"of the track", 2, 0.0)}
+KEY = "Zip"          # UserText on the text: number (Z<n> or Can<n>)
 LINE = "ZipLine"     # UserText on the text: id of the marked line
 TRIM = "ZipTrim"     # UserText on the text: "start,end" — stop distance from the line ends, document units
 STYLE = "ZipStops"  # sticky key of the label style (PatternTextStyles.label_style)
@@ -195,7 +195,7 @@ def junction_stage(doc, name, lines, trim, size, normal, gap):
 
 
 HELP = u"""Options:
-  Type — Zip: zip (both sides, Z<n>); Track: track (one side, Trk<n>)
+  Type — Zip: zip (both sides, Z<n>); Track: canalina (one side, Can<n>)
   Trim — stops this far in from the real line ends (zip shorter than the line); remembered per type
   Style — number text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 

@@ -71,7 +71,7 @@ try:
     g = M.sewing_geometry(edge, 20)
     assert len(g) == 5 and all(abs(p.Location.Y - 60) < 1e-6 for p in g)  # points only at 10, 30 … 90
 
-    # main(): Points No → ZC in Parts::ZipCover, Yes → SA + points in Parts::Seam; EditPanel → panel contour grows
+    # main(): Points No → CZ in Parts::ZipCover, Yes → C + points in Parts::Seam (w in cm); EditPanel → panel contour grows
     import Rhino, System
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
@@ -80,6 +80,7 @@ try:
         for points, edit_ in ((False, False), (True, False), (False, True), (True, True)):
             doc = Rhino.RhinoDoc.CreateHeadless(None)
             sc.doc = doc
+            doc.ModelUnitSystem = Rhino.UnitSystem.Millimeters  # labels in cm: W 10 mm → 1
             lay = doc.Layers.Add("Panels", System.Drawing.Color.Black)
             a = doc.CreateDefaultAttributes()
             a.LayerIndex = lay
@@ -94,7 +95,7 @@ try:
             objs = [o for o in doc.Objects if o.Id != pid]
             assert all(doc.Layers[o.Attributes.LayerIndex].FullPath == name for o in objs)
             texts = [o.Geometry.PlainText for o in objs if isinstance(o.Geometry, Rhino.Geometry.TextEntity)]
-            assert texts == [("SA 10" if points else "ZC 10")] * 2, texts
+            assert texts == [("C1" if points else "CZ1")] * 2, texts
             assert any(isinstance(o.Geometry, Rhino.Geometry.Point) for o in objs) == points
             if points and edit_:  # seam on the grown panel: only points + label, no line
                 assert all(isinstance(o.Geometry, (Rhino.Geometry.Point, Rhino.Geometry.TextEntity)) for o in objs)

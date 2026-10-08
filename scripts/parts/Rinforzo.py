@@ -1,14 +1,16 @@
 # -*- coding: utf-8 -*-
-"""Reinforced border: a reinforcement strip of height H along a panel edge, inside the panel.
+"""Rinforzo (R): a reinforcement strip of width W along a panel edge, laid on the panel without folding.
 Select a panel (closed curve) and click near an edge (several in a row, Enter — done).
 Like ZipCover (ZipCover.flap, inward), but inward: edge corner to corner (corner — tangent break
-larger than Angle) + offset by H (default 6 cm; sometimes 10) into the panel, ends — along the neighbouring edges
+larger than Angle) + offset by W (default 6 cm) into the panel, ends — along the neighbouring edges
 (neighbour sharper than 30° — perpendicular end). Two strips at a corner: JoinCorner on the markup lines.
-Option SA — seam allowance on the inner edge (default 0): cut at H + SA, seam line at H, in the group.
-The panel is not changed. Part in place, layer Parts::Reinforcements, label "RB<n>  H=…" (≈ H/10, at a quarter of the edge, along the inner line) in a group;
-RB numbering continues between runs.
-Option Layout (default Yes): on the panel — markup (only the inner line H, without panel edges), full part —
-10000 up (ReinfCircle.add_part); No — full part in place.
+Option Plus — the strip is cut longer than the edge by Plus (default 10 cm: Plus / 2 past each end, straight on),
+trimmed after sewing.
+The panel is not changed. Part in place, layer Parts::Reinforcements, label "R<w>  l=<l>" (cm, l = edge + Plus;
+≈ W/10, at a quarter of the edge, along the inner line) in a group. No number: strips of one width differ by l.
+Option Layout (default Yes): on the panel — markup (only the inner line W, without panel edges and without Plus),
+full part — 10000 up (ReinfCircle.add_part); No — full part in place.
+B / BR (bordino, folded over the edge) are other parts, not this script.
 """
 import os
 import sys
@@ -16,37 +18,19 @@ import sys
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import Curve
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ReinfCircle", "ZipCover"):  # Rhino keeps modules from the first run for the session
     sys.modules.pop(_m, None)
-from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, next_number, off_panel, label_style, pick_style  # layer, numbering, style
-from ZipCover import flap, label_frame  # edge corner to corner + offset, ends along the neighbours; label along the edge
+from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, off_panel, label_style, pick_style  # layer, style
+from ZipCover import cm, flap, label_frame  # edge corner to corner + offset, ends along the neighbours; label along the edge
 
-STICKY = "ReinfBord"
-PREFIX = "RB"  # Reinforced Border
-
-
-def border(panel, click, h, sa, angle, normal, tol):
-    """(cut, [seam lines], edge, offset by H, number of perpendicular ends) or an error string."""
-    res = flap(panel, click, h + sa, angle, normal, tol, inward=True)
-    if not isinstance(res, tuple) or sa <= 0:
-        return res if not isinstance(res, tuple) else (res[0], [], res[1], res[2], res[3])
-    cut, edge, _, square = res
-    strip = flap(panel, click, h, angle, normal, tol, inward=True)
-    if not isinstance(strip, tuple):
-        return strip
-    crv, _, off, _ = strip
-    # seam — edge of the H strip not lying on the edge and the neighbouring sides (i.e. not on the cut)
-    seams = [g for g in crv.DuplicateSegments() or []
-             if any(cut.PointAt(cut.ClosestPoint(g.PointAtNormalizedLength(t))[1])
-                    .DistanceTo(g.PointAtNormalizedLength(t)) > tol for t in (0.25, 0.5, 0.75))]
-    return cut, list(Curve.JoinCurves(seams, tol)) if seams else [], edge, off, square
+STICKY = "Rinforzo"
+CODE = "R"  # rinforzo
 
 
 def label_place(edge, off, normal, gap):
-    """(plane, vertical alignment) of the label: at a quarter of the edge, along the inner line (offset H),
+    """(plane, vertical alignment) of the label: at a quarter of the edge, along the inner line (offset W),
     on the strip side at distance gap — the middle of the edge already has ZipCover / ZipStops labels."""
     half = edge.Trim(edge.Domain.T0, edge.LengthParameter(edge.GetLength() / 2.0)[1]) or edge
     plane = label_frame(half, off, normal)
@@ -61,13 +45,13 @@ def label_place(edge, off, normal, gap):
 
 
 def ask(gp):
-    """Click near an edge with options H / SA / Angle / Layout / Style. A point or None (Enter / Esc)."""
+    """Click near an edge with options W / Plus / Angle / Layout / Style. A point or None (Enter / Esc)."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
-    h = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0 * unit), 0.001, 1e6)
-    sa = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_sa", 0.0), 0.0, 1e6)
+    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0 * unit), 0.001, 1e6)
+    plus = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_plus", 100.0 * unit), 0.0, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get("ZipCover_angle", 30.0), 1.0, 179.0)  # shared with ZipCover
-    gp.AddOptionDouble("H", h)
-    gp.AddOptionDouble("SA", sa)
+    gp.AddOptionDouble("W", w)
+    gp.AddOptionDouble("Plus", plus)
     gp.AddOptionDouble("Angle", a)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
@@ -77,8 +61,8 @@ def ask(gp):
         r = gp.Get()
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
         sc.sticky[UP_KEY] = up.CurrentValue
-        sc.sticky[STICKY] = h.CurrentValue
-        sc.sticky[STICKY + "_sa"] = sa.CurrentValue
+        sc.sticky[STICKY] = w.CurrentValue
+        sc.sticky[STICKY + "_plus"] = plus.CurrentValue
         sc.sticky["ZipCover_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
             if gp.OptionIndex() == i_style:
@@ -88,8 +72,8 @@ def ask(gp):
 
 
 HELP = u"""Options:
-  H — strip height from the edge into the panel
-  SA — seam allowance on the inner edge of the strip (0 — none)
+  W — strip width from the edge into the panel (R<w> in the label, cm)
+  Plus — the strip is longer than the edge by this much (half past each end), trimmed after sewing
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
   Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
   Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
@@ -108,36 +92,35 @@ def main():
     normal = plane.ZAxis if ok else rs.ViewCPlane().ZAxis
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
-    n = next_number(LAYER, PREFIX)
     made = 0
     while True:
         gp = Rhino.Input.Custom.GetPoint()
-        gp.SetCommandPrompt(u"Click near the edge for the reinforced border (Enter — done)")
+        gp.SetCommandPrompt(u"Click near the edge for the reinforcement strip (Enter — done)")
         gp.AcceptNothing(True)
         click = ask(gp)
         if click is None:
             break
-        h, sa = sc.sticky[STICKY], sc.sticky[STICKY + "_sa"]
-        res = border(panel, click, h, sa, sc.sticky["ZipCover_angle"], normal, tol)
-        if not isinstance(res, tuple):
-            print(u"Skipped: %s" % res)
+        w, plus, angle = sc.sticky[STICKY], sc.sticky[STICKY + "_plus"], sc.sticky["ZipCover_angle"]
+        res = flap(panel, click, w, angle, normal, tol, inward=True)  # on the panel: markup
+        full = flap(panel, click, w, angle, normal, tol, inward=True, plus=plus)  # for cutting: longer by Plus
+        bad = next((r for r in (res, full) if not isinstance(r, tuple)), None)
+        if bad:
+            print(u"Skipped: %s" % bad)
             continue
-        cut, seams, edge, off, square = res
-        label = u"%s%d  H=%g" % (PREFIX, n, h)
+        cut, edge, off, square = res
+        label = u"%s%s  l=%s" % (CODE, cm(w), cm(edge.GetLength() + plus))
         style = label_style(doc, STICKY)
         plane, valign = label_place(edge, off, normal, style.TextHeight * 0.5)
         te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = valign
-        add_part(doc, [cut] + seams, te, seams or off_panel(cut, [panel], tol), attrs,
-                 sc.sticky[STICKY + "_layout"])  # seam = line H on the panel
+        add_part(doc, [full[0]], te, off_panel(cut, [panel], tol), attrs, sc.sticky[STICKY + "_layout"])
         doc.Views.Redraw()
         print(label)
         if square:
             print(u"Warning: %d end(s) with a neighbour sharper than 30° — end is perpendicular" % square)
-        n += 1
         made += 1
-    print(u"Reinforced border: %d → %s" % (made, LAYER))
+    print(u"Rinforzo: %d → %s" % (made, LAYER))
 
 
 if __name__ == "__main__":

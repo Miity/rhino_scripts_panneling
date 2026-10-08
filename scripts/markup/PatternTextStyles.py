@@ -65,6 +65,12 @@ def pick_style(doc, key):
     sc.sticky[key + ".style"] = rs.ListBox(names, u"Text style", u"Text style", cur) or cur
 
 
+def cm(x, doc=None):
+    """Length in document units → number for a label, in cm (labels are read by the seamstresses): 35 mm → "3.5"."""
+    k = Rhino.RhinoMath.UnitScale((doc or sc.doc).ModelUnitSystem, Rhino.UnitSystem.Centimeters)
+    return "%g" % round(x * k, 1)
+
+
 def get_number(prompt, default, key, lower=0.0):
     """rs.GetReal with option Style (label style of the script key). Number or None."""
     while True:

@@ -22,10 +22,10 @@ text = csv_text(pieces, summary)
 assert u"Z1;3;510;505;51\r\n" in text and u"Total;4" in text, text
 
 # track: one side, length = sum of lines (split over two panels)
-assert is_track("Trk2") and not is_track("Z2")
-tracks = track_table([("Trk2", 40.0), ("Trk1", 30.0), ("Trk1", 20.04)])
-assert tracks == [("Trk1", 2, 500, 51), ("Trk2", 1, 400, 40)], tracks
+assert is_track("Can2") and not is_track("Z2")
+tracks = track_table([("Can2", 40.0), ("Can1", 30.0), ("Can1", 20.04)])
+assert tracks == [("Can1", 2, 500, 51), ("Can2", 1, 400, 40)], tracks
 text = csv_text(pieces, summary, tracks)
-assert u"Trk1;2;500;51\r\n" in text and u"Total, cm;;;91" in text, text
+assert u"Can1;2;500;51\r\n" in text and u"Total, cm;;;91" in text, text
 assert u"Track" not in csv_text(pieces, summary) and u"Zips" not in csv_text([], [], tracks)
 print("OK")

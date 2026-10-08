@@ -5,9 +5,10 @@ Select a panel (closed curve: polyline, lines, arcs — any segments) and click 
 small breaks of a curved edge do not count). The part is a closed curve: copy of the edge + offset by W
 outward from the panel, ends along the extension of the neighbouring edges. If a neighbour leaves sharper than 30°
 from the edge (the extension would go very far) — the end is perpendicular, with a warning.
-Option Points=No (default): zip cover — label "ZC W", layer Parts::ZipCover.
+Labels are Italian codes, numbers in cm (PatternTextStyles.cm).
+Option Points=No (default): zip cover (copri zip / canalina) — label "CZ<w>", layer Parts::ZipCover.
 Points=Yes: seam allowance — seam points (logic of markup/sewing_points.py: centre ± k·Step) on the panel edge (no line under them),
-label "SA W", layer Parts::Seam.
+label "C<w>" (cucitura), layer Parts::Seam.
 Option EditPanel=No: only markup is added, in place: the strip lines not lying on the panel edge
 + label (+ seam points), one group. The panel is not changed: before cutting PreparePanelCut joins
 it with the markup (for that the edge must be a polyline / lines).
@@ -28,11 +29,11 @@ from Rhino.Geometry.Intersect import Intersection
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
 sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
-from PatternTextStyles import label_style, pick_style  # label style: option Style, default PAT 14 mm
+from PatternTextStyles import cm, label_style, pick_style  # label number in cm; style: option Style, default PAT 14 mm
 from sewing_points import sewing_lengths  # the same markup/ in sys.path
 
 STICKY = "ZipCover"
-MODES = {False: ("ZC", "ZipCover"), True: ("SA", "Seam")}  # Points → (label prefix, sublayer of Parts)
+MODES = {False: ("CZ", "ZipCover"), True: ("C", "Seam")}  # Points → (label code, sublayer of Parts)
 MIN_SIN = 0.5  # sin 30°: sharper — perpendicular end
 GAP_MM = 1.0  # gap between the ends of an "almost closed" panel (DXF) that we close ourselves
 
@@ -98,9 +99,10 @@ def along_panel(loop, corner, ext, back, tol):
     return (c.PointAt(t), piece) if piece else (None, None)
 
 
-def flap(panel, click, w, angle, normal, tol, inward=False):
+def flap(panel, click, w, angle, normal, tol, inward=False, plus=0.0):
     """(part curve, edge, offset, number of perpendicular ends) or an error string.
-    inward — part inside the panel (ReinfBord): ends along the neighbouring edges themselves, not their extension."""
+    inward — part inside the panel (Rinforzo): ends along the neighbouring edges themselves, not their extension.
+    plus — the part is longer by plus (plus / 2 past each end, straight on): cut longer, trimmed after sewing."""
     res = pick_edge(panel, click, angle, tol)
     if not isinstance(res, tuple):
         return res
@@ -145,7 +147,13 @@ def flap(panel, click, w, angle, normal, tol, inward=False):
         return u"edge too short for a flap W=%g (neighbour extensions intersect)" % w
     top = ext.Trim(ta, tb)
     top.Reverse()
-    joined = Curve.JoinCurves([edge, sides[1], top, sides[0]], tol)
+    if plus > 0:  # both lines longer by plus / 2 at each end, ends — straight lines between them
+        e2 = edge.Extend(CurveEnd.Both, plus / 2.0, CurveExtensionStyle.Line)
+        top = top.Extend(CurveEnd.Both, plus / 2.0, CurveExtensionStyle.Line)
+        if e2 is None or top is None:
+            return u"could not extend the part by Plus"
+        sides = [LineCurve(top.PointAtEnd, e2.PointAtStart), LineCurve(e2.PointAtEnd, top.PointAtStart)]
+    joined = Curve.JoinCurves([e2 if plus > 0 else edge, sides[1], top, sides[0]], tol)
     if len(joined) != 1 or not joined[0].IsClosed:
         return u"part did not close"
     out = joined[0]
@@ -235,7 +243,7 @@ def ask(gp):
 HELP = u"""Options:
   W — strip width: offset from the edge outward from the panel
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
-  Points — No: zip cover (ZC W, Parts::ZipCover); Yes: seam allowance + seam points on the edge, no line (SA W, Parts::Seam)
+  Points — No: zip cover (CZ<w>, Parts::ZipCover); Yes: seam allowance + seam points on the edge, no line (C<w>, Parts::Seam); w in cm
   Step — seam point spacing (from the edge centre both ways)
   EditPanel — Yes: the panel contour itself gets the strip, the old edge stays as a line; No: only strip lines
   Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
@@ -269,7 +277,7 @@ def main():
             print(u"Skipped: %s" % res)
             continue
         crv, edge, off, square = res
-        te = Rhino.Geometry.TextEntity.Create(u"%s %g" % (prefix, w), label_frame(edge, off, normal),
+        te = Rhino.Geometry.TextEntity.Create(prefix + cm(w), label_frame(edge, off, normal),
                                               label_style(doc, STICKY), False, 0, 0)
         te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
         te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle

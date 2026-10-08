@@ -6,7 +6,7 @@ of the edge of width W centred (middle by length; 0 — the whole edge), offset 
 the offset line is shorter by Trim at each end (the pocket narrows).
 Seam allowance SA goes from the edge outward from the panel. The seam line is a copy of the segment in the group.
 Option Notch — centre mark (a tick across the seam line at the middle). The part lies in place, in layer
-Parts::Pockets, with label "TP<n>  H=…" in a group; TP numbering continues. The panel is not changed.
+Parts::Pockets, with label "T<n>  h=…" (tasca, h in cm) in a group; T numbering continues. The panel is not changed.
 Option Rigid — pocket by rigid offset (curves/OffsetRigid.py): a copy of the segment without changing its shape,
 moved by H along the normal at the pocket centre (Rigid=No — standard offset; SA is always a standard offset).
 Option Hem — hem allowance at the ends (+Hem left and right): the end moves outward by Hem, the top and bottom
@@ -31,7 +31,7 @@ from Rhino.Geometry.Intersect import Intersection
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ZipCover",):  # Rhino keeps modules from the first run for the session — take fresh ones
     sys.modules.pop(_m, None)
-from ZipCover import label_frame, label_style, pick_edge, pick_style  # edge corner to corner; label along the strip; style
+from ZipCover import cm, label_frame, label_style, pick_edge, pick_style  # edge corner to corner; label along the strip; style
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curves"))
 sys.modules.pop("OffsetRigid", None)
 from OffsetRigid import shift  # rigid offset: move along the normal at a point
@@ -40,7 +40,7 @@ from ReinfCircle import UP, UP_KEY, up_option  # option Up, shared with Reinf*
 
 STICKY = "TubePockets"
 LAYER = "Parts::Pockets"
-PREFIX = "TP"  # Tube Pocket
+PREFIX = "T"  # tasca
 
 
 def offset(crv, toward, d, normal, tol):
@@ -170,7 +170,7 @@ def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False,
     and the markup stays in place (ends + top without seam line + label). Parameters — UserText for UpdateTubePockets."""
     outline, seg, mark, folds, simple, toward = res
     xf = Transform.Translation(up if up is not None else Vector3d.Zero)
-    te = Rhino.Geometry.TextEntity.Create(u"%s%d  H=%g" % (PREFIX, n, h),
+    te = Rhino.Geometry.TextEntity.Create(label(n, h),
                                           label_frame(seg, pocket_side(seg, toward, h, normal, tol, rigid), normal),
                                           label_style(doc, STICKY), False, 0, 0)
     te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
@@ -203,7 +203,12 @@ def add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid=False,
                 rs.SetUserText(o, "TP_Markup", "1")
         rs.AddObjectsToGroup(ids, rs.AddGroup())
     doc.Views.Redraw()
-    return u"%s%d  H=%g" % (PREFIX, n, h)
+    return label(n, h)
+
+
+def label(n, h):
+    """Pocket label: "T3  h=8" (h in cm)."""
+    return u"%s%d  h=%s" % (PREFIX, n, cm(h))
 
 
 def fold_layer(doc, index):
@@ -224,7 +229,7 @@ def layer():
 
 
 def next_number(lay):
-    """Next number after the largest TP<n> already in the layer."""
+    """Next number after the largest T<n> already in the layer."""
     nums = [0]
     for o in rs.ObjectsByLayer(lay) or []:
         m = re.match(PREFIX + r"(\d+)\b", rs.TextObjectText(o) if rs.IsText(o) else "")

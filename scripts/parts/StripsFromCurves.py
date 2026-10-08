@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Strips under the selected lines: a rectangle of height H and length = line length.
+"""Fascia (F) strips under the selected lines: a rectangle of width W and length = line length.
 Each selected curve is a separate strip (nothing is joined automatically).
 If a strip must run along several lines — join them (_Join) into one curve first.
-Strips for cover edge binding or edge reinforcement — depends on the chosen height.
+Strips for cover edge binding or edge reinforcement — depends on the chosen width.
 
-Strips are stacked in a column touching each other from the given point (along CPlane), in layer Parts::Strips; each labelled "S1  L=… × H".
-The same number is placed as a TextDot at the middle of the corresponding line, to know which strip goes where.
-Option Style (at the height prompt) — label text style, default PAT 14 mm.
+Strips are stacked in a column touching each other from the given point (along CPlane), in layer Parts::Strips;
+each labelled "F<w>  l=<l>" (cm, l — with the allowance). The same label is placed as a TextDot at the middle
+of the corresponding line, to know which strip goes where (no number: strips with the same w and l are the same).
+Option Style (at the width prompt) — label text style, default PAT 14 mm.
 """
 import os
-import re
 import sys
 
 import Rhino
@@ -42,17 +42,6 @@ def strips_layer():
     return "Parts::Strips"
 
 
-def next_number(layer):
-    """Next number after the largest S<n> already in the layer (text or TextDot)."""
-    nums = [0]
-    for o in rs.ObjectsByLayer(layer) or []:
-        m = re.match(r"S(\d+)\b", rs.TextObjectText(o) if rs.IsText(o) else
-                     rs.TextDotText(o) if rs.IsTextDot(o) else "")
-        if m:
-            nums.append(int(m.group(1)))
-    return max(nums) + 1
-
-
 HELP = u"""Options:
   Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
@@ -62,14 +51,14 @@ def main():
     ids = rs.GetObjects(u"Select curves for strips (each curve is a separate strip)", rs.filter.curve, preselect=True)
     if not ids:
         return
-    prev_h, prev_extra = sc.sticky.get(STICKY, (50.0, 0.0))
-    h = PatternTextStyles.get_number(u"Strip height", prev_h, STICKY, 0.001)
-    if h is None:
+    prev_w, prev_extra = sc.sticky.get(STICKY, (50.0, 0.0))
+    w = PatternTextStyles.get_number(u"Strip width W", prev_w, STICKY, 0.001)
+    if w is None:
         return
     extra = rs.GetReal(u"Length allowance (added to each strip)", prev_extra, 0.0)
     if extra is None:
         return
-    sc.sticky[STICKY] = (h, extra)
+    sc.sticky[STICKY] = (w, extra)
 
     found = strips([rs.coercecurve(i) for i in ids])
     found.sort(key=lambda x: -x[0])
@@ -83,24 +72,22 @@ def main():
     txt_h = style.TextHeight * style.DimensionScale
     rs.EnableRedraw(False)
     try:
-        first = next_number(layer)
         for i, (length, mid) in enumerate(found, 1):
-            n = first + i - 1
-            w = length + extra
-            p = Rhino.Geometry.Plane(plane.PointAt(0, -i * h), plane.XAxis, plane.YAxis)
-            rect = rs.AddRectangle(p, w, h)
+            l = length + extra
+            p = Rhino.Geometry.Plane(plane.PointAt(0, -i * w), plane.XAxis, plane.YAxis)
+            rect = rs.AddRectangle(p, l, w)
             rs.ObjectLayer(rect, layer)
-            label = u"S%d  L=%.0f × %g" % (n, w, h)
-            tp = Rhino.Geometry.Plane(p.PointAt(txt_h * 0.5, h / 2.0), p.XAxis, p.YAxis)
+            label = u"F%s  l=%s" % (PatternTextStyles.cm(w), PatternTextStyles.cm(l))
+            tp = Rhino.Geometry.Plane(p.PointAt(txt_h * 0.5, w / 2.0), p.XAxis, p.YAxis)
             te = Rhino.Geometry.TextEntity.Create(label, tp, style, False, 0, 0)
             te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Left
             te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle  # stays inside the strip
             t = sc.doc.Objects.AddText(te)
             if t:
                 rs.ObjectLayer(t, layer)
-            d = rs.AddTextDot(u"S%d" % n, mid)
+            d = rs.AddTextDot(label, mid)
             rs.ObjectLayer(d, layer)
-            print(u"S%d: length %.1f (+%g) → %.1f × %g" % (n, length, extra, w, h))
+            print(u"%s: length %.1f (+%g)" % (label, length, extra))
     finally:
         rs.EnableRedraw(True)
     print(u"Lines: %d → strips: %d" % (len(ids), len(found)))

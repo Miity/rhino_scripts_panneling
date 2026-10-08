@@ -71,8 +71,8 @@ try:
         doc = Rhino.RhinoDoc.CreateHeadless(None)
         sc.doc = doc
         ia, ib = doc.Objects.AddCurve(top), doc.Objects.AddCurve(left)
-        ta = doc.Objects.AddTextDot("ZC 10", Point3d(50, 65, 0))
-        tb = doc.Objects.AddTextDot("SA 20", Point3d(-10, 30, 0))
+        ta = doc.Objects.AddTextDot("CZ1", Point3d(50, 65, 0))
+        tb = doc.Objects.AddTextDot("C2", Point3d(-10, 30, 0))
         rs.AddObjectsToGroup([ia, ta], rs.AddGroup())
         rs.AddObjectsToGroup([ib, tb], rs.AddGroup())
         rs.GetObjects = lambda *x, **k: [ia, ib, ta, tb]

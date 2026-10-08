@@ -43,11 +43,11 @@ try:
     stop = rs.AddLine((95, 10, 0), (105, 10, 0))           # short → no tick
     ztxt = T("Z15", 90, 50, 5)
     long_txt = T("CZ 20", 50, 90, 5)         # no code → not copied
-    # detail far above: closed contour + open seam line + label "RC3  R=40"
+    # detail far above: closed contour + open seam line + label "RC3  r=4"
     rs.CurrentLayer("Parts::Panels")
     det = rs.AddRectangle(Plane(Point3d(0, 1000, 0), Rhino.Geometry.Vector3d.ZAxis), 40, 20)
     seam = rs.AddLine((0, 1005, 0), (40, 1005, 0))
-    dlbl = T("RC3  R=40", 10, 1010, 3)
+    dlbl = T("RC3  r=4", 10, 1010, 3)
     rs.AddObjectsToGroup([det, seam, dlbl], rs.AddGroup())
 
     sel = [panel, dot, circ, zipl, inner, stop, ztxt, long_txt, det] + pts + cross

@@ -6,7 +6,7 @@ Lines with one number are one zip: they are split into two sides with the closes
 (a side may be split over several panels), the longer side is ordered — no allowance,
 rounded up to a whole centimetre. Sides differing by more than DIFF_MM — warning.
 Equal lengths are combined into a "length × quantity" row. A zip with one line — warning (a track?).
-Track (Trk<n>) — a separate section: one side, length = sum of its lines, rounded up to 1 cm.
+Track (canalina, Can<n>) — a separate section: one side, length = sum of its lines, rounded up to 1 cm.
 Output: CSV next to the .3dm (<file>_zips.csv, separator ";" — for Excel), a summary table
 to the clipboard (tab separated — pastes into Excel or a sheet) and to the command line."""
 import io
@@ -63,7 +63,7 @@ def tables(zips):
 
 
 def is_track(name):
-    return name.startswith("Trk")
+    return name.startswith("Can")
 
 
 def track_table(tracks):

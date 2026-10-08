@@ -3,7 +3,7 @@
 Select a boundary: a closed panel or lines forming a corner. Enter the radius R.
 Click near the corner on the side to keep. The circle centre is the vertex closest to the click
 (curve kink, line end or line intersection). Only the part of the circle between the
-sides of the corner is kept. The part lies in place, in layer Parts::Reinforcements, with label "RC<n>  R=…"
+sides of the corner is kept. The part lies in place, in layer Parts::Reinforcements, with label "RC<n>  r=…" (r in cm)
 in a group. RC numbering continues between runs. The source curves are not changed.
 Option Layout (default Yes) — as in all Reinf (add_part): only markup stays on the panel — part lines not lying on the panel
 curves, + label; the full part (cut, seam, label) — UP (10000) up along CPlane Y, to be laid out by Layout.
@@ -25,7 +25,7 @@ from Rhino.Geometry.Intersect import Intersection
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
 sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
-from PatternTextStyles import label_style, pick_style  # label style: option Style, default PAT 14 mm
+from PatternTextStyles import cm, label_style, pick_style  # label number in cm; style: option Style, default PAT 14 mm
 
 STICKY = "ReinfCircle"
 LAYER = "Parts::Reinforcements"
@@ -193,7 +193,7 @@ def main():
         if crv is None:
             print(u"Could not cut the sector (click on the line itself? curves not in the CPlane?)")
             continue
-        label = u"%s%d  R=%g" % (PREFIX, n, r)
+        label = u"%s%d  r=%s" % (PREFIX, n, cm(r))
         amp = AreaMassProperties.Compute(crv)
         tp = Plane(rs.ViewCPlane())
         tp.Origin = amp.Centroid if amp else center
