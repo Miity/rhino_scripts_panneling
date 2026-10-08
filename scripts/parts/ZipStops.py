@@ -200,12 +200,15 @@ def beside(doc, zid, rid, steps=None):
     """The Rinforzo label rid right after the number text zid (reading direction), same baseline, a gap apart.
     Only the label moves — the number's marks depend on its place."""
     z = rs.coercegeometry(zid)
-    flat = z.Duplicate()
-    flat.Plane = Plane.WorldXY
-    bb = flat.GetBoundingBox(True)  # in the text's own coordinates, relative to its anchor
     pl = z.Plane
+    # size measured flat with its style, as in place_text: a Duplicate loses the style, the box in its own plane is
+    # loose for turned text
+    ds = doc.DimStyles.FindId(z.DimensionStyleId) or doc.DimStyles.Current
+    bb = Rhino.Geometry.TextEntity.Create(z.PlainText, Plane.WorldXY, ds, False, 0, 0).GetBoundingBox(True)
+    w, h = bb.Max.X - bb.Min.X, bb.Max.Y - bb.Min.Y
+    end = {TextHorizontalAlignment.Left: w, TextHorizontalAlignment.Center: w / 2.0}.get(z.TextHorizontalAlignment, 0.0)
     r = rs.coercegeometry(rid).Duplicate()
-    r.Plane = Plane(pl.PointAt(bb.Max.X + 0.4 * (bb.Max.Y - bb.Min.Y), 0), pl.XAxis, pl.YAxis)
+    r.Plane = Plane(pl.PointAt(end + 0.4 * h, 0), pl.XAxis, pl.YAxis)
     r.TextHorizontalAlignment = TextHorizontalAlignment.Left
     r.TextVerticalAlignment = z.TextVerticalAlignment
     if steps:
