@@ -19,7 +19,7 @@ from Rhino.Geometry import Arc, ArcCurve, Curve, Plane, Polyline, PolylineCurve,
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino keeps modules from the first run for the session
-from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, label_style, pick_style  # layer, numbering, style
+from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, next_number, off_panel, label_style, pick_style  # layer, numbering, style
 
 STICKY = "ReinfD"
 PREFIX = "RD"  # Reinforcement D
@@ -53,12 +53,14 @@ def get_top():
     gp.AddOptionDouble("R", r)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
+    up = up_option(gp)
     i_style = gp.AddOption("Style")
     while True:
         res = gp.Get()
         sc.sticky[STICKY + "_w"] = w.CurrentValue
         sc.sticky[STICKY] = r.CurrentValue
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
+        sc.sticky[UP_KEY] = up.CurrentValue
         if res == Rhino.Input.GetResult.Option:
             if gp.OptionIndex() == i_style:
                 pick_style(sc.doc, STICKY)
@@ -86,7 +88,8 @@ def get_bottom(top, w, r, normal, tol):
 HELP = u"""Options:
   W — D width (rectangular part)
   R — how far the D end extends past the top corner (W = 2R — half-circle)
-  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
+  Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
+  Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
   Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 

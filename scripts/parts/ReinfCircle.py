@@ -30,7 +30,15 @@ from PatternTextStyles import label_style, pick_style  # label style: option Sty
 STICKY = "ReinfCircle"
 LAYER = "Parts::Reinforcements"
 PREFIX = "RC"  # Reinforcement Circle; other shapes have their own prefixes (RS, RT…)
-UP = 10000.0  # the full part is this far up along CPlane Y from the markup (as TubePockets)
+UP = 10000.0  # default: the full part is this far up along CPlane Y from the markup (option Up)
+UP_KEY = "Parts_up"  # sticky: option Up, shared by all part scripts (Reinf*, TubePockets)
+
+
+def up_option(gp):
+    """Option Up — how far up the full part goes. Store CurrentValue in sc.sticky[UP_KEY] after each Get."""
+    o = Rhino.Input.Custom.OptionDouble(sc.sticky.get(UP_KEY, UP), 0.0, 1e7)
+    gp.AddOptionDouble("Up", o)
+    return o
 
 
 def off_panel(crv, curves, tol):
@@ -48,7 +56,8 @@ def add_part(doc, full, te, markup, attrs, layout=True):
     Without layout — full part in place, no markup (markup ids = []).
     The pair is linked by UserText PartLink (common id); the full part has LayoutUp (offset vector), the markup — PartMarkup.
     """
-    xf = Transform.Translation(rs.ViewCPlane().YAxis * (UP if layout else 0.0))
+    up = rs.ViewCPlane().YAxis * (sc.sticky.get(UP_KEY, UP) if layout else 0.0)
+    xf = Transform.Translation(up)
 
     def add(geo):
         geo = geo.Duplicate()
@@ -58,7 +67,7 @@ def add_part(doc, full, te, markup, attrs, layout=True):
     if layout:
         ids = ids[0], [doc.Objects.AddCurve(c, attrs) for c in markup] + [doc.Objects.AddText(te, attrs)]
     if layout:
-        link, up = str(System.Guid.NewGuid()), rs.ViewCPlane().YAxis * UP
+        link = str(System.Guid.NewGuid())
         for o in ids[0] + ids[1]:
             rs.SetUserText(o, "PartLink", link)
         for o in ids[0]:
@@ -133,7 +142,8 @@ def next_number(lay, prefix=PREFIX):
 
 HELP = u"""Options:
   R — reinforcement circle radius (centre — panel corner)
-  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
+  Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
+  Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
   Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 
@@ -165,11 +175,13 @@ def main():
         gp.AcceptNothing(True)
         lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
         gp.AddOptionToggle("Layout", lay)
+        up = up_option(gp)
         i_style = gp.AddOption("Style")
         while gp.Get() == Rhino.Input.GetResult.Option:
             if gp.OptionIndex() == i_style:
                 pick_style(doc, STICKY)
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
+        sc.sticky[UP_KEY] = up.CurrentValue
         if gp.CommandResult() != Rhino.Commands.Result.Success or gp.Result() != Rhino.Input.GetResult.Point:
             break
         click = gp.Point()

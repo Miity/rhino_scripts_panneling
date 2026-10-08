@@ -25,7 +25,7 @@ from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, CurveOff
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino keeps modules from the first run for the session
-from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, piece, label_style, pick_style  # layer, numbering, trimming, style
+from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, next_number, off_panel, piece, label_style, pick_style  # layer, numbering, trimming, style
 
 STICKY = "ReinfO"
 PREFIX = "RO"  # Reinforcement O
@@ -140,6 +140,7 @@ def get_edge(curves, center, normal, tol):
     gp.AddOptionDouble("SA", sa)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
+    up = up_option(gp)
     i_style = gp.AddOption("Style")
     gp.DynamicDraw += draw
     try:
@@ -148,6 +149,7 @@ def get_edge(curves, center, normal, tol):
             sc.sticky[STICKY] = plus.CurrentValue
             sc.sticky[STICKY + "_sa"] = sa.CurrentValue
             sc.sticky[STICKY + "_layout"] = lay.CurrentValue
+            sc.sticky[UP_KEY] = up.CurrentValue
             if res == Rhino.Input.GetResult.Option and gp.OptionIndex() == i_style:
                 pick_style(sc.doc, STICKY)
             if res != Rhino.Input.GetResult.Option:
@@ -159,7 +161,8 @@ def get_edge(curves, center, normal, tol):
 HELP = u"""Options:
   Plus — how far the O arc extends past the line you clicked
   SA — seam allowance along the panel edges (no seam on the arc; 0 — none)
-  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
+  Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
+  Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
   Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 

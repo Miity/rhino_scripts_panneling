@@ -21,7 +21,7 @@ from Rhino.Geometry import Curve
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ReinfCircle", "ZipCover"):  # Rhino keeps modules from the first run for the session
     sys.modules.pop(_m, None)
-from ReinfCircle import LAYER, add_part, layer, next_number, off_panel, label_style, pick_style  # layer, numbering, style
+from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, next_number, off_panel, label_style, pick_style  # layer, numbering, style
 from ZipCover import flap, label_frame  # edge corner to corner + offset, ends along the neighbours; label along the edge
 
 STICKY = "ReinfBord"
@@ -71,10 +71,12 @@ def ask(gp):
     gp.AddOptionDouble("Angle", a)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
+    up = up_option(gp)
     i_style = gp.AddOption("Style")
     while True:
         r = gp.Get()
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
+        sc.sticky[UP_KEY] = up.CurrentValue
         sc.sticky[STICKY] = h.CurrentValue
         sc.sticky[STICKY + "_sa"] = sa.CurrentValue
         sc.sticky["ZipCover_angle"] = a.CurrentValue
@@ -89,7 +91,8 @@ HELP = u"""Options:
   H — strip height from the edge into the panel
   SA — seam allowance on the inner edge of the strip (0 — none)
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
-  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
+  Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
+  Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
   Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
 

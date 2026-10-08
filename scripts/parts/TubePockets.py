@@ -15,7 +15,7 @@ Only markup stays on the panel (in place): ends + pocket top as one open curve (
 + label, its own group (UserText TP_Markup). The full part for cutting — UP (10000) up along CPlane Y
 (UserText TP_Up), that is what Layout lays out. Both groups are linked by number (UserText TP_N).
 Option Layout (default Yes): No — full part in place, no markup (like old pockets).
-Options W / H / Trim / SA / Hem / Notch / Rigid / Layout / Angle / Style — in the click prompt, remembered between runs.
+Options W / H / Trim / SA / Hem / Notch / Rigid / Layout / Up / Angle / Style — in the click prompt, remembered between runs.
 """
 import os
 import re
@@ -35,11 +35,12 @@ from ZipCover import label_frame, label_style, pick_edge, pick_style  # edge cor
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curves"))
 sys.modules.pop("OffsetRigid", None)
 from OffsetRigid import shift  # rigid offset: move along the normal at a point
+sys.modules.pop("ReinfCircle", None)
+from ReinfCircle import UP, UP_KEY, up_option  # option Up, shared with Reinf*
 
 STICKY = "TubePockets"
 LAYER = "Parts::Pockets"
 PREFIX = "TP"  # Tube Pocket
-UP = 10000.0  # the full part is this far up along CPlane Y from the markup on the panel
 
 
 def offset(crv, toward, d, normal, tol):
@@ -262,6 +263,7 @@ def ask(gp):
     gp.AddOptionToggle("Rigid", rigid)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
+    up = up_option(gp)
     gp.AddOptionDouble("Angle", angle)
     i_style = gp.AddOption("Style")
     while True:
@@ -272,6 +274,7 @@ def ask(gp):
             sc.sticky[STICKY + k] = v
         sc.sticky["ZipCover_angle"] = angle.CurrentValue
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
+        sc.sticky[UP_KEY] = up.CurrentValue
         if r == Rhino.Input.GetResult.Option:
             if gp.OptionIndex() == i_style:
                 pick_style(sc.doc, STICKY)
@@ -287,7 +290,8 @@ HELP = u"""Options:
   Hem — hem allowance at the ends, on each side (0 — none)
   Notch — pocket centre mark (a tick across the seam line)
   Rigid — Yes: top is a copy of the edge without changing its shape; No: regular offset
-  Layout — Yes: only markup on the panel, full part 10000 up; No: full part in place
+  Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
+  Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
   Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
 
@@ -328,7 +332,7 @@ def main():
             continue
         res = res + (toward,)
         label = add_pocket(doc, res, h, trim, sa, notch, n, attrs, normal, tol, rigid, hem,
-                           rs.ViewCPlane().YAxis * UP if sc.sticky[STICKY + "_layout"] else None)
+                           rs.ViewCPlane().YAxis * sc.sticky.get(UP_KEY, UP) if sc.sticky[STICKY + "_layout"] else None)
         print(label)
         n += 1
         made += 1
