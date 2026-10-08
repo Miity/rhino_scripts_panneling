@@ -7,10 +7,10 @@ outward from the panel, ends along the extension of the neighbouring edges. If a
 from the edge (the extension would go very far) — the end is perpendicular, with a warning.
 Labels are Italian codes, numbers in cm (PatternTextStyles.cm).
 Label "CZ<w>", layer Parts::ZipCover. Seam points (battute) — a separate script, markup/sewing_points.py.
-Option EditPanel=No: only markup is added, in place: the strip lines not lying on the panel edge
+Option EditPanel=No (default): only markup is added, in place: the strip lines not lying on the panel edge
 + label, one group. The panel is not changed: before cutting PreparePanelCut joins
 it with the markup (for that the edge must be a polyline / lines).
-EditPanel=Yes (default): the panel contour itself gets the strip (one closed curve; layer, groups, UserText kept),
+EditPanel=Yes: the panel contour itself gets the strip (one closed curve; layer, groups, UserText kept),
 the old edge stays as a line (zip line) + label, one group.
 """
 import math
@@ -206,11 +206,11 @@ def edit_panel(doc, oid, panel, edge, outer, tol):
 
 def ask(gp):
     """Click near an edge with options W / Angle / EditPanel / Style / Undo. A point, UNDO or None (Enter / Esc)."""
-    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 30.0), 0.001, 1e6)
+    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 10.0), 0.001, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     gp.AddOptionDouble("W", w)
     gp.AddOptionDouble("Angle", a)
-    ed = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_edit", True), "No", "Yes")
+    ed = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_edit", False), "No", "Yes")
     gp.AddOptionToggle("EditPanel", ed)
     i_style = gp.AddOption("Style")
     i_undo = gp.AddOption("Undo")
