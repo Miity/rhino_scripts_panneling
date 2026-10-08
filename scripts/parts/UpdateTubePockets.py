@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Update existing TubePockets pockets with new parameters (H / Trim / SA / Hem / Notch / Rigid).
-Select any part of a pocket (or several with a window) — the pocket is rebuilt from its seam line
+"""Update existing TubePockets pockets with new parameters (H / Trim / Hem / Notch / Rigid).
+Select any part of a pocket (or several with a window) — the pocket is rebuilt from its edge
 in place, with the same number T<n>, layer and side. Only the parameters you changed in the options
 change; the rest stay each pocket's own. Parameters are read from UserText (TP_H…); in old pockets
-without UserText — from the geometry (h from the label, in cm; SA and Trim — from the contour).
+without UserText — from the geometry (h from the label, in cm; Trim — from the contour);
+an old seam allowance SA is dropped on rebuild (the seam is on the panel).
 Pocket = markup on the panel + full part above (TP_Up): you can select either, both are rebuilt.
 """
 import os
@@ -18,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("TubePockets", None)
 import TubePockets as TP
 
-KEYS = ("H", "Trim", "SA", "Hem", "Notch", "Rigid")
+KEYS = ("H", "Trim", "Hem", "Notch", "Rigid")
 TOGGLES = ("Notch", "Rigid")
 
 
@@ -51,12 +52,11 @@ def read_pocket(ids, tol):
         Rhino.Geometry.Vector3d.CrossProduct(seg.TangentAt(seg.ClosestPoint(p)[1]), p - seg.PointAt(seg.ClosestPoint(p)[1])), normal)
     s_in = side(toward)
     pts = [c.PointAtStart for c in outline.DuplicateSegments()]
-    sa = max([abs(side(p)) for p in pts if side(p) * s_in < -tol] or [0.0])
     h = float(rs.GetUserText(ids[0], "TP_H") or 0) or float(m.group(2)) * Rhino.RhinoMath.UnitScale(
         Rhino.UnitSystem.Centimeters, sc.doc.ModelUnitSystem)  # label h is rounded to 1 mm, in cm
     inner = [p for p in pts if side(p) * s_in > 0 and abs(abs(side(p)) - h) < 0.01 * h]
     trim = min([seg.GetLength(Rhino.Geometry.Interval(seg.Domain.Min, seg.ClosestPoint(p)[1])) for p in inner] or [0.0])
-    vals = {"H": h, "Trim": trim, "SA": sa, "Notch": float(len(opened) > 1), "Rigid": 0.0, "Hem": 0.0}
+    vals = {"H": h, "Trim": trim, "Notch": float(len(opened) > (0 if js else 1)), "Rigid": 0.0, "Hem": 0.0}  # old pockets: + drawn seam line
     for k in KEYS:
         v = rs.GetUserText(ids[0], "TP_" + k)
         if v:
@@ -72,9 +72,8 @@ def read_pocket(ids, tol):
 HELP = u"""Options:
   H — pocket height from the edge into the panel
   Trim — how much shorter the pocket top is at each end
-  SA — seam allowance from the edge outward from the panel
   Hem — hem allowance at the ends, on each side (0 — none)
-  Notch — pocket centre mark (a tick across the seam line)
+  Notch — pocket centre mark (a tick from the edge into the pocket)
   Rigid — Yes: top is a copy of the edge without changing its shape; No: regular offset"""  # printed at start — visible under the option fields
 
 
@@ -110,11 +109,11 @@ def main():
     if not pockets:
         return
     first = pockets[0]
-    print(u"TP%d now: H=%g Trim=%g SA=%g Hem=%g Notch=%d Rigid=%d" % ((first["n"],) + tuple(first[k] for k in KEYS)))
+    print(u"TP%d now: H=%g Trim=%g Hem=%g Notch=%d Rigid=%d" % ((first["n"],) + tuple(first[k] for k in KEYS)))
     go = Rhino.Input.Custom.GetOption()
     go.SetCommandPrompt(u"New parameters (Enter — apply to %d pockets)" % len(pockets))
     go.AcceptNothing(True)
-    opts = dict((k, Rhino.Input.Custom.OptionDouble(first[k], 0.0, 1e6)) for k in ("H", "Trim", "SA", "Hem"))
+    opts = dict((k, Rhino.Input.Custom.OptionDouble(first[k], 0.0, 1e6)) for k in ("H", "Trim", "Hem"))
     for k in TOGGLES:
         opts[k] = Rhino.Input.Custom.OptionToggle(bool(first[k]), "No", "Yes")
     for k in KEYS:
@@ -132,20 +131,20 @@ def main():
         return
     for p in pockets:
         p.update(changed)
-        h, trim, sa, notch, rigid = p["H"], p["Trim"], p["SA"], bool(p["Notch"]), bool(p["Rigid"])
+        h, trim, notch, rigid = p["H"], p["Trim"], bool(p["Notch"]), bool(p["Rigid"])
         hem = p["Hem"]
         seg, toward, up = p["seg"], p["toward"], p["up"]
         if up is not None:  # build in place of the markup, the full part goes to up again
             seg = seg.DuplicateCurve()
             seg.Translate(-up)
             toward = toward - up
-        res = TP.pocket(seg, toward, 0, h, trim, sa, notch, p["normal"], tol, rigid, hem)
+        res = TP.pocket(seg, toward, 0, h, trim, notch, p["normal"], tol, rigid, hem)
         if not isinstance(res, tuple):
             print(u"TP%d skipped: %s" % (p["n"], res))
             continue
         p["attrs"].RemoveFromAllGroups()
         rs.DeleteObjects(list(p["ids"]) + p["markup"])
-        print(u"Updated: " + TP.add_pocket(doc, res + (toward,), h, trim, sa, notch, p["n"], p["attrs"], p["normal"],
+        print(u"Updated: " + TP.add_pocket(doc, res + (toward,), h, trim, notch, p["n"], p["attrs"], p["normal"],
                                            tol, rigid, hem, up))
     print(u"Changed: " + ", ".join(u"%s=%g" % kv for kv in sorted(changed.items())))
 

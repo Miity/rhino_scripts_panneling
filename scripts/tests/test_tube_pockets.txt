@@ -1,3 +1,1 @@
-Traceback (most recent call last):
-  File "file:///Users/dmytro/Documents/Rhino/scripts/tests/test_tube_pockets.py", line 65, in <module>
-AssertionError
+OK

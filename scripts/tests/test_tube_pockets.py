@@ -17,32 +17,32 @@ try:
 
     Z, tol = Vector3d.ZAxis, 0.001
     line = LineCurve(Point3d(0, 0, 0), Point3d(1000, 0, 0))
-    # W 600 centred, H 100 up, Trim 50, SA 10 down: trapezoid (600+500)/2·100 + 600·10
-    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 50, 10, True, Z, tol)
+    # W 600 centred, H 100 up, Trim 50, no SA: trapezoid (600+500)/2·100
+    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 50, True, Z, tol)
     assert outline.IsClosed
-    assert abs(AreaMassProperties.Compute(outline).Area - 61000) < 1e-3
+    assert abs(AreaMassProperties.Compute(outline).Area - 55000) < 1e-3
     assert abs(seg.PointAtStart.X - 200) < 1e-6 and abs(seg.PointAtEnd.X - 800) < 1e-6
-    assert abs(mark.PointAtStart.X - 500) < 1e-6 and abs(mark.PointAtStart.Y + 10) < 1e-6
+    assert abs(mark.PointAtStart.X - 500) < 1e-6 and abs(mark.PointAtStart.Y) < 1e-6
     assert abs(mark.PointAtEnd.Y - 10) < 1e-6  # H/10 into the pocket
     bb = outline.GetBoundingBox(True)
-    assert abs(bb.Min.Y + 10) < 1e-6 and abs(bb.Max.Y - 100) < 1e-6
-    # W 0 — the whole line; click below → pocket downward, no SA
-    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, -40, 0), 0, 100, 50, 0, False, Z, tol)
+    assert abs(bb.Min.Y) < 1e-6 and abs(bb.Max.Y - 100) < 1e-6
+    # W 0 — the whole line; click below → pocket downward
+    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, -40, 0), 0, 100, 50, False, Z, tol)
     assert abs(AreaMassProperties.Compute(outline).Area - 95000) < 1e-3 and mark is None
     assert outline.GetBoundingBox(True).Min.Y < -99
     # Trim too large → reason as a string
-    assert not isinstance(M.pocket(line, Point3d(0, 40, 0), 80, 100, 50, 10, False, Z, tol), tuple)
-    # panel 1000×500: click near the top edge → pocket downward (inward), SA upward; both directions
+    assert not isinstance(M.pocket(line, Point3d(0, 40, 0), 80, 100, 50, False, Z, tol), tuple)
+    # panel 1000×500: click near the top edge → pocket downward (inward), bottom on the edge; both directions
     from Rhino.Geometry import Polyline, PolylineCurve
     pts = [Point3d(0, 0, 0), Point3d(1000, 0, 0), Point3d(1000, 500, 0), Point3d(0, 500, 0), Point3d(0, 0, 0)]
     for order in (pts, pts[::-1]):
         panel = PolylineCurve(Polyline(order))
         edge = M.pick_edge(panel, Point3d(400, 520, 0), 30, tol)[3]
         assert abs(edge.GetLength() - 1000) < 1e-6 and abs(edge.PointAtStart.Y - 500) < 1e-6
-        outline, seg, mark, folds, simple = M.pocket(edge, M.inward(panel, edge, Z), 600, 100, 50, 10, True, Z, tol)
+        outline, seg, mark, folds, simple = M.pocket(edge, M.inward(panel, edge, Z), 600, 100, 50, True, Z, tol)
         bb = outline.GetBoundingBox(True)
-        assert abs(bb.Min.Y - 400) < 1e-6 and abs(bb.Max.Y - 510) < 1e-6, bb
-        assert abs(AreaMassProperties.Compute(outline).Area - 61000) < 1e-3
+        assert abs(bb.Min.Y - 400) < 1e-6 and abs(bb.Max.Y - 500) < 1e-6, bb
+        assert abs(AreaMassProperties.Compute(outline).Area - 55000) < 1e-3
     # UpdateTubePockets.read_pocket: pocket in the document → parameters; without UserText — from geometry
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
@@ -50,9 +50,9 @@ try:
     import UpdateTubePockets as U
     line = LineCurve(Point3d(0, 0, 0), Point3d(1000, 0, 0))
     toward = Point3d(300, 40, 0)
-    res = M.pocket(line, toward, 600, 100, 50, 10, True, Z, tol) + (toward,)
+    res = M.pocket(line, toward, 600, 100, 50, True, Z, tol) + (toward,)
     before = set(rs.AllObjects() or [])
-    M.add_pocket(sc.doc, res, 100, 50, 10, True, 7, sc.doc.CreateDefaultAttributes(), Z, tol)
+    M.add_pocket(sc.doc, res, 100, 50, True, 7, sc.doc.CreateDefaultAttributes(), Z, tol)
     ids = [o for o in rs.AllObjects() if o not in before]
     try:
         for legacy in (False, True):
@@ -61,17 +61,17 @@ try:
                     for k in U.KEYS:
                         rs.SetUserText(o, "TP_" + k, None)
             p = U.read_pocket(ids, tol)
-            assert p["n"] == 7 and p["H"] == 100 and abs(p["Trim"] - 50) < 1e-6 and abs(p["SA"] - 10) < 1e-6, p
-            assert p["Notch"] == 1 and abs(p["seg"].GetLength() - 600) < 1e-6
-            r = M.pocket(p["seg"], p["toward"], 0, 100, 30, 10, True, Z, tol)  # Trim 50 → 30
-            assert abs(AreaMassProperties.Compute(r[0]).Area - 63000) < 1e-3
+            assert p["n"] == 7 and p["H"] == 100 and abs(p["Trim"] - 50) < 1e-6, p
+            assert p["Notch"] == 1 and abs(p["seg"].GetLength() - 600) < 1e-6, (legacy, p)
+            r = M.pocket(p["seg"], p["toward"], 0, 100, 30, True, Z, tol)  # Trim 50 → 30
+            assert abs(AreaMassProperties.Compute(r[0]).Area - 57000) < 1e-3
     finally:
         rs.DeleteObjects(ids)
     # Hem: fold lines in sublayer <layer>::Fold, in the group; Update takes the contour layer and Hem from UserText
-    res = M.pocket(line, toward, 600, 100, 0, 10, False, Z, tol, False, 20) + (toward,)
+    res = M.pocket(line, toward, 600, 100, 0, False, Z, tol, False, 20) + (toward,)
     attrs = sc.doc.CreateDefaultAttributes()
     before = set(rs.AllObjects() or [])
-    M.add_pocket(sc.doc, res, 100, 0, 10, False, 8, attrs, Z, tol, False, 20)
+    M.add_pocket(sc.doc, res, 100, 0, False, 8, attrs, Z, tol, False, 20)
     ids = [o for o in rs.AllObjects() if o not in before]
     base = sc.doc.Layers[attrs.LayerIndex].FullPath
     try:
@@ -84,10 +84,10 @@ try:
         rs.DeleteLayer(base + "::Fold")
     # markup in place + full part at up: markup is open (ends + top, without seam line); Update sees the pair
     up = Vector3d(0, 10000, 0)
-    res = M.pocket(line, toward, 600, 100, 50, 10, True, Z, tol, False, 20)
+    res = M.pocket(line, toward, 600, 100, 50, True, Z, tol, False, 20)
     assert not res[4].IsClosed and abs(res[4].GetLength() - (500 + 2 * (50 ** 2 + 100 ** 2) ** 0.5)) < 1e-6
     before = set(rs.AllObjects() or [])
-    M.add_pocket(sc.doc, res + (toward,), 100, 50, 10, True, 9, attrs, Z, tol, False, 20, up)
+    M.add_pocket(sc.doc, res + (toward,), 100, 50, True, 9, attrs, Z, tol, False, 20, up)
     ids = [o for o in rs.AllObjects() if o not in before]
     try:
         markup = [o for o in ids if rs.GetUserText(o, "TP_Markup")]
@@ -100,7 +100,7 @@ try:
         assert p["up"] == up and set(p["markup"]) == set(markup) and p["n"] == 9, p
         seg = p["seg"].DuplicateCurve()
         seg.Translate(-up)
-        assert abs(seg.PointAtStart.Y) < 1e-6  # the seam line returns to the markup position
+        assert abs(seg.PointAtStart.Y) < 1e-6  # the edge returns to the markup position
     finally:
         rs.DeleteObjects(ids)
         if rs.IsLayer(base + "::Fold"):
@@ -115,20 +115,20 @@ try:
     assert abs(rig.GetLength() - arc.GetLength()) < 1e-3
     assert abs(rig.PointAt(rig.Domain.Mid).Y - 900) < 1e-3, rig.PointAt(rig.Domain.Mid)
     assert abs(std.GetLength() - 0.9 * arc.GetLength()) < 1e-2
-    res = M.pocket(arc, Point3d(0, 0, 0), 0, 100, 50, 10, True, Z, tol, True)
+    res = M.pocket(arc, Point3d(0, 0, 0), 0, 100, 50, True, Z, tol, True)
     assert isinstance(res, tuple) and res[0].IsClosed, res
-    # Hem 20: rectangular pocket (Trim 0) 600×100 + SA 10 → ends outward by 20: 640×110, two fold lines x=200 / 800
-    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 0, 10, False, Z, tol, False, 20)
-    assert abs(AreaMassProperties.Compute(outline).Area - 70400) < 1e-3
+    # Hem 20: rectangular pocket (Trim 0) 600×100 → ends outward by 20: 640×100, two fold lines x=200 / 800
+    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 0, False, Z, tol, False, 20)
+    assert abs(AreaMassProperties.Compute(outline).Area - 64000) < 1e-3
     assert len(folds) == 2 and sorted(round(f.PointAtStart.X) for f in folds) == [200, 800]
-    assert abs(folds[0].GetLength() - 110) < 1e-6
-    # with Trim 50 (slanted end): bottom SA extends to x=180, top — farther from the edge; contour closed
-    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 50, 10, False, Z, tol, False, 20)
+    assert abs(folds[0].GetLength() - 100) < 1e-6
+    # with Trim 50 (slanted end): bottom (edge) extends to x=200−10√5 (end ⟂ slant by 20), top — farther from the edge; contour closed
+    outline, seg, mark, folds, simple = M.pocket(line, Point3d(300, 40, 0), 600, 100, 50, False, Z, tol, False, 20)
     bb = outline.GetBoundingBox(True)
-    assert outline.IsClosed and abs(bb.Min.X - 180) < 1e-6 and abs(bb.Max.X - 820) < 1e-6, bb
-    assert AreaMassProperties.Compute(outline).Area > 61000 + 2 * 20 * 110
+    assert outline.IsClosed and abs(bb.Min.X - (200 - 10 * 5 ** 0.5)) < 1e-6 and abs(bb.Max.X - (800 + 10 * 5 ** 0.5)) < 1e-6, bb
+    assert AreaMassProperties.Compute(outline).Area > 55000 + 2 * 20 * 100
     # Hem on an arc with Rigid
-    res = M.pocket(arc, Point3d(0, 0, 0), 0, 100, 50, 10, True, Z, tol, True, 20)
+    res = M.pocket(arc, Point3d(0, 0, 0), 0, 100, 50, True, Z, tol, True, 20)
     assert isinstance(res, tuple) and res[0].IsClosed and len(res[3]) == 2, res
     out.write("OK\n")
 except Exception:
