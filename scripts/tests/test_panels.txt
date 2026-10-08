@@ -1,3 +1,1 @@
-Traceback (most recent call last):
-  File "file:///Users/dmytro/Documents/Rhino/scripts/tests/test_panels.py", line 44, in <module>
-TypeError: array index has type slice, expected an integer
+OK

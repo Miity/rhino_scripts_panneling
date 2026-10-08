@@ -46,16 +46,25 @@ try:
     mk = RC.off_panel(sector, [sq], tol)
     assert len(mk) == 1 and abs(mk[0].GetLength() - math.pi * 50) < 1e-3, [m.GetLength() for m in mk]
     te = TextEntity.Create("RD99", rs.WorldXYPlane(), sc.doc.DimStyles.Current, False, 0, 0)
-    full, markup = RC.add_part(sc.doc, [c], te, mk, sc.doc.CreateDefaultAttributes())
+    view_cplane = rs.ViewCPlane
+    rs.ViewCPlane = lambda *a: rs.WorldXYPlane()  # rhinocode: sc.doc is headless, no view to take the CPlane from
     try:
-        dy = rs.ViewCPlane().YAxis * RC.UP
+        full, markup = RC.add_part(sc.doc, [c], te, mk, sc.doc.CreateDefaultAttributes())
+    finally:
+        rs.ViewCPlane = view_cplane
+    try:
+        dy = sc.sticky.get(RC.UP_KEY, RC.UP)  # option Up, may be changed in this session
         assert len(full) == 2 and len(markup) == 2
-        assert abs(rs.BoundingBox(full[0])[0].Y - (-100 + dy.Y)) < 1e-6
+        assert abs(rs.BoundingBox(full[0])[0].Y - (-100 + dy)) < 1e-6
         assert abs(rs.BoundingBox(markup[0])[0].Y) < 1e-6
         assert rs.ObjectGroups(full[0]) == rs.ObjectGroups(full[1]) != rs.ObjectGroups(markup[0])
     finally:
         rs.DeleteObjects(full + markup)
-    full, markup = RC.add_part(sc.doc, [c], te, mk, sc.doc.CreateDefaultAttributes(), False)  # Layout=No
+    rs.ViewCPlane = lambda *a: rs.WorldXYPlane()
+    try:
+        full, markup = RC.add_part(sc.doc, [c], te, mk, sc.doc.CreateDefaultAttributes(), False)  # Layout=No
+    finally:
+        rs.ViewCPlane = view_cplane
     try:
         assert markup == [] and abs(rs.BoundingBox(full[0])[0].Y + 100) < 1e-6
     finally:

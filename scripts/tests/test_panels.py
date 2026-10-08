@@ -41,7 +41,7 @@ try:
     assert tid, "text was not placed"
     bb = doc.Objects.FindId(tid).Geometry.GetBoundingBox(True)
     doc.Objects.Delete(tid, True)
-    for c in bb.GetCorners()[:4]:
+    for c in list(bb.GetCorners())[:4]:  # .NET array: no slicing under CPython
         assert trap.Contains(c, Plane.WorldXY, 0.001) == PointContainment.Inside, c
     assert bb.Max.X > 200 and bb.Max.Y > 200, bb  # top-right corner, near the click
     out.write("OK\n")
