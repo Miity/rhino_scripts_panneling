@@ -69,7 +69,7 @@ try:
     crv, edge, off, sq = M.flap(pan, Point3d(50, 61, 0), 10, 30, Z, tol)
     assert 60 < M.label_frame(edge, off, Z).Origin.Y < 70
     g = M.sewing_geometry(edge, 20)
-    assert len(g) == 6 and all(abs(p.Location.Y - 60) < 1e-6 for p in g[1:])  # copy + points at 10, 30 … 90
+    assert len(g) == 5 and all(abs(p.Location.Y - 60) < 1e-6 for p in g)  # points only at 10, 30 … 90
 
     # main(): Points No → ZC in Parts::ZipCover, Yes → SA + points in Parts::Seam; EditPanel → panel contour grows
     import Rhino, System
@@ -96,6 +96,8 @@ try:
             texts = [o.Geometry.PlainText for o in objs if isinstance(o.Geometry, Rhino.Geometry.TextEntity)]
             assert texts == [("SA 10" if points else "ZC 10")] * 2, texts
             assert any(isinstance(o.Geometry, Rhino.Geometry.Point) for o in objs) == points
+            if points and edit_:  # seam on the grown panel: only points + label, no line
+                assert all(isinstance(o.Geometry, (Rhino.Geometry.Point, Rhino.Geometry.TextEntity)) for o in objs)
             assert len(set(o.Attributes.GetGroupList()[0] for o in objs)) == 2  # one group per click
             p = doc.Objects.FindId(pid)
             area_ = AreaMassProperties.Compute(p.Geometry).Area

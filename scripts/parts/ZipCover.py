@@ -6,13 +6,13 @@ small breaks of a curved edge do not count). The part is a closed curve: copy of
 outward from the panel, ends along the extension of the neighbouring edges. If a neighbour leaves sharper than 30°
 from the edge (the extension would go very far) — the end is perpendicular, with a warning.
 Option Points=No (default): zip cover — label "ZC W", layer Parts::ZipCover.
-Points=Yes: seam allowance — seam points (logic of markup/sewing_points.py: centre ± k·Step) on a copy of the edge,
+Points=Yes: seam allowance — seam points (logic of markup/sewing_points.py: centre ± k·Step) on the panel edge (no line under them),
 label "SA W", layer Parts::Seam.
 Option EditPanel=No: only markup is added, in place: the strip lines not lying on the panel edge
-+ label (+ edge copy and seam points), one group. The panel is not changed: before cutting PreparePanelCut joins
++ label (+ seam points), one group. The panel is not changed: before cutting PreparePanelCut joins
 it with the markup (for that the edge must be a polyline / lines).
 EditPanel=Yes (default): the panel contour itself gets the strip (one closed curve; layer, groups, UserText kept),
-the old edge stays as a line (zip / seam line) + label, one group.
+zip cover: the old edge stays as a line (zip line) + label; seam: only seam points + label; one group.
 """
 import math
 import os
@@ -169,8 +169,8 @@ def label_frame(crv, offset, normal):
 
 
 def sewing_geometry(crv, step):
-    """Copy of the edge (seam line) + seam points on it (as sewing_points) — geometry."""
-    out = [crv.DuplicateCurve()]
+    """Seam points on the edge (as sewing_points) — geometry, no line under them."""
+    out = []
     for s in sewing_lengths(crv.GetLength(), step):
         ok, t = crv.LengthParameter(s)
         if ok:
@@ -235,7 +235,7 @@ def ask(gp):
 HELP = u"""Options:
   W — strip width: offset from the edge outward from the panel
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
-  Points — No: zip cover (ZC W, Parts::ZipCover); Yes: seam allowance + seam points on the edge (SA W, Parts::Seam)
+  Points — No: zip cover (ZC W, Parts::ZipCover); Yes: seam allowance + seam points on the edge, no line (SA W, Parts::Seam)
   Step — seam point spacing (from the edge centre both ways)
   EditPanel — Yes: the panel contour itself gets the strip, the old edge stays as a line; No: only strip lines
   Style — label text style (default PAT 14 mm)"""  # printed at start — visible under the option fields
@@ -279,9 +279,9 @@ def main():
             if new is None:
                 continue
             panel = new
-            geoms = [] if points else [edge]  # old edge = zip line (seam line comes with the points)
+            geoms = [] if points else [edge]  # old edge = zip line; for a seam only the points stay
         if points:
-            geoms += sewing_geometry(edge, sc.sticky["sew_step"])  # edge copy + seam points
+            geoms += sewing_geometry(edge, sc.sticky["sew_step"])  # seam points on the panel edge
         add_markup(doc, geoms, te, layer_attrs(doc, name))
         made[name] = made.get(name, 0) + 1
         if square:
