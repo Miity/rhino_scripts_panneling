@@ -16,9 +16,9 @@ Tool Cut (knife, layer INT — inner cuts) — a V for the circular blade (lama 
 both ends of every line: each leg is its own short line pointing to the apex, from Overcut to Overcut + Move along
 the leg; the blade's own overrun then cuts exactly from the edge to the apex — nothing behind the edge, the
 triangle falls out. Legs are 2·Overcut + Move long, so the width follows: 2·√((2·Overcut + Move)² − Depth²)
-(Overcut 1, Move 2, Depth 3 → ≈ 5.3 mm). Depth over 2·Overcut + Move — the legs meet straight: one slit.
-Standard (Tool=Cut) — back to the plotter's standard: Repeat from the middle both ways, Position 0, Every 300,
-Depth 3, Overcut 1, Move 2, Angle 30 (the last values are remembered otherwise).
+(Overcut 1, Move 3, Depth 2 → ≈ 9.2 mm). Depth over 2·Overcut + Move — the legs meet straight: one slit.
+Standard (Tool=Cut) — back to the plotter's standard: Repeat from the middle both ways, Position 0, Every 30,
+Depth 2, Overcut 1, Move 3, Angle 30 (the last values are remembered otherwise).
 If the panel has a cut line (Seams, Pattern::Seams), the notches sit on it — moved out from the sew line by the
 edge's seam width; the next Seams change moves them again. A notch In that reaches the sew line
 (Depth ≥ seam width) — warning. UserText on each notch: Notch (style), NotchW, NotchD, NotchPlace, NotchTool.
@@ -52,9 +52,9 @@ LAYERS = {"Mark": ("INK", System.Drawing.Color.Blue), "Cut": ("INT", System.Draw
 # defaults, mm (doc units at run time); counts, toggles, list indices as they are
 DEFAULTS = {"mode": 3, "dist": 0.0, "pct": False, "first": 50.0, "last": 50.0, "count": 3, "pos": 0.0,
             "every": 200.0, "both": True, "style": 0, "width": 6.0, "depth": 5.0, "place": 0, "tool": 0,
-            "kdepth": 3.0, "over": 1.0, "move": 2.0, "angle": 30.0}  # kdepth / over / move — knife V
+            "kdepth": 2.0, "over": 1.0, "move": 3.0, "angle": 30.0}  # kdepth / over / move — knife V
 # plotter standard for knife notches (option Standard; mm, list index, toggle as in DEFAULTS)
-STANDARD = {"mode": 3, "pos": 0.0, "every": 300.0, "both": True, "kdepth": 3.0, "over": 1.0, "move": 2.0, "angle": 30.0}
+STANDARD = {"mode": 3, "pos": 0.0, "every": 30.0, "both": True, "kdepth": 2.0, "over": 1.0, "move": 3.0, "angle": 30.0}
 MM_KEYS = ("dist", "first", "last", "pos", "every", "width", "depth", "kdepth", "over", "move")
 
 
@@ -262,10 +262,10 @@ HELP = u"""Options (where the click sits on the edge sets From: first third — 
   Tool — Mark: pen, layer INK; Cut: knife, layer INT (inner cuts), always the V for the circular blade
   Mark: Style — Slit: a line; V: opening Width on the line, tip Depth away; Depth — notch depth;
     Placement — In: into the panel, Out: away from it, Center: across the line
-  Cut: Depth — real V depth (default 3); Overcut — how far the blade cuts past each end of a line (measure: cut a
+  Cut: Depth — real V depth (default 2); Overcut — how far the blade cuts past each end of a line (measure: cut a
     1 mm line on scrap, Overcut = (slit − 1) / 2); Move — knife move per leg; the width follows (printed)
-  Standard — (Tool=Cut) back to the plotter standard: Repeat from the middle, Both, Position 0, Every 300, Depth 3,
-    Overcut 1, Move 2, Angle 30
+  Standard — (Tool=Cut) back to the plotter standard: Repeat from the middle, Both, Position 0, Every 30, Depth 2,
+    Overcut 1, Move 3, Angle 30
   Angle — a break larger than this angle = corner (edges are taken corner to corner)
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
 
