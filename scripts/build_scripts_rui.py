@@ -74,6 +74,7 @@ GROUPS = [
         (u"Part Panel", u"Panel number on parts: select parts (window) → \" P<n>\" added to each part's label; the panel is found from where the part sits on it (part up → back down; Bordino — its edge)", py("parts/PartPanel.py"), None),
         (u"Layout", u"Canvas: parts with contour, seam points, centre ticks and label codes in a row, in <layer>::Layout; the rest stays on the schema", py("parts/LayoutParts.py"), None),
         (u"Layout Stack", u"Strips that may turn along the grain — options Rinforzo / Bordini: copies on the canvas along CPlane X, stacked down from the click Gap apart (0 — touching), longest first; <layer>::Layout; Hide=Yes — the laid out parts are hidden", py("parts/LayoutStack.py"), None),
+        (u"Pack Strips", u"Strips already along CPlane X (Layout Stack, Strips) moved into a compact block: rows as long as the longest strip, within the roll Width (rows get longer if needed), one block per strip width, Gap between strips (0 — touching); Enter — in place", py("parts/PackStrips.py"), None),
     ]),
     (u"Markup", u"Markup on INK", [
         (u"Crosses", u"Points → crosses or circles", py("markup/PointsToCrosses.py"), None),
@@ -135,6 +136,7 @@ IT = {
     u"Part Panel": (u"N. pannello", u"Numero del pannello sui pezzi: seleziona i pezzi (finestra) → \" P<n>\" aggiunto all'etichetta di ogni pezzo; il pannello si trova dalla posizione del pezzo (pezzo in alto → riportato giù; Bordino — dal suo lato)"),
     u"Layout": (u"Piazzamento", u"Piazzamento per il taglio: pezzi con contorno, battute, tacche al centro e codici in fila, in <layer>::Layout; il resto resta sullo schema"),
     u"Layout Stack": (u"Piazza in pila", u"Strisce che si possono girare lungo il drittofilo — opzioni Rinforzo / Bordini: copie sul piazzamento lungo X del CPlane, in pila in giù dal clic a distanza Gap (0 — a contatto), le più lunghe prima; <layer>::Layout; Hide=Yes — i pezzi piazzati vengono nascosti"),
+    u"Pack Strips": (u"Compatta strisce", u"Strisce già lungo X del CPlane (Piazza in pila, Fasce) spostate in un blocco compatto: righe lunghe quanto la striscia più lunga, entro la larghezza del rotolo Width (le righe si allungano se serve), un blocco per ogni larghezza, Gap tra le strisce (0 — a contatto); Invio — sul posto"),
     u"Markup": (u"Segni", u"Segni su INK"),
     u"Crosses": (u"Croci", u"Punti → croci o cerchi"),
     u"SewingPoints": (u"Battute", u"Battute: pannelli / curve + clic vicino a un lato → punti dal centro del lato (da angolo ad angolo) in entrambe le direzioni con passo Step (200 mm) + tacca centrale (Tick 10 mm, verso l'interno del pannello); Parts::SewingMarks"),
