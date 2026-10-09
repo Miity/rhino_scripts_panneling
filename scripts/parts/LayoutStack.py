@@ -54,17 +54,32 @@ def pick(doc, ids, kinds):
     return [p for p in found if p not in done], done
 
 
+def hull(pts):
+    """Convex hull of 2D points [(x, y)] (monotone chain), counter-clockwise."""
+    pts = sorted(set(pts))
+
+    def half(seq):
+        h = []
+        for p in seq:
+            while len(h) > 1 and (h[-1][0] - h[-2][0]) * (p[1] - h[-2][1]) - (h[-1][1] - h[-2][1]) * (p[0] - h[-2][0]) <= 0:
+                h.pop()
+            h.append(p)
+        return h
+    return half(pts)[:-1] + half(pts[::-1])[:-1]
+
+
 def turn(u, plane):
-    """Rotation about plane Z laying the part u flattest along plane X (lowest bbox over its segment directions),
+    """Rotation about plane Z laying the part u flattest along plane X (lowest bbox: the narrowest direction always runs
+    along a convex hull edge — exact also for strips whose long sides are slightly broken polylines),
     turned over if its label would read right to left."""
     c = outer(u)
     to_plane = Transform.PlaneToPlane(plane, Plane.WorldXY)  # bbox in CPlane coordinates
+    ok, pl = c.TryGetPolyline()
+    pts = [to_plane * p for p in (pl if ok else [c.PointAt(t) for t in c.DivideByCount(256, True)])]
+    h = hull([(p.X, p.Y) for p in pts])
     best = (float("inf"), Transform.Identity)
-    for s in c.DuplicateSegments() or []:
-        d = s.PointAtEnd - s.PointAtStart
-        if d.IsTiny():
-            continue
-        rot = Transform.Rotation(-math.atan2(d * plane.YAxis, d * plane.XAxis), plane.ZAxis, plane.Origin)
+    for a, b in zip(h, h[1:] + h[:1]):
+        rot = Transform.Rotation(-math.atan2(b[1] - a[1], b[0] - a[0]), plane.ZAxis, plane.Origin)
         bb = c.GetBoundingBox(to_plane * rot)
         best = min(best, (bb.Max.Y - bb.Min.Y, rot), key=lambda b: b[0])
     rot = best[1]

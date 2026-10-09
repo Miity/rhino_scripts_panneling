@@ -2,7 +2,7 @@
 """End to end: real Bordino / Pettola / Rinforzo parts on a panel turned 30° + an RC part; LayoutStack.main (click prompt
 faked: options + click / Enter) on the whole selection → only the ticked kinds (Rinforzo, Bordini; never Pettola / RC), copies along X reading left to
 right, stacked down from the click Gap apart, Rinforzo first, longest first; a second run skips them, LayoutParts too, a Layout copy made before does not; Enter + Hide=Yes, Rinforzo=No → only the
-bordini parts up are hidden.
+bordini parts up are hidden; turn: a strip with broken long sides lies level (hull).
 Rhino 8: DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_layout_stack.txt next to it."""
 import math
@@ -148,6 +148,14 @@ try:
         [(o.Geometry.GetType().Name, rs.ObjectLayer(o.Id)) for o in hidden]
     assert len(hidden) == 4 and not any(o.Attributes.GetUserString("PartMarkup") for o in hidden), len(hidden)
     assert sc.sticky["LayoutStackHide"] and not sc.sticky["LayoutStackRinforzo"]  # remembered
+    # long sides broken by 3 mm in the middle (DXF): no segment lies along the strip; the hull edge does → level, 63 high
+    v = PolylineCurve(Polyline([Point3d(x, y, 0) for x, y in ((0, 0), (600, -3), (1200, 0), (1200, 60), (600, 57), (0, 60),
+                                                              (0, 0))]))
+    v.Transform(Transform.Rotation(math.radians(20), Vector3d.ZAxis, Point3d.Origin))
+    vid = doc.Objects.AddCurve(v)
+    v.Transform(L.turn([doc.Objects.FindId(vid)], Plane.WorldXY))
+    bb = v.GetBoundingBox(True)
+    assert abs(bb.Max.Y - bb.Min.Y - 63.0) < tol and abs(bb.Max.X - bb.Min.X - 1200.0) < tol, (bb.Min, bb.Max)
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())

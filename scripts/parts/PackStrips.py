@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """Pack strips into a compact rectangle on the roll: after Layout Stack / Strips, before nesting.
 Select strips already lying along CPlane X (Layout Stack copies, fascia strips…; a window is fine). A strip = a group
-of the selection, or a closed curve with the loose selected objects inside it (label, zip lines). Only rectangles along
-CPlane X are packed (the contour fills its box); the others — trapezoid ends, curved, tilted — are not moved, their labels
-are listed in the command history. Strips are only moved, never turned (the grain stays). One block per strip width (±1 mm): rows as long as the longest strip, each strip in the
+of the selection, or a closed curve with the loose selected objects inside it (label, zip lines). Only strips with a
+straight top and bottom along CPlane X are packed (within SLACK_MM — DXF panel edges are not quite straight; the ends may
+be slanted: rectangles, trapezoids, arrows), by their box; the others — curved, tilted — are not moved, their labels are
+listed in the command history. Strips are only moved, never turned (the grain stays). One block per strip width (within
+SLACK_MM, rows as high as the widest): rows as long as the longest strip, each strip in the
 first row it fits (longest first); if the rows do not fit into the roll Width, the rows get longer — the shortest
 length at which they fit. Blocks go down from the click point (top-left corner), widest strips first; a block that does
 not fit into the rest of the roll width starts a new column to the right. Gap — between strips, rows and blocks
@@ -16,7 +18,7 @@ import sys
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import AreaMassProperties, Plane, Transform
+from Rhino.Geometry import Plane, Transform
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("LayoutParts", None)  # Rhino keeps modules from the first run for the session
@@ -27,6 +29,7 @@ sys.modules.pop("PatternTextStyles", None)
 from PatternTextStyles import cm  # sizes in cm
 
 STICKY = "PackStrips"
+SLACK_MM = 4.0  # top / bottom this close to a straight line = straight; widths this close = one block
 
 
 def strips(doc, ids):
@@ -51,12 +54,19 @@ def strips(doc, ids):
     return units
 
 
-def is_rect(u, plane, tol):
-    """The strip u is a rectangle along plane X: its contour fills its box (box area − area ≤ tol × perimeter)."""
+def is_flat(u, plane, tol):
+    """Top and bottom of the strip u are straight along plane X within tol (the ends may be slanted): straight pieces of
+    its contour lie on its box's top and on its bottom line over at least half the box length each."""
     c = outer(u)
-    b = c.GetBoundingBox(Transform.PlaneToPlane(plane, Plane.WorldXY))
-    amp = AreaMassProperties.Compute(c)
-    return amp is not None and (b.Max.X - b.Min.X) * (b.Max.Y - b.Min.Y) - amp.Area <= tol * c.GetLength()
+    xf = Transform.PlaneToPlane(plane, Plane.WorldXY)
+    b = c.GetBoundingBox(xf)
+    on = [0.0, 0.0]
+    for s in c.DuplicateSegments() or [c]:
+        p, q = xf * s.PointAtStart, xf * s.PointAtEnd
+        for k, y in enumerate((b.Min.Y, b.Max.Y)):
+            if s.IsLinear(tol) and abs(p.Y - y) <= tol and abs(q.Y - y) <= tol:
+                on[k] += abs(q.X - p.X)
+    return min(on) >= (b.Max.X - b.Min.X) / 2.0
 
 
 def rows_of(lengths, L, gap, tol):
@@ -98,7 +108,7 @@ def pack(doc, units, plane, start, width, gap):
     size = [(b.Max.X - b.Min.X, b.Max.Y - b.Min.Y) for b in boxes]
     blocks = []  # [height, [strip indices]], widest strips first
     for i in sorted(range(len(units)), key=lambda i: -size[i][1]):
-        if blocks and blocks[-1][0] - size[i][1] <= mm:  # ponytail: same width ±1 mm; a curved strip (taller box) — its own block
+        if blocks and blocks[-1][0] - size[i][1] <= SLACK_MM * mm:  # ponytail: one row height (the widest) per block
             blocks[-1][1].append(i)
         else:
             blocks.append([size[i][1], [i]])
@@ -139,14 +149,15 @@ def main():
         return
     plane = rs.ViewCPlane()
     tol = doc.ModelAbsoluteTolerance
+    slack = SLACK_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
     units, odd = [], []
     for u in strips(doc, ids):
-        (units if is_rect(u, plane, tol) else odd).append(u)
+        (units if is_flat(u, plane, slack) else odd).append(u)
     if odd:
         names = [o.Geometry.PlainText for u in odd for o in u if isinstance(o.Geometry, Rhino.Geometry.TextEntity)]
-        print(u"Not rectangles, not moved: %d (%s)" % (len(odd), u", ".join(names) or u"no labels"))
+        print(u"Top / bottom not straight, not moved: %d (%s)" % (len(odd), u", ".join(names) or u"no labels"))
     if not units:
-        print(u"No rectangular strips in the selection")
+        print(u"No strips with a straight top and bottom in the selection")
         return
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
     gp = Rhino.Input.Custom.GetPoint()
