@@ -99,7 +99,8 @@ try:
         assert [ends(n.Geometry) for n in ns] == [{(50, 70), (50, 65)}, {(98, 70), (98, 65)}], [ends(n.Geometry) for n in ns]
         lay = [doc.Layers[n.Attributes.LayerIndex].Name for n in ns]
         assert lay == ["INT", "INK"], lay  # Tool Cut → INT (inner cuts), Mark → INK
-        assert all(list(n.Attributes.GetGroupList() or []) == [g] for n in ns)  # move with the panel
+        gs = [sorted(n.Attributes.GetGroupList() or []) for n in ns]
+        assert all(len(x) == 2 and g in x for x in gs) and gs[0] != gs[1], gs  # panel group + one group per click
         assert ns[0].Attributes.GetUserString("NotchPlace") == "In" and ns[0].Attributes.GetUserString(N.NOTCH) == "Slit"
 
         seam(Point3d(50, 61, 0), 20.0)  # top seam 20 → notches out to y = 80 (the one by the corner too, not sideways)
@@ -109,6 +110,16 @@ try:
         seam(Point3d(50, 61, 0), 0.0)  # no seam left: cut line deleted, notches back on the sew line
         assert not [o for o in doc.Objects if o.Attributes.GetUserString(S.KEY)]
         assert [ends(n.Geometry) for n in notches()] == [{(50, 60), (50, 55)}, {(98, 60), (98, 55)}]
+
+        # one click, several notches (bottom edge, Repeat from the middle) — one group of their own
+        before = set(n.Id for n in notches())
+        clicks = [({"mode": 3, "pos": 0.0, "every": 20.0, "both": True}, Point3d(50, -1, 0)), ({}, None)]
+        N.main()
+        new = [n for n in notches() if n.Id not in before]
+        assert len(new) == 5, len(new)  # 10, 30, 50, 70, 90
+        own = set(tuple(sorted(n.Attributes.GetGroupList())) for n in new)
+        assert len(own) == 1 and g in list(own)[0] and len(list(own)[0]) == 2, own
+        assert not any(set(list(own)[0]) - {g} <= set(x) for x in gs)  # not the group of an earlier click
         doc.Dispose()
     finally:
         sc.doc, rs.GetObjects, N.ask = old

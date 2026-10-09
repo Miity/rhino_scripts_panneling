@@ -14,8 +14,8 @@ Notch properties: Style Slit (a line) / V (opening Width on the line, tip Depth 
 panel) / Out / Center (across the line), Depth, Tool Mark (pen, layer INK) / Cut (knife, layer INT — inner cuts).
 If the panel has a cut line (Seams, Pattern::Seams), the notches sit on it — moved out from the sew line by the
 edge's seam width; the next Seams change moves them again. A notch In that reaches the sew line
-(Depth ≥ seam width) — warning. UserText on each notch: Notch (style), NotchW, NotchD, NotchPlace, NotchTool;
-the notches join the panel's groups (move with it).
+(Depth ≥ seam width) — warning. UserText on each notch: Notch (style), NotchW, NotchD, NotchPlace, NotchTool.
+The notches of one click are one group; they also join the panel's groups (move with it).
 """
 import os
 import sys
@@ -129,7 +129,7 @@ def place(doc, oid, click, tol):
         return u"no notch fits on the edge (%g)" % round(length, 1)
     style, where, tool = STYLES[o["style"]], PLACES[o["place"]], TOOLS[o["tool"]]
     attrs = tool_attrs(doc, tool)
-    for g in obj.Attributes.GetGroupList() or []:  # moves / selects together with the panel
+    for g in list(obj.Attributes.GetGroupList() or []) + [doc.Groups.Add()]:  # panel's groups + one per click
         attrs.AddToGroup(g)
     for k, v in ((NOTCH, style), ("NotchW", "%.6g" % o["width"]), ("NotchD", "%.6g" % o["depth"]),
                  ("NotchPlace", where), ("NotchTool", tool)):
