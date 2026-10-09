@@ -19,7 +19,7 @@ try:
     from Rhino.Geometry import (Arc, ArcCurve, Curve, LineCurve, Plane, Point3d, PointContainment, Polyline,
                                 PolylineCurve, Transform, Vector3d)
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
-    for m in ("ReinfCircle", "ZipCover", "ZipStops", "Rinforzo", "Bordino", "sewing_points", "DotToPanelText",
+    for m in ("ReinfCircle", "ZipCover", "ZipStops", "Rinforzo", "Bordino", "DotToPanelText",
               "PatternTextStyles", "click_undo"):
         sys.modules.pop(m, None)
     import Bordino as B

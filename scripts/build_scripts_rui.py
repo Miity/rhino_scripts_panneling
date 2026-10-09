@@ -20,7 +20,6 @@ def py(name):
     return '!_-RunPythonScript "%s%s"' % (S, name)
 
 
-GH_SEW = '! _-GrasshopperPlayer "%s/Grasshoper scripts/sew points.gh"\n\n\n\n' % ROOT
 
 # (group = tab name, group description, [(button, tooltip, macro, (right button, tooltip, macro) | None)])
 GROUPS = [
@@ -54,8 +53,6 @@ GROUPS = [
     ]),
     (u"Parts", u"Creating parts (strips, reinforcements…) in the Parts layer", [
         (u"Panels", u"Panels → copy in Parts::Panels numbered P1, P2… (text inside + TextDot)", py("parts/Panels.py"), None),
-        (u"SewingPoints", u"Battute: panels / curves + click near an edge → points from the edge centre (corner to corner) both ways with Step (200 mm) + centre tick (Tick 10 mm, into the panel); Parts::SewingMarks", py("parts/sewing_points.py"),
-         (u"SewPoints GH", u"Seam points (Grasshopper Player, old version)", GH_SEW)),
         (u"Strips", u"Fascia strips under the selected lines: width W, length = length of each curve; label F<w>  l=… (cm)", py("parts/StripsFromCurves.py"), None),
         (u"ZipCover", u"Zip cover: panel edge (corner to corner) + offset W outward, ends along the neighbouring edges; label Off<w> (cm, offset); EditPanel=Yes — the panel contour itself grows", py("parts/ZipCover.py"), None),
         (u"Join Corner", u"Join any two open curves at a corner, edge to edge: click near the corner → edges (corner to corner) extended / trimmed to their intersection, ends beyond removed, one curve", py("parts/JoinCorner.py"), None),
@@ -77,7 +74,7 @@ GROUPS = [
         (u"Pack Strips", u"Strips with a straight top and bottom along CPlane X (Layout Stack, Strips; ends may be slanted) moved into a compact block (curved — not moved, listed): rows as long as the longest strip, within the roll Width (rows get longer if needed), one block per strip width, Gap between strips (0 — touching); Enter — in place", py("parts/PackStrips.py"), None),
     ]),
     (u"Markup", u"Markup on INK", [
-        (u"Crosses", u"Points / seam circles → crosses, circles or (Edge) lines to the panel edge", py("markup/PointsToCrosses.py"), None),
+        (u"Crosses", u"Points / seam circles → crosses or circles", py("markup/PointsToCrosses.py"), None),
         (u"Linetype 400,2", u"Assign linetype 400,2 to the selected curves", py("markup/line_type.py"), None),
         (u"TextStyles", u"Create/update PAT 2.5–40 mm text styles for 1:1 patterns", py("markup/PatternTextStyles.py"), None),
         (u"TextToDot", u"Text → TextDot", py("markup/TextToDot.py"),
@@ -146,9 +143,7 @@ IT = {
     u"Layout Stack": (u"Piazza in pila", u"Strisce che si possono girare lungo il drittofilo — opzioni Rinforzo / Bordini: copie sul piazzamento lungo X del CPlane, in pila in giù dal clic a distanza Gap (0 — a contatto), le più lunghe prima; <layer>::Layout; Hide=Yes — i pezzi piazzati vengono nascosti"),
     u"Pack Strips": (u"Compatta strisce", u"Strisce con lato sopra e sotto dritto lungo X del CPlane (Piazza in pila, Fasce; estremi anche obliqui) spostate in un blocco compatto (curve — non spostate, elencate): righe lunghe quanto la striscia più lunga, entro la larghezza del rotolo Width (le righe si allungano se serve), un blocco per ogni larghezza, Gap tra le strisce (0 — a contatto); Invio — sul posto"),
     u"Markup": (u"Segni", u"Segni su INK"),
-    u"Crosses": (u"Croci", u"Punti / cerchi delle battute → croci, cerchi o (Edge) linee fino al bordo del pannello"),
-    u"SewingPoints": (u"Battute", u"Battute: pannelli / curve + clic vicino a un lato → punti dal centro del lato (da angolo ad angolo) in entrambe le direzioni con passo Step (200 mm) + tacca centrale (Tick 10 mm, verso l'interno del pannello); Parts::SewingMarks"),
-    u"SewPoints GH": (u"Battute GH", u"Battute (Grasshopper Player, versione vecchia)"),
+    u"Crosses": (u"Croci", u"Punti / cerchi delle battute → croci o cerchi"),
     u"Linetype 400,2": (u"Linea 400,2", u"Assegna il tipo di linea 400,2 alle curve selezionate"),
     u"TextStyles": (u"Stili testo", u"Crea / aggiorna gli stili di testo PAT 2.5–40 mm per cartamodelli 1:1"),
     u"TextToDot": (u"Testo → Dot", u"Testo → TextDot"),

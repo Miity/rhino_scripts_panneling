@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Marks zips and tracks (keder track / guide rail) with stops and a number; the input is not touched.
 Select panels (closed curves) and / or open curves once, then click near each edge / curve of one zip — on all
-panels — and Enter; next zip, Enter on an empty zip — done. As in sewing_points: the nearest selected object to
+panels — and Enter; next zip, Enter on an empty zip — done. The nearest selected object to
 the click, only its edge corner to corner near the click (corner — a break larger than Angle; a curve without
 corners — the whole curve). One zip = both sides of the tape, a side may be split over several panels.
 A track is one side, it may also be split. The kind is the Type option (Zip / Track, remembered):
@@ -21,6 +21,7 @@ and measures it live. An edge that already has a number is skipped. Numbering co
 in the layer (Z and Can separately).
 Then the flip step: clicking a number moves it to the other side of the line (mirror) if it is in the way;
 Enter — done. Enter on the object selection — straight to flipping."""
+import math
 import os
 import re
 import sys
@@ -45,10 +46,8 @@ sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
 
 sys.path.insert(0, HERE)
-for _m in ("ZipCover", "sewing_points"):
-    sys.modules.pop(_m, None)
+sys.modules.pop("ZipCover", None)
 from ZipCover import close_panel, pick_edge  # panel edge corner to corner
-from sewing_points import curve_edge  # open curve piece corner to corner
 
 # type → (prefix, layer, in the prompt, from how many edges to ask about junctions, default Trim in cm)
 TYPES = {"Zip": ("Z", "Parts::Zip", u"of the zip (both sides)", 3, 4.0),
@@ -63,8 +62,22 @@ SIDE = "ZipSide"     # UserText on the text: 1 / -1 — marks left / right of th
 JUNCTION = "ZipJunction"  # UserText on the text: "0,1" — which edge ends are junctions
 STYLE = "ZipStops"   # sticky key of the label style (PatternTextStyles.label_style)
 KIND = "ZipStops.kind"
-ANGLE = "SewingMarks_angle"  # shared with sewing_points
+ANGLE = "ZipStops_angle"
 TEXT_SPOTS = 6  # how far along the edge the text may move: text widths from the middle, each way
+
+
+def curve_edge(crv, click, angle, tol):
+    """Open curve: its piece corner to corner nearest the click (no corners — the whole curve)."""
+    groups = []
+    for s in crv.DuplicateSegments() or [crv.DuplicateCurve()]:
+        if s.GetLength() <= tol:
+            continue
+        if groups and Vector3d.VectorAngle(groups[-1][-1].TangentAtEnd, s.TangentAtStart) <= math.radians(angle):
+            groups[-1].append(s)
+        else:
+            groups.append([s])
+    pieces = [Curve.JoinCurves(g, tol)[0] for g in groups] or [crv]
+    return min(pieces, key=lambda c: c.PointAt(c.ClosestPoint(click)[1]).DistanceTo(click))
 
 
 def point_at(crv, s):
@@ -614,7 +627,7 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
 HELP = u"""Options:
   Type — Zip: zip (both sides, Z<n>); Track: canalina (one side, Can<n>) — after Enter the console shows both sides and their difference (Warning > 5 mm)
   Trim — stops this far in from the real edge ends (zip shorter than the line); remembered per type
-  Angle — a break larger than this angle = corner (the edge is taken corner to corner; shared with Battute)
+  Angle — a break larger than this angle = corner (the edge is taken corner to corner)
   Style — number text style (default PAT 14 mm)
   Undo — take back the last step: while clicking — the last edge, with none picked — the whole previous zip /
          track (its number is reused); at junction clicks — the last junction; at number flipping — the last flip"""

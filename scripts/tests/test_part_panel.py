@@ -17,7 +17,7 @@ try:
     from Rhino.Geometry import LineCurve, Plane, Point3d, Polyline, PolylineCurve, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
     for m in ("ReinfCircle", "ZipCover", "ZipStops", "Rinforzo", "Bordino", "TubePockets", "LayoutParts", "PartPanel",
-              "sewing_points", "DotToPanelText", "PatternTextStyles", "click_undo"):
+              "DotToPanelText", "PatternTextStyles", "click_undo"):
         sys.modules.pop(m, None)
     import Bordino as B
     import LayoutParts as L

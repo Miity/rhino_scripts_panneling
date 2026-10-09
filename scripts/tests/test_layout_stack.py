@@ -20,7 +20,7 @@ try:
     from Rhino.Geometry import Plane, Point3d, Polyline, PolylineCurve, TextEntity, Transform, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
     for m in ("ReinfCircle", "ZipCover", "ZipStops", "Bordino", "Rinforzo", "LayoutParts", "LayoutStack",
-              "PatternTextStyles", "click_undo", "sewing_points", "DotToPanelText"):
+              "PatternTextStyles", "click_undo", "DotToPanelText"):
         sys.modules.pop(m, None)
     import Bordino as B
     import LayoutParts as LP
