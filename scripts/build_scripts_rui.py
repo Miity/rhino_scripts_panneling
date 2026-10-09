@@ -90,6 +90,7 @@ PATTERN = [
     (u"Pattern", u"Pattern tools after PatternSmith: seam allowance, notches", [
         (u"Seams", u"Seam allowance: panel = sew line → closed cut line around it in Pattern::Seams; click an edge — it gets Width (typed, mm; 0 — no seam), Mode=Corner — corner style Extend / Slant / Return, All — every edge", py("pattern/Seams.py"), None),
         (u"Notches", u"Notches (battute): click an edge — its third sets From (corner / middle); Mode Single (Distance, 0 — at the click) / Mid / Evenly (First, Last, Count) / Repeat (Position, Every, Both); Tool Mark (INK, pen: Style Slit / V, Placement, Depth) / Cut (INT, knife: V for the circular blade — Depth 2, Overcut 1, Move 3, width computed; Standard — the plotter standard); on the cut line if there is one, move with Seams", py("pattern/Notches.py"), None),
+        (u"Convert Notches", u"Notches already made → another format: select notches / older battute (points, seam circles, old ticks) with their panels → Tool Mark / Cut and its options (as in Notches), Enter; each goes to the nearest panel edge within Reach, on the cut line if there is one; Originals Delete / Keep", py("pattern/ConvertNotches.py"), None),
     ]),
 ]
 
@@ -154,6 +155,7 @@ IT = {
     u"Pattern": (u"Modello", u"Strumenti del cartamodello come in PatternSmith: margini di cucitura, tacche"),
     u"Seams": (u"Margini", u"Margine di cucitura: il pannello è la linea di cucitura → linea di taglio chiusa attorno in Pattern::Seams; clic su un lato — larghezza Width (mm, si digita; 0 — senza margine), Mode=Corner — angolo Extend / Slant / Return, All — tutti i lati"),
     u"Notches": (u"Tacche", u"Tacche (battute): clic su un lato — il terzo cliccato dà il punto di partenza (angolo / metà); Mode Single (Distance, 0 — nel punto cliccato) / Mid / Evenly (First, Last, Count) / Repeat (Position, Every, Both); Tool Mark (INK, penna: Style Slit / V, Placement, Depth) / Cut (INT, lama circolare: V — Depth 2, Overcut 1, Move 3, larghezza calcolata; Standard — i valori standard del plotter); sulla linea di taglio se c'è, si spostano con i Margini"),
+    u"Convert Notches": (u"Converti tacche", u"Tacche già fatte → un altro formato: seleziona tacche / battute vecchie (punti, cerchi, tacche al centro) con i pannelli → Tool Mark / Cut e le sue opzioni (come in Tacche), Invio; ognuna va al lato del pannello più vicino entro Reach, sulla linea di taglio se c'è; Originals Delete / Keep"),
 }
 
 

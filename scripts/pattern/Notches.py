@@ -58,18 +58,18 @@ STANDARD = {"mode": 3, "pos": 0.0, "every": 300.0, "both": True, "kdepth": 2.0, 
 MM_KEYS = ("dist", "first", "last", "pos", "every", "width", "depth", "kdepth", "over", "move")
 
 
-def opt(name, doc=None):
-    """Current option value from sc.sticky (lengths in doc units)."""
+def opt(name, doc=None, prefix=STICKY):
+    """Current option value from sc.sticky (lengths in doc units); prefix — the script's sticky keys."""
     v = DEFAULTS[name]
     if doc is not None and name in MM_KEYS:
         v *= Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
-    return sc.sticky.get(STICKY + "_" + name, v)
+    return sc.sticky.get(prefix + "_" + name, v)
 
 
-def use_standard(doc):
+def use_standard(doc, prefix=STICKY):
     """Option Standard: the plotter's standard values for knife notches into sc.sticky."""
     mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
-    sc.sticky.update(dict((STICKY + "_" + k, v * mm if k in MM_KEYS else v) for k, v in STANDARD.items()))
+    sc.sticky.update(dict((prefix + "_" + k, v * mm if k in MM_KEYS else v) for k, v in STANDARD.items()))
 
 
 def positions(length, mode, s_click, o, eps=1e-6):
@@ -132,6 +132,45 @@ def knife(base, out, normal, d, w, c, m):
     return lines
 
 
+def spec(o):
+    """Notch properties from option values o (lengths in doc units): Tool Mark — style / placement / depth / width
+    as set; Cut — always the circular-blade V into the panel, width from Depth, Overcut, Move."""
+    if TOOLS[o["tool"]] == "Cut":
+        width, move = knife_width(o["kdepth"], o["over"], o["move"])
+        return {"tool": "Cut", "style": "V", "place": "In", "depth": o["kdepth"], "width": width,
+                "over": o["over"], "move": move}
+    return {"tool": "Mark", "style": STYLES[o["style"]], "place": PLACES[o["place"]], "depth": o["depth"],
+            "width": o["width"]}
+
+
+def shapes(base, out, normal, p):
+    """Curves of notch p at base on the line (out — outside of the edge there)."""
+    if p["tool"] == "Cut":
+        return knife(base, out, normal, p["depth"], p["width"], p["over"], p["move"])
+    return [notch(base, out, normal, p["style"], p["place"], p["width"], p["depth"])]
+
+
+def tell(p, w, tol):
+    """Prints the knife V geometry and a warning if notch p reaches the sew line through a seam w."""
+    if p["tool"] == "Cut":
+        print(u"Knife V: width %g, depth %g; each leg — the knife drops %g along it from the edge, moves %g, lifts"
+              % (round(p["width"], 2), p["depth"], p["over"], round(p["move"], 2)))
+    inward = {"In": p["depth"], "Center": p["depth"] / 2.0}.get(p["place"], 0.0)
+    if w > tol and inward >= w - tol:
+        print(u"Warning: Depth %g reaches the sew line (seam %g)" % (p["depth"], w))
+
+
+def notch_attrs(doc, p, groups):
+    """Attributes of notch p: layer by its tool, the groups, UserText."""
+    attrs = tool_attrs(doc, p["tool"])
+    for g in groups:
+        attrs.AddToGroup(g)
+    for k, v in ((NOTCH, p["style"]), ("NotchW", "%.6g" % p["width"]), ("NotchD", "%.6g" % p["depth"]),
+                 ("NotchPlace", p["place"]), ("NotchTool", p["tool"])):
+        attrs.SetUserString(k, v)
+    return attrs
+
+
 def tool_attrs(doc, tool):
     """Mark — pen, layer INK; Cut — knife, layer INT (inner cuts; created if missing)."""
     name, color = LAYERS[tool]
@@ -163,54 +202,60 @@ def place(doc, oid, click, tol):
     ss = positions(length, MODES[o["mode"]], e.GetLength(Interval(e.Domain.T0, t)), o)
     if not ss:
         return u"no notch fits on the edge (%g)" % round(length, 1)
-    tool = TOOLS[o["tool"]]
-    if tool == "Cut":  # knife: always the circular-blade V, into the panel
-        style, where, d = "V", "In", o["kdepth"]
-        width, move = knife_width(d, o["over"], o["move"])
-        print(u"Knife V: width %g, depth %g; each leg — the knife drops %g along it from the edge, moves %g, lifts"
-              % (round(width, 2), d, o["over"], round(move, 2)))
-    else:
-        style, where, d, width = STYLES[o["style"]], PLACES[o["place"]], o["depth"], o["width"]
-    attrs = tool_attrs(doc, tool)
-    for g in list(obj.Attributes.GetGroupList() or []) + [doc.Groups.Add()]:  # panel's groups + one per click
-        attrs.AddToGroup(g)
-    for k, v in ((NOTCH, style), ("NotchW", "%.6g" % width), ("NotchD", "%.6g" % d),
-                 ("NotchPlace", where), ("NotchTool", tool)):
-        attrs.SetUserString(k, v)
+    p = spec(o)
+    attrs = notch_attrs(doc, p, list(obj.Attributes.GetGroupList() or []) + [doc.Groups.Add()])  # panel's + per click
     for s in ss:
         ok, ts = e.LengthParameter(s)
-        p = e.PointAt(ts if ok else t)
+        q = e.PointAt(ts if ok else t)
         out = Vector3d.CrossProduct(e.TangentAt(ts if ok else t), normal)
         out.Unitize()
-        base = p + out * w
-        for g in (knife(base, out, normal, d, width, o["over"], move) if tool == "Cut" else
-                  [notch(base, out, normal, style, where, width, d)]):
+        for g in shapes(q + out * w, out, normal, p):
             doc.Objects.AddCurve(g, attrs)
-    inward = {"In": d, "Center": d / 2.0}.get(where, 0.0)
-    if w > tol and inward >= w - tol:
-        print(u"Warning: Depth %g reaches the sew line (seam %g)" % (d, w))
+    tell(p, w, tol)
     return len(ss)
+
+
+def tool_numbers(doc, prefix=STICKY):
+    """Number fields of tool_options (lengths in doc units)."""
+    C = Rhino.Input.Custom
+    num = dict((k, C.OptionDouble(opt(k, doc, prefix), 0.0, 1e6)) for k in ("width", "depth", "kdepth", "over"))
+    num["move"] = C.OptionDouble(opt("move", doc, prefix), 0.05, 1e6)  # the knife has to move a little
+    return num
+
+
+def tool_options(gp, num, prefix=STICKY):
+    """Adds Tool and its options — Mark: Style, Width (V), Depth, Placement; Cut: Depth, Overcut, Move, Standard.
+    Returns ({option index: sticky key of the list}, index of Standard or -1)."""
+    idx = {gp.AddOptionList("Tool", TOOLS, opt("tool", prefix=prefix)): "tool"}
+    if TOOLS[opt("tool", prefix=prefix)] == "Cut":  # knife V: its width follows from these
+        gp.AddOptionDouble("Depth", num["kdepth"])
+        gp.AddOptionDouble("Overcut", num["over"])
+        gp.AddOptionDouble("Move", num["move"])
+        return idx, gp.AddOption("Standard")
+    idx[gp.AddOptionList("Style", STYLES, opt("style", prefix=prefix))] = "style"
+    if STYLES[opt("style", prefix=prefix)] == "V":
+        gp.AddOptionDouble("Width", num["width"])
+    gp.AddOptionDouble("Depth", num["depth"])
+    idx[gp.AddOptionList("Placement", PLACES, opt("place", prefix=prefix))] = "place"
+    return idx, -1
 
 
 def ask(gp, doc):
     """Click with options Undo / Mode / (mode options) / Tool / Style, Width (V), Depth, Placement (Mark) or
     Depth, Overcut, Move, Standard (Cut) / Angle. A point, UNDO or None (Enter / Esc). Values — in sc.sticky."""
     C = Rhino.Input.Custom
-    num = dict((k, C.OptionDouble(opt(k, doc), 0.0, 1e6)) for k in ("dist", "first", "last", "pos", "every", "width",
-                                                                     "depth", "kdepth", "over"))
-    num["move"] = C.OptionDouble(opt("move", doc), 0.05, 1e6)  # the knife has to move a little
+    num = tool_numbers(doc)
+    num.update((k, C.OptionDouble(opt(k, doc), 0.0, 1e6)) for k in ("dist", "first", "last", "pos", "every"))
     count = C.OptionInteger(opt("count"), 1, 1000)
     pct = C.OptionToggle(opt("pct"), "No", "Yes")
     both = C.OptionToggle(opt("both"), "No", "Yes")
     a = C.OptionDouble(opt("angle"), 1.0, 179.0)
     while True:
-        mode, style = MODES[opt("mode")], STYLES[opt("style")]
+        mode = MODES[opt("mode")]
         gp.ClearCommandOptions()
         gp.SetCommandPrompt(u"Click near an edge: first third — from its nearer corner, middle third — from the middle (Enter — done)")
         i_undo = gp.AddOption("Undo")
-        i_std = -1
-        idx = {}
-        idx[gp.AddOptionList("Mode", MODES, opt("mode"))] = "mode"
+        idx = {gp.AddOptionList("Mode", MODES, opt("mode")): "mode"}
         if mode == "Single":
             gp.AddOptionDouble("Distance", num["dist"])
             gp.AddOptionToggle("Percent", pct)
@@ -222,18 +267,8 @@ def ask(gp, doc):
             gp.AddOptionDouble("Position", num["pos"])
             gp.AddOptionDouble("Every", num["every"])
             gp.AddOptionToggle("Both", both)
-        idx[gp.AddOptionList("Tool", TOOLS, opt("tool"))] = "tool"
-        if TOOLS[opt("tool")] == "Cut":  # knife V: its width follows from these
-            gp.AddOptionDouble("Depth", num["kdepth"])
-            gp.AddOptionDouble("Overcut", num["over"])
-            gp.AddOptionDouble("Move", num["move"])
-            i_std = gp.AddOption("Standard")
-        else:
-            idx[gp.AddOptionList("Style", STYLES, opt("style"))] = "style"
-            if style == "V":
-                gp.AddOptionDouble("Width", num["width"])
-            gp.AddOptionDouble("Depth", num["depth"])
-            idx[gp.AddOptionList("Placement", PLACES, opt("place"))] = "place"
+        tidx, i_std = tool_options(gp, num)
+        idx.update(tidx)
         gp.AddOptionDouble("Angle", a)
         r = gp.Get()
         for k, v in num.items():
