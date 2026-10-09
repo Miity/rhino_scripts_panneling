@@ -177,14 +177,14 @@ def label_frame(crv, offset, normal):
     return Plane((m + q) / 2.0, u, Vector3d.CrossProduct(normal, u))
 
 
-def layer_attrs(doc, name):
-    """Attributes on layer Parts::<name> (created if missing)."""
-    if not rs.IsLayer("Parts"):
-        rs.AddLayer("Parts")
-    if not rs.IsLayer("Parts::" + name):
-        rs.AddLayer(name, parent="Parts")
+def layer_attrs(doc, name, parent="Parts"):
+    """Attributes on layer <parent>::<name> (created if missing)."""
+    if not rs.IsLayer(parent):
+        rs.AddLayer(parent)
+    if not rs.IsLayer(parent + "::" + name):
+        rs.AddLayer(name, parent=parent)
     attrs = doc.CreateDefaultAttributes()
-    attrs.LayerIndex = doc.Layers.FindByFullPath("Parts::" + name, -1)
+    attrs.LayerIndex = doc.Layers.FindByFullPath(parent + "::" + name, -1)
     return attrs
 
 

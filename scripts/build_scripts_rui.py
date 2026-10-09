@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Builds Scripts.rui (project root): 6 separate toolbars (Sizes / Curves / Analysis / Cut / Parts / Markup)
-shown as tabs in one Rhino panel.
+shown as tabs in one Rhino panel; and Pattern.rui — a separate toolbar file (PATTERN: tools after PatternSmith).
 Run with plain python3 outside Rhino: python3 scripts/build_scripts_rui.py
 Build with Rhino closed; Rhino picks up the changes after a restart. How to connect it the first time — README.md.
 To add a script — add a line to GROUPS (English) and to IT (Italian), and rerun this file.
@@ -88,6 +88,13 @@ GROUPS = [
     ]),
 ]
 
+# Separate toolbar file Pattern.rui: pattern tools after the PatternSmith guide (seam allowance, notches)
+PATTERN = [
+    (u"Pattern", u"Pattern tools after PatternSmith: seam allowance, notches", [
+        (u"Seams", u"Seam allowance: panel = sew line → closed cut line around it in Pattern::Seams; click an edge — Width (presets 8 / 10 / 12 / 15 / 20 mm, Edit), Mode=Corner — corner style Extend / Slant / Return, All — every edge", py("pattern/Seams.py"), None),
+    ]),
+]
+
 LANG = "IT"
 
 # Italian toolbar: English name in GROUPS → (name, tooltip); groups → (tab name, description)
@@ -148,6 +155,8 @@ IT = {
     u"TextToCurves": (u"Testo → curve", u"Testo → curve per il nesting (come Explode, ma il testo specchiato / capovolto resta leggibile, come a schermo)"),
     u"Legend": (u"Legenda", u"Legenda delle etichette (P, F, Off, C, Z, Can, R, RC, RD, RO, T, A–A): solo quelle presenti nel disegno, come testo nel punto cliccato; lingua IT / EN / UA"),
     u"Panel Page": (u"Pagina pannello", u"Foglio A4 per la selezione: un nuovo Layout P<n>, vista Top, come Zoom Selected su tutta la selezione"),
+    u"Pattern": (u"Modello", u"Strumenti del cartamodello come in PatternSmith: margini di cucitura, tacche"),
+    u"Seams": (u"Margini", u"Margine di cucitura: il pannello è la linea di cucitura → linea di taglio chiusa attorno in Pattern::Seams; clic su un lato — larghezza (8 / 10 / 12 / 15 / 20 mm, Edit), Mode=Corner — angolo Extend / Slant / Return, All — tutti i lati"),
 }
 
 
@@ -185,17 +194,19 @@ def toolbar(key, name, items):
     return u'    <tool_bar guid="%s">\n%s%s    </tool_bar>\n' % (gid("toolbar", key), loc("text", name, "      "), u"".join(items))
 
 
-bars = []
-for group, group_tip, buttons in GROUPS:
-    items = []
-    for text, tip, script, right in buttons:
-        name, tip = tr(text, tip)
-        l = macro(text, name, tip, script)
-        r = macro(right[0], *tr(right[0], right[1]) + (right[2],)) if right else None
-        items.append(item(group + "/" + text, name, l, r))
-    bars.append(toolbar(group, tr(group, group_tip)[0], items))
-
-rui = u'''<?xml version="1.0" encoding="utf-8"?>
+def build(groups, *file_key):
+    """RUI text with one toolbar per group; file_key — the file GUID (Scripts.rui keeps its old one)."""
+    del macros[:]
+    bars = []
+    for group, group_tip, buttons in groups:
+        items = []
+        for text, tip, script, right in buttons:
+            name, tip = tr(text, tip)
+            l = macro(text, name, tip, script)
+            r = macro(right[0], *tr(right[0], right[1]) + (right[2],)) if right else None
+            items.append(item(group + "/" + text, name, l, r))
+        bars.append(toolbar(group, tr(group, group_tip)[0], items))
+    return u'''<?xml version="1.0" encoding="utf-8"?>
 <RhinoUI major_ver="3" minor_ver="0" guid="%s" localize="False" default_language_id="1033" dpi_scale="100">
   <extend_rhino_menus />
   <menus />
@@ -211,14 +222,16 @@ rui = u'''<?xml version="1.0" encoding="utf-8"?>
   </bitmaps>
   <scripts />
 </RhinoUI>
-''' % (gid("file"), u"".join(bars), u"".join(macros))
+''' % (gid(*file_key), u"".join(bars), u"".join(macros))
+
 
 if __name__ == "__main__":
-    # Check: every .py/.gh in the macros exists on disk.
     import re
-    missing = [p for p in re.findall(r'"([^"]+\.(?:py|gh))"', rui) if not os.path.isfile(p)]
-    assert not missing, "Missing files: %s" % missing
-    out = os.path.join(ROOT, "Scripts.rui")
-    with open(out, "wb") as f:
-        f.write(rui.encode("utf-8"))
-    print("OK -> %s" % out)
+    for name, rui in (("Scripts.rui", build(GROUPS, "file")), ("Pattern.rui", build(PATTERN, "file", "Pattern"))):
+        # Check: every .py/.gh in the macros exists on disk.
+        missing = [p for p in re.findall(r'"([^"]+\.(?:py|gh))"', rui) if not os.path.isfile(p)]
+        assert not missing, "Missing files: %s" % missing
+        out = os.path.join(ROOT, name)
+        with open(out, "wb") as f:
+            f.write(rui.encode("utf-8"))
+        print("OK -> %s" % out)

@@ -9,6 +9,7 @@ The toolbar is in **Italian** (customers and seamstresses are Italian): tabs **M
 | Scripts (one subfolder per tab) | `scripts/sizes/` · `curves/` · `analysis/` · `cut/` · `parts/` · `markup/` |
 | Grasshopper definitions | `Grasshoper scripts/*.gh` |
 | Toolbar file (generated, do not edit by hand) | `Scripts.rui` |
+| Separate toolbar file **Pattern** (Modello) — tools after the PatternSmith guide | `Pattern.rui`, scripts in `scripts/pattern/` |
 | Toolbar builder — **the button list is edited here** | `scripts/build_scripts_rui.py` |
 | Backup of the old `_Scripts` toolbar | `_backup_toolbar_20260930_2058/` |
 
@@ -132,6 +133,11 @@ before it) without leaving the command; a number given in that click is reused. 
 | Legend | label legend (P, F, Off, C, Z, Can, R, RC, RD, RO, T, A–A) — only those present in the drawing, as text at the click point; option Lang = IT (default) / EN / UA | — |
 | Panel Page | sheet for PDF: selected objects (panel contour or any of its parts) → one new A4 Layout (always portrait — Print on Mac uses one orientation for all sheets), one Top detail aimed at the whole selection (like Zoom Selected), scale as in Zoom Selected (the selection fills the frame, not rounded), the detail is not locked; name — UserText `Part` / label `P<n>` within the selection / the next free `P<n>`; one run — one sheet; labels are not touched | — |
 
+**Pattern** (Modello) — separate toolbar file `Pattern.rui`; `scripts/pattern/`. Tools rebuilt after the PatternSmith guide (Pattern Editor): the panel is the **sew line**, the seam allowance is a separate **cut line** around it.
+| Button | Left click | Right click |
+|---|---|---|
+| Seams (Margini) | `pattern/Seams.py` — seam allowance (PatternSmith: Toolbar > Seams): select panels (closed curves = sew lines) → click near an edge (corner to corner, `Angle`), it gets `Width` — one of 5 presets (8 / 10 / 12 / 15 / 20 mm; `Edit` — change them, kept in the .3dm; `Off` — the edge loses its seam); each edge its own width. Result — one closed cut line per panel, layer `Pattern::Seams`, in the panel's groups; the panel is not changed. `Mode=Corner` — click near a corner, it gets `Corner`: **Extend** (seams extend to their intersection, at most one seam width; default), **Slant** (each seam to the sew line of the neighbouring edge — corner cut across), **Return** (the seam returns at 90° to the sew line at the corner); inner corners — seams cut where they cross. `All` — every edge / corner of the selected panels. Widths and styles are in the cut line's UserText (`Seams`, `SeamCorners`, by edge middle / corner point, no ids): the next click on the panel rebuilds the same cut line. Later PreparePanelCut: cut line → `CUT`, panel edges → sew line on `INK` | — |
+
 Deliberately left off the toolbar: `BoundingBoxWithSize.py` (old version), `GH_SplitCurveByAngle.py` (code for a GHPython component), `PatternTextStyles_check.py` (check), `build_scripts_rui.py` (builder).
 
 ---
@@ -150,6 +156,8 @@ Rhino.RhinoApp.ToolbarFiles.Open("/Users/dmytro/Documents/Rhino/Scripts.rui")
 ```
 
 Then show the toolbars as described above. Rhino remembers the file and opens it itself.
+
+**Pattern** toolbar (Modello) is a separate file: the same builder writes `Pattern.rui` next to `Scripts.rui`; open it once the same way — `Rhino.RhinoApp.ToolbarFiles.Open("/Users/dmytro/Documents/Rhino/Pattern.rui")`.
 
 ---
 
