@@ -2,7 +2,8 @@
 """Check of PackStrips in Rhino 8 (headless document): strips 35 and 60 high (groups with a label, one with a zip line,
 one loose rectangle with a loose label) → one block per width, rows no longer than the longest strip, labels and lines
 moved with their strip, nothing overlaps, a text outside the strips stays; a narrow roll with Gap → rows get longer,
-the block fits the roll width, the next block goes to a new column, Gap between all strips.
+the block fits the roll width, the next block goes to a new column, Gap between all strips; is_rect: trapezoid,
+curved, long strip with a 45° end, tilted 0.5° — not rectangles.
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_pack_strips.txt next to it."""
 import os
@@ -85,6 +86,23 @@ try:
     boxes = check(200.0, 10.0, 100.0, 50.0)
     x0, x1, y0, y1 = block(boxes, 35.0)
     assert abs(x0 - (100 + 1400 + 10)) < tol and abs(y1 - 50) < tol, (x0, y1)  # next column, Gap after the 60 block
+
+    # rectangles only: trapezoid end, curved strip, long thin strip with a 45° end, tilted 0.5° → not rectangles
+    from Rhino.Geometry import Arc, ArcCurve, Curve, LineCurve, Polyline, PolylineCurve, Transform
+    def poly(*xy):
+        return doc.Objects.AddCurve(PolylineCurve(Polyline([Point3d(x, y, 0) for x, y in xy + (xy[0],)])))
+    tilted = PolylineCurve(Polyline([Point3d(*p) for p in ((0, 0, 0), (1000, 0, 0), (1000, 60, 0), (0, 60, 0), (0, 0, 0))]))
+    tilted.Transform(Transform.Rotation(0.5 * 3.14159265 / 180, Vector3d.ZAxis, Point3d.Origin))
+    arc = Curve.JoinCurves([ArcCurve(Arc(Point3d(0, 0, 0), Point3d(500, 40, 0), Point3d(1000, 0, 0))),
+                            LineCurve(Point3d(1000, 0, 0), Point3d(1000, 60, 0)),
+                            ArcCurve(Arc(Point3d(1000, 60, 0), Point3d(500, 100, 0), Point3d(0, 60, 0))),
+                            LineCurve(Point3d(0, 60, 0), Point3d(0, 0, 0))], 0.001)[0]
+    odd = [poly((0, 0), (1000, 0), (940, 60), (60, 60)), doc.Objects.AddCurve(arc),
+           poly((0, 0), (5000, 0), (4965, 35), (0, 35)), doc.Objects.AddCurve(tilted)]
+    good = [poly((0, 0), (1000, 0), (1000, 60), (0, 60)), rects[0]]
+    for i, want in [(i, False) for i in odd] + [(i, True) for i in good]:
+        u = P.strips(doc, [i])
+        assert len(u) == 1 and P.is_rect(u[0], Plane.WorldXY, doc.ModelAbsoluteTolerance) == want, (i, want)
     out.write("OK\n%r\n" % (rep,))
 except Exception:
     out.write(traceback.format_exc())

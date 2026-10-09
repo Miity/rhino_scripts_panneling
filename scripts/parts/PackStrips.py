@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Pack strips into a compact rectangle on the roll: after Layout Stack / Strips, before nesting.
 Select strips already lying along CPlane X (Layout Stack copies, fascia strips…; a window is fine). A strip = a group
-of the selection, or a closed curve with the loose selected objects inside it (label, zip lines). Strips are only moved,
-never turned (the grain stays). One block per strip width (±1 mm): rows as long as the longest strip, each strip in the
+of the selection, or a closed curve with the loose selected objects inside it (label, zip lines). Only rectangles along
+CPlane X are packed (the contour fills its box); the others — trapezoid ends, curved, tilted — are not moved, their labels
+are listed in the command history. Strips are only moved, never turned (the grain stays). One block per strip width (±1 mm): rows as long as the longest strip, each strip in the
 first row it fits (longest first); if the rows do not fit into the roll Width, the rows get longer — the shortest
 length at which they fit. Blocks go down from the click point (top-left corner), widest strips first; a block that does
 not fit into the rest of the roll width starts a new column to the right. Gap — between strips, rows and blocks
@@ -15,7 +16,7 @@ import sys
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import Plane, Transform
+from Rhino.Geometry import AreaMassProperties, Plane, Transform
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("LayoutParts", None)  # Rhino keeps modules from the first run for the session
@@ -48,6 +49,14 @@ def strips(doc, ids):
         if u is not None:
             u.append(o)
     return units
+
+
+def is_rect(u, plane, tol):
+    """The strip u is a rectangle along plane X: its contour fills its box (box area − area ≤ tol × perimeter)."""
+    c = outer(u)
+    b = c.GetBoundingBox(Transform.PlaneToPlane(plane, Plane.WorldXY))
+    amp = AreaMassProperties.Compute(c)
+    return amp is not None and (b.Max.X - b.Min.X) * (b.Max.Y - b.Min.Y) - amp.Area <= tol * c.GetLength()
 
 
 def rows_of(lengths, L, gap, tol):
@@ -128,9 +137,16 @@ def main():
     ids = rs.GetObjects(u"Select the strips (lying along CPlane X; window allowed)", preselect=True)
     if not ids:
         return
-    units = strips(doc, ids)
+    plane = rs.ViewCPlane()
+    tol = doc.ModelAbsoluteTolerance
+    units, odd = [], []
+    for u in strips(doc, ids):
+        (units if is_rect(u, plane, tol) else odd).append(u)
+    if odd:
+        names = [o.Geometry.PlainText for u in odd for o in u if isinstance(o.Geometry, Rhino.Geometry.TextEntity)]
+        print(u"Not rectangles, not moved: %d (%s)" % (len(odd), u", ".join(names) or u"no labels"))
     if not units:
-        print(u"No strips (closed curves) in the selection")
+        print(u"No rectangular strips in the selection")
         return
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
     gp = Rhino.Input.Custom.GetPoint()
@@ -146,7 +162,6 @@ def main():
     sc.sticky[STICKY + "_gap"] = gap.CurrentValue
     if gp.CommandResult() != Rhino.Commands.Result.Success:
         return
-    plane = rs.ViewCPlane()
     if gp.Result() == Rhino.Input.GetResult.Point:
         start = gp.Point()
     else:  # in place: the top-left corner of the selected strips
@@ -160,7 +175,7 @@ def main():
         rs.EnableRedraw(True)
     for h, n, rows, long, tall in report:
         print(u"Strips %s cm: %d in %d rows, block %s × %s cm" % (cm(h), n, rows, cm(long), cm(tall)))
-        if tall > width.CurrentValue + doc.ModelAbsoluteTolerance:
+        if tall > width.CurrentValue + tol:
             print(u"Warning: a strip is wider than the roll — the block is taller than Width")
 
 
