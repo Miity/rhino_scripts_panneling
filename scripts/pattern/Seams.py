@@ -274,8 +274,9 @@ def edge_of(es, q, widths):
 
 
 def move_notches(doc, es, old, new, line, normal, steps, near):
-    """Notches lying on line (the old cut line, or the panel if it had none) move with the seam: along the outside
-    of their edge by its new − old width (PatternSmith: notches move out to the cut line)."""
+    """Notches lying on line (the old cut line, or the panel if it had none; knife V legs — within their depth of it)
+    move with the seam: along the outside of their edge by its new − old width (PatternSmith: notches move out
+    to the cut line)."""
     # ponytail: a notch on an edge shared with another panel's sew line moves with whichever panel changes first
     s = Rhino.DocObjects.ObjectEnumeratorSettings()
     s.HiddenObjects = s.LockedObjects = True
@@ -284,7 +285,13 @@ def move_notches(doc, es, old, new, line, normal, steps, near):
         if not o.Attributes.GetUserString(NOTCH) or not isinstance(g, Curve):
             continue
         ok, q, r = g.ClosestPoints(line)
-        if not ok or q.DistanceTo(r) > near:
+        reach = 0.0
+        if o.Attributes.GetUserString("NotchTool") == "Cut":  # knife V legs start inside, within its depth
+            try:
+                reach = float(o.Attributes.GetUserString("NotchD") or 0)
+            except ValueError:
+                pass
+        if not ok or q.DistanceTo(r) > near + reach:
             continue
         k = edge_of(es, r, old)
         d = new[k] - old[k]

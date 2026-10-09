@@ -10,13 +10,19 @@ Mode (PatternSmith tools):
   Evenly — Repeat Evenly Between: First from the corner nearest the click, Last from the other one, Count notches
     in all (both included), equal spacing;
   Repeat — Repeat Starting: from From, the first at Position, then Every; Middle + Both=Yes — both directions.
-Notch properties: Style Slit (a line) / V (opening Width on the line, tip Depth away), Placement In (into the
-panel) / Out / Center (across the line), Depth, Tool Mark (pen, layer INK) / Cut (knife, layer INT — inner cuts).
+Tool Mark (pen, layer INK): Style Slit (a line) / V (opening Width on the line, tip Depth away), Placement In
+(into the panel) / Out / Center (across the line), Depth.
+Tool Cut (knife, layer INT — inner cuts) — a V for the circular blade (lama circolare), which cuts Overcut past
+both ends of every line: each leg is its own short line pointing to the apex, from Overcut to Overcut + Move along
+the leg; the blade's own overrun then cuts exactly from the edge to the apex — nothing behind the edge, the
+triangle falls out. Legs are 2·Overcut + Move long, so the width follows: 2·√((2·Overcut + Move)² − Depth²)
+(Overcut 3, Move 1, Depth 3 → ≈ 12.6 mm). Depth over 2·Overcut + Move — the legs meet straight: one slit.
 If the panel has a cut line (Seams, Pattern::Seams), the notches sit on it — moved out from the sew line by the
 edge's seam width; the next Seams change moves them again. A notch In that reaches the sew line
 (Depth ≥ seam width) — warning. UserText on each notch: Notch (style), NotchW, NotchD, NotchPlace, NotchTool.
 The notches of one click are one group; they also join the panel's groups (move with it).
 """
+import math
 import os
 import sys
 
@@ -44,8 +50,8 @@ LAYERS = {"Mark": ("INK", System.Drawing.Color.Blue), "Cut": ("INT", System.Draw
 # defaults, mm (doc units at run time); counts, toggles, list indices as they are
 DEFAULTS = {"mode": 3, "dist": 0.0, "pct": False, "first": 50.0, "last": 50.0, "count": 3, "pos": 0.0,
             "every": 200.0, "both": True, "style": 0, "width": 6.0, "depth": 5.0, "place": 0, "tool": 0,
-            "angle": 30.0}
-MM_KEYS = ("dist", "first", "last", "pos", "every", "width", "depth")
+            "kdepth": 3.0, "over": 3.0, "move": 1.0, "angle": 30.0}  # kdepth / over / move — knife V
+MM_KEYS = ("dist", "first", "last", "pos", "every", "width", "depth", "kdepth", "over", "move")
 
 
 def opt(name, doc=None):
@@ -95,6 +101,27 @@ def notch(base, out, normal, style, place, w, d):
     return PolylineCurve([a - t * (w / 2.0), tip, a + t * (w / 2.0)])
 
 
+def knife_width(d, c, m):
+    """(width, move) of the knife V of depth d for a blade cutting c past each line end, knife move m:
+    legs 2c + m long. Deeper than that — move grows until the legs meet straight (width 0: a slit)."""
+    m = max(m, d - 2 * c)
+    return 2 * math.sqrt(max((2 * c + m) ** 2 - d * d, 0.0)), m
+
+
+def knife(base, out, normal, d, w, c, m):
+    """Knife V at base on the line (out — outside of the edge there), depth d, width w: per leg one line pointing
+    to the apex, from c to c + m along it from its edge point (w = 0 — one line). The blade cutting c past both ends
+    then cuts exactly edge point → apex."""
+    t = Vector3d.CrossProduct(out, normal)  # along the edge
+    apex = base - out * d
+    lines = []
+    for e in ([base] if w <= 1e-9 else [base - t * (w / 2.0), base + t * (w / 2.0)]):
+        u = apex - e
+        u.Unitize()
+        lines.append(LineCurve(e + u * c, e + u * (c + m)))
+    return lines
+
+
 def tool_attrs(doc, tool):
     """Mark — pen, layer INK; Cut — knife, layer INT (inner cuts; created if missing)."""
     name, color = LAYERS[tool]
@@ -126,11 +153,18 @@ def place(doc, oid, click, tol):
     ss = positions(length, MODES[o["mode"]], e.GetLength(Interval(e.Domain.T0, t)), o)
     if not ss:
         return u"no notch fits on the edge (%g)" % round(length, 1)
-    style, where, tool = STYLES[o["style"]], PLACES[o["place"]], TOOLS[o["tool"]]
+    tool = TOOLS[o["tool"]]
+    if tool == "Cut":  # knife: always the circular-blade V, into the panel
+        style, where, d = "V", "In", o["kdepth"]
+        width, move = knife_width(d, o["over"], o["move"])
+        print(u"Knife V: width %g, depth %g; each leg — the knife drops %g along it from the edge, moves %g, lifts"
+              % (round(width, 2), d, o["over"], round(move, 2)))
+    else:
+        style, where, d, width = STYLES[o["style"]], PLACES[o["place"]], o["depth"], o["width"]
     attrs = tool_attrs(doc, tool)
     for g in list(obj.Attributes.GetGroupList() or []) + [doc.Groups.Add()]:  # panel's groups + one per click
         attrs.AddToGroup(g)
-    for k, v in ((NOTCH, style), ("NotchW", "%.6g" % o["width"]), ("NotchD", "%.6g" % o["depth"]),
+    for k, v in ((NOTCH, style), ("NotchW", "%.6g" % width), ("NotchD", "%.6g" % d),
                  ("NotchPlace", where), ("NotchTool", tool)):
         attrs.SetUserString(k, v)
     for s in ss:
@@ -138,23 +172,27 @@ def place(doc, oid, click, tol):
         p = e.PointAt(ts if ok else t)
         out = Vector3d.CrossProduct(e.TangentAt(ts if ok else t), normal)
         out.Unitize()
-        doc.Objects.AddCurve(notch(p + out * w, out, normal, style, where, o["width"], o["depth"]), attrs)
-    inward = {"In": o["depth"], "Center": o["depth"] / 2.0}.get(where, 0.0)
+        base = p + out * w
+        for g in (knife(base, out, normal, d, width, o["over"], move) if tool == "Cut" else
+                  [notch(base, out, normal, style, where, width, d)]):
+            doc.Objects.AddCurve(g, attrs)
+    inward = {"In": d, "Center": d / 2.0}.get(where, 0.0)
     if w > tol and inward >= w - tol:
-        print(u"Warning: Depth %g reaches the sew line (seam %g)" % (o["depth"], w))
+        print(u"Warning: Depth %g reaches the sew line (seam %g)" % (d, w))
     return len(ss)
 
 
 def ask(gp, doc):
-    """Click with options Undo / Mode / (mode options) / Style / Width (V) / Depth / Placement / Tool / Angle.
-    A point, UNDO or None (Enter / Esc). Values — in sc.sticky."""
+    """Click with options Undo / Mode / (mode options) / Tool / Style, Width (V), Depth, Placement (Mark) or
+    Depth, Overcut, Move (Cut) / Angle. A point, UNDO or None (Enter / Esc). Values — in sc.sticky."""
     C = Rhino.Input.Custom
-    num = dict((k, C.OptionDouble(opt(k, doc), 0.0, 1e6)) for k in ("dist", "first", "last", "pos", "every", "width", "depth"))
+    num = dict((k, C.OptionDouble(opt(k, doc), 0.0, 1e6)) for k in ("dist", "first", "last", "pos", "every", "width",
+                                                                     "depth", "kdepth", "over"))
+    num["move"] = C.OptionDouble(opt("move", doc), 0.05, 1e6)  # the knife has to move a little
     count = C.OptionInteger(opt("count"), 1, 1000)
     pct = C.OptionToggle(opt("pct"), "No", "Yes")
     both = C.OptionToggle(opt("both"), "No", "Yes")
     a = C.OptionDouble(opt("angle"), 1.0, 179.0)
-    lists = (("mode", "Mode", MODES), ("style", "Style", STYLES), ("place", "Placement", PLACES), ("tool", "Tool", TOOLS))
     while True:
         mode, style = MODES[opt("mode")], STYLES[opt("style")]
         gp.ClearCommandOptions()
@@ -173,12 +211,17 @@ def ask(gp, doc):
             gp.AddOptionDouble("Position", num["pos"])
             gp.AddOptionDouble("Every", num["every"])
             gp.AddOptionToggle("Both", both)
-        idx[gp.AddOptionList("Style", STYLES, opt("style"))] = "style"
-        if style == "V":
-            gp.AddOptionDouble("Width", num["width"])
-        gp.AddOptionDouble("Depth", num["depth"])
-        idx[gp.AddOptionList("Placement", PLACES, opt("place"))] = "place"
         idx[gp.AddOptionList("Tool", TOOLS, opt("tool"))] = "tool"
+        if TOOLS[opt("tool")] == "Cut":  # knife V: its width follows from these
+            gp.AddOptionDouble("Depth", num["kdepth"])
+            gp.AddOptionDouble("Overcut", num["over"])
+            gp.AddOptionDouble("Move", num["move"])
+        else:
+            idx[gp.AddOptionList("Style", STYLES, opt("style"))] = "style"
+            if style == "V":
+                gp.AddOptionDouble("Width", num["width"])
+            gp.AddOptionDouble("Depth", num["depth"])
+            idx[gp.AddOptionList("Placement", PLACES, opt("place"))] = "place"
         gp.AddOptionDouble("Angle", a)
         r = gp.Get()
         for k, v in num.items():
@@ -199,9 +242,11 @@ HELP = u"""Options (where the click sits on the edge sets From: first third — 
   Mode — Single: one notch at Distance from From (0 — at the click, Percent=Yes — % of the edge); Mid: middle of the edge;
     Evenly: First / Last from the corners (First — the corner nearer the click), Count notches in all, equal spacing;
     Repeat: from From, first at Position, then Every; Middle + Both=Yes — both directions
-  Style — Slit: a line; V: opening Width on the line, tip Depth away
-  Depth — notch depth; Placement — In: into the panel, Out: away from it, Center: across the line
-  Tool — Mark: pen, layer INK; Cut: knife, layer INT (inner cuts)
+  Tool — Mark: pen, layer INK; Cut: knife, layer INT (inner cuts), always the V for the circular blade
+  Mark: Style — Slit: a line; V: opening Width on the line, tip Depth away; Depth — notch depth;
+    Placement — In: into the panel, Out: away from it, Center: across the line
+  Cut: Depth — real V depth (default 3); Overcut — how far the blade cuts past each end of a line (measure: cut a
+    1 mm line on scrap, Overcut = (slit − 1) / 2); Move — knife move per leg; the width follows (printed)
   Angle — a break larger than this angle = corner (edges are taken corner to corner)
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
 
