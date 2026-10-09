@@ -77,7 +77,7 @@ GROUPS = [
         (u"Pack Strips", u"Strips with a straight top and bottom along CPlane X (Layout Stack, Strips; ends may be slanted) moved into a compact block (curved — not moved, listed): rows as long as the longest strip, within the roll Width (rows get longer if needed), one block per strip width, Gap between strips (0 — touching); Enter — in place", py("parts/PackStrips.py"), None),
     ]),
     (u"Markup", u"Markup on INK", [
-        (u"Crosses", u"Points → crosses or circles", py("markup/PointsToCrosses.py"), None),
+        (u"Crosses", u"Points / seam circles → crosses, circles or (Edge) lines to the panel edge", py("markup/PointsToCrosses.py"), None),
         (u"Linetype 400,2", u"Assign linetype 400,2 to the selected curves", py("markup/line_type.py"), None),
         (u"TextStyles", u"Create/update PAT 2.5–40 mm text styles for 1:1 patterns", py("markup/PatternTextStyles.py"), None),
         (u"TextToDot", u"Text → TextDot", py("markup/TextToDot.py"),
@@ -138,7 +138,7 @@ IT = {
     u"Layout Stack": (u"Piazza in pila", u"Strisce che si possono girare lungo il drittofilo — opzioni Rinforzo / Bordini: copie sul piazzamento lungo X del CPlane, in pila in giù dal clic a distanza Gap (0 — a contatto), le più lunghe prima; <layer>::Layout; Hide=Yes — i pezzi piazzati vengono nascosti"),
     u"Pack Strips": (u"Compatta strisce", u"Strisce con lato sopra e sotto dritto lungo X del CPlane (Piazza in pila, Fasce; estremi anche obliqui) spostate in un blocco compatto (curve — non spostate, elencate): righe lunghe quanto la striscia più lunga, entro la larghezza del rotolo Width (le righe si allungano se serve), un blocco per ogni larghezza, Gap tra le strisce (0 — a contatto); Invio — sul posto"),
     u"Markup": (u"Segni", u"Segni su INK"),
-    u"Crosses": (u"Croci", u"Punti → croci o cerchi"),
+    u"Crosses": (u"Croci", u"Punti / cerchi delle battute → croci, cerchi o (Edge) linee fino al bordo del pannello"),
     u"SewingPoints": (u"Battute", u"Battute: pannelli / curve + clic vicino a un lato → punti dal centro del lato (da angolo ad angolo) in entrambe le direzioni con passo Step (200 mm) + tacca centrale (Tick 10 mm, verso l'interno del pannello); Parts::SewingMarks"),
     u"SewPoints GH": (u"Battute GH", u"Battute (Grasshopper Player, versione vecchia)"),
     u"Linetype 400,2": (u"Linea 400,2", u"Assegna il tipo di linea 400,2 alle curve selezionate"),

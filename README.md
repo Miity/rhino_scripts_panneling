@@ -124,7 +124,7 @@ before it) without leaving the command; a number given in that click is reused. 
 **Markup** — `scripts/markup/`
 | Button | Left click | Right click |
 |---|---|---|
-| Crosses | points → crosses or circles | — |
+| Crosses | points / seam circles (radius up to 10 mm) → crosses or circles; shape `Edge` — battute visible on the edge: then select the outer panel contours (cut line, closed; a window over the panel works — the seam line through the marks and the marks themselves are ignored) → from each mark a line perpendicular to the nearest contour around it, ending exactly on the edge (across the seam allowance), in the mark's layer and groups; a mark already on the edge — skipped; `Originals` Keep / Delete | — |
 | Linetype 400,2 | assign linetype `400,2` | — |
 | TextStyles | create/update PAT 2.5–40 mm text styles | — |
 | TextToDot | text → TextDot | DotToPanelText — TextDot → text in the panel corner (INK) |
