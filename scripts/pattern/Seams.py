@@ -222,22 +222,23 @@ def presets(doc):
 
 
 def edit_presets(doc):
-    cur = " ".join("%g" % p for p in presets(doc))
-    gs = Rhino.Input.Custom.GetString()
-    gs.SetCommandPrompt(u"Seam allowance presets, mm (separated by spaces)")
-    gs.SetDefaultString(cur)
-    gs.AcceptNothing(True)
-    if gs.GetLiteralString() != Rhino.Input.GetResult.String:  # not rs.GetString: there space = Enter
-        return  # Esc / Enter — nothing to change
-    s = gs.StringResult()
+    """PatternSmith Edit Seam Allowances: a dialog with a field per preset width (on the command line a space
+    ends the input). Empty field — that preset is dropped; 12,5 = 12.5."""
+    cur = presets(doc)
+    n = max(len(PRESETS_MM), len(cur))
+    res = rs.PropertyListBox(["Width %d" % (i + 1) for i in range(n)],
+                             ["%g" % v for v in cur] + [""] * (n - len(cur)),
+                             u"Seam allowance presets, mm (empty — not used)", u"Seams")
+    if res is None:
+        return  # Cancel
     try:
-        vals = [float(v) for v in (s or "").replace(";", " ").replace(",", ".").split()]  # 12,5 = 12.5
+        vals = [float(v.replace(",", ".")) for v in res if v.strip()]
     except ValueError:
         vals = []
     if vals and all(v > 0 for v in vals):
         doc.Strings.SetString(STICKY, "presets", " ".join("%g" % v for v in vals))
     else:
-        print(u"Presets not changed: %s" % s)
+        print(u"Presets not changed: %s" % u", ".join(res))
 
 
 def label(v):
@@ -355,7 +356,7 @@ def apply(doc, oid, click, steps, tol):
 HELP = u"""Options:
   Mode — Seam: click near a panel edge, it gets the seam Width; Corner: click near a corner, it gets the Corner style
   Width — seam allowance, one of the presets (mm); Off — the edge loses its seam
-  Edit — change the preset widths (kept in the .3dm)
+  Edit — change the preset widths in a dialog, a field per width (kept in the .3dm)
   Corner — Extend: seams extend to their intersection, at most one seam width; Slant: each seam to the neighbour's
     sew line (corner cut across); Return: the seam returns at 90° to the sew line
   All — the same for every edge / corner of the selected panels
