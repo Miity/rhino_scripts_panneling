@@ -17,7 +17,7 @@ both ends of every line: each leg is its own short line pointing to the apex, fr
 the leg; the blade's own overrun then cuts exactly from the edge to the apex — nothing behind the edge, the
 triangle falls out. Legs are 2·Overcut + Move long, so the width follows: 2·√((2·Overcut + Move)² − Depth²)
 (Overcut 1, Move 3, Depth 2 → ≈ 9.2 mm). Depth over 2·Overcut + Move — the legs meet straight: one slit.
-Standard (Tool=Cut) — back to the plotter's standard: Repeat from the middle both ways, Position 0, Every 30,
+Standard (Tool=Cut) — back to the plotter's standard: Repeat from the middle both ways, Position 0, Every 300,
 Depth 2, Overcut 1, Move 3, Angle 30 (the last values are remembered otherwise).
 If the panel has a cut line (Seams, Pattern::Seams), the notches sit on it — moved out from the sew line by the
 edge's seam width; the next Seams change moves them again. A notch In that reaches the sew line
@@ -54,7 +54,7 @@ DEFAULTS = {"mode": 3, "dist": 0.0, "pct": False, "first": 50.0, "last": 50.0, "
             "every": 200.0, "both": True, "style": 0, "width": 6.0, "depth": 5.0, "place": 0, "tool": 0,
             "kdepth": 2.0, "over": 1.0, "move": 3.0, "angle": 30.0}  # kdepth / over / move — knife V
 # plotter standard for knife notches (option Standard; mm, list index, toggle as in DEFAULTS)
-STANDARD = {"mode": 3, "pos": 0.0, "every": 30.0, "both": True, "kdepth": 2.0, "over": 1.0, "move": 3.0, "angle": 30.0}
+STANDARD = {"mode": 3, "pos": 0.0, "every": 300.0, "both": True, "kdepth": 2.0, "over": 1.0, "move": 3.0, "angle": 30.0}
 MM_KEYS = ("dist", "first", "last", "pos", "every", "width", "depth", "kdepth", "over", "move")
 
 
@@ -264,7 +264,7 @@ HELP = u"""Options (where the click sits on the edge sets From: first third — 
     Placement — In: into the panel, Out: away from it, Center: across the line
   Cut: Depth — real V depth (default 2); Overcut — how far the blade cuts past each end of a line (measure: cut a
     1 mm line on scrap, Overcut = (slit − 1) / 2); Move — knife move per leg; the width follows (printed)
-  Standard — (Tool=Cut) back to the plotter standard: Repeat from the middle, Both, Position 0, Every 30, Depth 2,
+  Standard — (Tool=Cut) back to the plotter standard: Repeat from the middle, Both, Position 0, Every 300, Depth 2,
     Overcut 1, Move 3, Angle 30
   Angle — a break larger than this angle = corner (edges are taken corner to corner)
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
