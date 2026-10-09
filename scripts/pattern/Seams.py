@@ -11,7 +11,7 @@ All — the same for every edge / corner of the selected panels.
 The widths and corner styles live in the cut line's UserText (Seams, SeamCorners) by edge / corner number;
 the cut line is found by geometry (the one around the panel), not by ids or coordinates — moving or rotating
 the panel together with its cut line keeps the link; the next click on the panel rebuilds that cut line.
-Notches of the panel (Notches.py) move with the seam: out to the new cut line (back to the sew line — no seam).
+Notches of the panel (Convert Notches) move with the seam: out to the new cut line (back to the sew line — no seam).
 Later PreparePanelCut makes the cut line the outer contour on CUT and the panel edges the sew line on INK.
 """
 import math

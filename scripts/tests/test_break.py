@@ -64,12 +64,11 @@ try:
         cuts = [o for o in doc.Objects if o.Attributes.GetUserString(S.KEY)]
         assert len(cuts) == 1 and round(AreaMassProperties.Compute(cuts[0].Geometry).Area, 3) == 7500  # 6000+1000+500
 
-        # Notches: Mid of the right half of the top edge — at x = 75, on its cut line (y = 70)
-        sc.sticky.update({"Notches_mode": 1, "Notches_tool": 0, "Notches_style": 0, "Notches_place": 0,
-                          "Notches_depth": 5.0, "Notches_angle": 30.0})
+        # Notches: Mid of the right half of the top edge — a point at x = 75 on the sew line
+        sc.sticky.update({"Notches_mode": 1, "Notches_angle": 30.0})
         assert N.place(doc, pid, Point3d(75, 61, 0), tol) == 1
-        n = [o for o in doc.Objects if o.Attributes.GetUserString(N.NOTCH)][0].Geometry
-        assert set((round(p.X, 6), round(p.Y, 6)) for p in (n.PointAtStart, n.PointAtEnd)) == {(75, 70), (75, 65)}
+        n = [o for o in doc.Objects if o.Attributes.GetUserString(N.NOTCH)][0].Geometry.Location
+        assert (round(n.X, 6), round(n.Y, 6)) == (75, 60), n
         doc.Dispose()
     finally:
         sc.doc, rs.GetObjects, B.ask = old

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Check of pattern/ConvertNotches (older battute and notches → another format, and back) in Rhino 8:
+"""Check of pattern/ConvertNotches (notch shapes; notch points of Notches and older battute → a format, and back;
+notches moving with Seams) in Rhino 8:
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_convert_notches.txt next to it."""
 import math
@@ -14,12 +15,13 @@ try:
     import System
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
-    from Rhino.Geometry import Circle, LineCurve, Point, Point3d, Polyline, PolylineCurve
+    from Rhino.Geometry import Circle, LineCurve, Point, Point3d, Polyline, PolylineCurve, Vector3d
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "pattern"))
     for m in ("ZipCover", "click_undo", "Seams", "Notches", "PointsToCrosses", "ConvertNotches"):
         sys.modules.pop(m, None)  # live Rhino keeps old module versions
     import ConvertNotches as C
-    S, N = sys.modules["Seams"], sys.modules["Notches"]
+    S = sys.modules["Seams"]  # the Seams that ConvertNotches uses
+    import Notches as N
     from click_undo import Steps
 
     tol = 0.001
@@ -27,6 +29,37 @@ try:
         return PolylineCurve(Polyline([Point3d(x, y, 0) for x, y in p]))
     def r3(p):
         return (round(p.X, 3), round(p.Y, 3))
+    def ends(c):
+        return set((round(p.X, 6), round(p.Y, 6)) for p in (c.PointAtStart, c.PointAtEnd))
+    Z = Vector3d.ZAxis
+
+    # shapes at base (50, 60), outside +Y
+    b, o = Point3d(50, 60, 0), Vector3d(0, 1, 0)
+    assert ends(C.notch(b, o, Z, "Slit", "In", 6, 5)) == {(50, 60), (50, 55)}
+    assert ends(C.notch(b, o, Z, "Slit", "Out", 6, 5)) == {(50, 60), (50, 65)}
+    assert ends(C.notch(b, o, Z, "Slit", "Center", 6, 5)) == {(50, 57.5), (50, 62.5)}
+    v = C.notch(b, o, Z, "V", "In", 6, 5)
+    ok, vp = v.TryGetPolyline()
+    assert ok and sorted((round(p.X, 6), round(p.Y, 6)) for p in vp) == [(47, 60), (50, 55), (53, 60)]
+
+    # knife V for the circular blade (cuts c = 3 past both ends of a line): Depth 3, Move 1 → legs 7, width ≈ 12.65;
+    # each leg extended by 3 at both ends must run exactly edge point → apex (nothing behind the edge)
+    def blade(c, over=3.0):
+        u = c.PointAtEnd - c.PointAtStart
+        u.Unitize()
+        return set((round(p.X, 3), round(p.Y, 3)) for p in (c.PointAtStart - u * over, c.PointAtEnd + u * over))
+    w, m = C.knife_width(3.0, 3.0, 1.0)
+    assert abs(w - 2 * math.sqrt(40)) < 1e-9 and m == 1.0
+    legs = C.knife(b, o, Z, 3.0, w, 3.0, 1.0)
+    assert len(legs) == 2 and all(abs(c.GetLength() - 1.0) < 1e-9 for c in legs)
+    assert [blade(c) for c in legs] == [{(43.675, 60), (50, 57)}, {(56.325, 60), (50, 57)}], [blade(c) for c in legs]
+    w, m = C.knife_width(8.0, 3.0, 1.0)  # deeper than 2·3 + 1: the legs meet straight — one slit, move 2
+    assert (w, m) == (0.0, 2.0)
+    legs = C.knife(b, o, Z, 8.0, w, 3.0, m)
+    assert len(legs) == 1 and blade(legs[0]) == {(50, 60), (50, 52)}
+
+    # option Standard: the plotter's knife values back into sticky
+    sc.sticky.update({"ConvertNotches_kdepth": 5.0, "ConvertNotches_over": 3.0, "ConvertNotches_angle": 45.0})
 
     old = sc.doc, rs.GetObjects, C.ask
     try:
@@ -56,14 +89,14 @@ try:
             doc.Groups.AddToGroup(h, i)
         circle = doc.Objects.AddCircle(Circle(Point3d(80, 50, 0), 2))
         far = doc.Objects.Add(Point(Point3d(500, 500, 0)))
-        # notches by Notches: a pen slit in the middle of the right edge, a knife V in the middle of the bottom edge
-        sc.sticky.update({"Notches_mode": 1, "Notches_tool": 0, "Notches_style": 0, "Notches_place": 0,
-                          "Notches_depth": 5.0, "Notches_angle": 30.0})
+        C.use_standard(doc)
+        assert dict((k, C.opt(k, doc)) for k in C.STANDARD) == C.STANDARD
+        # notch points by Notches: the middle of the right edge, the middle of the bottom edge
+        sc.sticky.update({"Notches_mode": 1, "Notches_angle": 30.0})
         assert N.place(doc, pid, Point3d(101, 30, 0), tol) == 1
-        sc.sticky.update({"Notches_tool": 1, "Notches_kdepth": 2.0, "Notches_over": 1.0, "Notches_move": 3.0})
         assert N.place(doc, pid, Point3d(50, -1, 0), tol) == 1
         made = [o.Id for o in doc.Objects if o.Attributes.GetUserString(N.NOTCH)]
-        assert len(made) == 3  # slit + two knife legs
+        assert len(made) == 2 and all(isinstance(doc.Objects.FindId(i).Geometry, Point) for i in made)
 
         def notches():
             return [o for o in doc.Objects if o.Attributes.GetUserString(N.NOTCH)]
@@ -108,6 +141,15 @@ try:
         assert got == sorted(sorted(p) for p in ([(20, 70), (20, 65)], [(50, 70), (50, 65)], [(80, 70), (80, 65)],
                                                  [(100, 30), (95, 30)], [(50, 0), (50, 5)])), got
         assert all(doc.Layers[n.Attributes.LayerIndex].Name == "INK" for n in ns)
+
+        # 3. Seams moves them: top seam 20 → the top slits out to y = 80, the others stay
+        st = Steps(doc)
+        st.start()
+        sc.sticky["Seams_width"] = 20.0
+        assert S.apply(doc, pid, Point3d(50, 61, 0), st, tol) is None
+        got = sorted(sorted([r3(n.Geometry.PointAtStart), r3(n.Geometry.PointAtEnd)]) for n in notches())
+        assert got == sorted(sorted(p) for p in ([(20, 80), (20, 75)], [(50, 80), (50, 75)], [(80, 80), (80, 75)],
+                                                 [(100, 30), (95, 30)], [(50, 0), (50, 5)])), got
         doc.Dispose()
     finally:
         sc.doc, rs.GetObjects, C.ask = old
