@@ -365,11 +365,13 @@ def only_inside(ids, plane, polygons, tol):
 
 
 MARKS = 4 | 512  # rs.filter.curve | rs.filter.annotation: lines and texts
+NOTCH = "Notch"  # UserText of a notch (pattern/Notches.py): stays on its layer, never a panel line
 
 
 def main():
     ids = rs.GetObjects(u"Step 1: select panel lines (polylines, lines, seam strips)", rs.filter.curve,
                         preselect=True, select=False)
+    ids = [i for i in ids or [] if not rs.GetUserText(i, NOTCH)]  # notches are already on INK / CUT
     if not ids:
         return
     tol = sc.doc.ModelAbsoluteTolerance
@@ -391,8 +393,9 @@ def main():
                            MARKS, preselect=False, select=False)
     if not to_ink:
         to_ink = rs.ObjectsByType(MARKS, select=False, state=1) or []
+    to_int = [i for i in to_int if not rs.GetUserText(i, NOTCH)]
     taken = panel_ids.union(to_int)
-    to_ink = only_inside([i for i in to_ink if i not in taken], plane, polygons, tol)
+    to_ink = only_inside([i for i in to_ink if i not in taken and not rs.GetUserText(i, NOTCH)], plane, polygons, tol)
 
     if not rs.IsLayer("int"):
         rs.AddLayer("int")

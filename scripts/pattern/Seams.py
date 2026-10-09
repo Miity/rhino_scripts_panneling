@@ -10,6 +10,7 @@ Return — the seam returns at 90° to the sew line at the corner. Inner corners
 All — the same for every edge / corner of the selected panels.
 The widths and corner styles live in the cut line's UserText (Seams, SeamCorners) keyed by points (edge middle,
 corner), not by object ids: the next click on the panel finds its cut line again and rebuilds it.
+Notches of the panel (Notches.py) move with the seam: out to the new cut line (back to the sew line — no seam).
 Later PreparePanelCut makes the cut line the outer contour on CUT and the panel edges the sew line on INK.
 """
 import math
@@ -34,6 +35,7 @@ from click_undo import UNDO, Steps  # option Undo: take back the last click
 STICKY = "Seams"
 PARENT, NAME = "Pattern", "Seams"  # cut lines: layer Pattern::Seams
 KEY, CORNERS = "Seams", "SeamCorners"  # UserText on the cut line: edge widths, corner styles
+NOTCH = "Notch"  # UserText of a notch (Notches.py)
 WIDTH_MM = 10.0  # default seam allowance
 MODES = ["Seam", "Corner"]
 STYLES = ["Extend", "Slant", "Return"]
@@ -247,6 +249,42 @@ def ask(gp, doc):
         return gp.Point() if r == Rhino.Input.GetResult.Point else None
 
 
+def edge_of(es, q, widths):
+    """Index of the edge whose seam line (offset by its width) q lies on: q right beside the edge (not past its ends)
+    first, then the smallest miss."""
+    def key(k):
+        e = es[k]
+        t = e.ClosestPoint(q)[1]
+        eps = 1e-9 * max(1.0, e.Domain.Length)
+        return (not e.Domain.T0 + eps < t < e.Domain.T1 - eps, abs(e.PointAt(t).DistanceTo(q) - widths[k]))
+    return min(range(len(es)), key=key)
+
+
+def move_notches(doc, es, old, new, line, normal, steps, near):
+    """Notches lying on line (the old cut line, or the panel if it had none) move with the seam: along the outside
+    of their edge by its new − old width (PatternSmith: notches move out to the cut line)."""
+    # ponytail: a notch on an edge shared with another panel's sew line moves with whichever panel changes first
+    s = Rhino.DocObjects.ObjectEnumeratorSettings()
+    s.HiddenObjects = s.LockedObjects = True
+    for o in doc.Objects.GetObjectList(s):
+        g = o.Geometry
+        if not o.Attributes.GetUserString(NOTCH) or not isinstance(g, Curve):
+            continue
+        ok, q, r = g.ClosestPoints(line)
+        if not ok or q.DistanceTo(r) > near:
+            continue
+        k = edge_of(es, r, old)
+        d = new[k] - old[k]
+        if abs(d) < 1e-9:
+            continue
+        out = Vector3d.CrossProduct(es[k].TangentAt(es[k].ClosestPoint(r)[1]), normal)
+        out.Unitize()
+        g = g.Duplicate()
+        g.Translate(out * d)
+        steps.change(o.Id)
+        doc.Objects.Replace(o.Id, g)
+
+
 def up_normal(crv, doc, tol):
     """Plane normal of the curve, turned to the CPlane up (one up direction for every panel)."""
     view = doc.Views.ActiveView
@@ -275,6 +313,7 @@ def apply(doc, oid, click, steps, tol):
     attrs = cut.Attributes.Duplicate() if cut else None
     widths = [width_of(e, parse(attrs.GetUserString(KEY)) if attrs else [], near) for e in es]
     styles = [style_of(e.PointAtStart, parse(attrs.GetUserString(CORNERS)) if attrs else [], near) for e in es]
+    old, line = list(widths), cut.Geometry.Duplicate() if cut else lp  # notches sit on line now
     mode = sc.sticky.get(STICKY + "_mode", 0)
     if click is None:
         pick = range(len(es))
@@ -294,6 +333,7 @@ def apply(doc, oid, click, steps, tol):
     if max(widths) <= tol:
         if cut:
             steps.delete(cut.Id)
+            move_notches(doc, es, old, widths, line, normal, steps, near)
         return None
     new = build(es, widths, styles, normal, tol)
     if new is None:
@@ -310,6 +350,7 @@ def apply(doc, oid, click, steps, tol):
         doc.Objects.ModifyAttributes(cut.Id, attrs, True)
     else:
         doc.Objects.AddCurve(new, attrs)
+    move_notches(doc, es, old, widths, line, normal, steps, near)
     return None
 
 
@@ -327,7 +368,7 @@ def main():
     print(HELP)
     doc = sc.doc
     ids = rs.GetObjects(u"Select panels (closed curves = sew lines)", rs.filter.curve, preselect=True)
-    ids = [i for i in ids or [] if not rs.GetUserText(i, KEY)]  # own cut lines are not panels
+    ids = [i for i in ids or [] if not rs.GetUserText(i, KEY) and not rs.GetUserText(i, NOTCH)]  # cut lines, notches
     if not ids:
         return
     tol = doc.ModelAbsoluteTolerance
