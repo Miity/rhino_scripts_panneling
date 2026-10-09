@@ -10,8 +10,8 @@ Mode (PatternSmith tools):
   Mid — one notch at the middle of the edge;
   Evenly — Repeat Evenly Between: First from the corner nearest the click, Last from the other one, Count notches
     in all (both included), equal spacing;
-  Repeat — always from the middle of the edge (wherever the click is): the first at Position from it, then Every,
-    both ways to the corners.
+  Repeat — always from the middle of the edge (wherever the click is): one at the middle, then every Every both ways
+    to the corners.
 Tool Mark (pen, layer INK): Style Slit (a line) / V (opening Width on the line, tip Depth away), Placement In
 (into the panel) / Out / Center (across the line), Depth.
 Tool Cut (knife, layer INT — inner cuts) — a V for the circular blade (lama circolare), which cuts Overcut past
@@ -19,7 +19,7 @@ both ends of every line: each leg is its own short line pointing to the apex, fr
 the leg; the blade's own overrun then cuts exactly from the edge to the apex — nothing behind the edge, the
 triangle falls out. Legs are 2·Overcut + Move long, so the width follows: 2·√((2·Overcut + Move)² − Depth²)
 (Overcut 1, Move 3, Depth 2 → ≈ 9.2 mm). Depth over 2·Overcut + Move — the legs meet straight: one slit.
-Standard (Tool=Cut) — back to the plotter's standard: Repeat from the middle both ways, Position 0, Every 300,
+Standard (Tool=Cut) — back to the plotter's standard: Repeat from the middle both ways, Every 300,
 Depth 2, Overcut 1, Move 3, Angle 30 (the last values are remembered otherwise).
 If the panel has a cut line (Seams, Pattern::Seams), the notches sit on it — moved out from the sew line by the
 edge's seam width; the next Seams change moves them again. A notch In that reaches the sew line
@@ -52,12 +52,12 @@ PLACES = ["In", "Out", "Center"]
 TOOLS = ["Mark", "Cut"]
 LAYERS = {"Mark": ("INK", System.Drawing.Color.Blue), "Cut": ("INT", System.Drawing.Color.Orange)}  # INT — inner cuts
 # defaults, mm (doc units at run time); counts, toggles, list indices as they are
-DEFAULTS = {"mode": 3, "dist": 0.0, "pct": False, "first": 50.0, "last": 50.0, "count": 3, "pos": 0.0,
+DEFAULTS = {"mode": 3, "dist": 0.0, "pct": False, "first": 50.0, "last": 50.0, "count": 3,
             "every": 200.0, "style": 0, "width": 6.0, "depth": 5.0, "place": 0, "tool": 0,
             "kdepth": 2.0, "over": 1.0, "move": 3.0, "angle": 30.0}  # kdepth / over / move — knife V
 # plotter standard for knife notches (option Standard; mm, list index, toggle as in DEFAULTS)
-STANDARD = {"mode": 3, "pos": 0.0, "every": 300.0, "kdepth": 2.0, "over": 1.0, "move": 3.0, "angle": 30.0}
-MM_KEYS = ("dist", "first", "last", "pos", "every", "width", "depth", "kdepth", "over", "move")
+STANDARD = {"mode": 3, "every": 300.0, "kdepth": 2.0, "over": 1.0, "move": 3.0, "angle": 30.0}
+MM_KEYS = ("dist", "first", "last", "every", "width", "depth", "kdepth", "over", "move")
 
 
 def opt(name, doc=None, prefix=STICKY):
@@ -76,7 +76,7 @@ def use_standard(doc, prefix=STICKY):
 
 def positions(length, mode, s_click, o, eps=1e-6):
     """Lengths along the edge (from its start) of the notches of one click; s_click — the click's length.
-    o — option values: dist, pct, first, last, count, pos, every (lengths in doc units)."""
+    o — option values: dist, pct, first, last, count, every (lengths in doc units)."""
     third = 0 if s_click < length / 3.0 else (2 if s_click > 2 * length / 3.0 else 1)  # From: Start / Middle / End
     mid, sign = length / 2.0, (1 if s_click >= length / 2.0 else -1)  # Middle: towards the click
     if mode == "Single":
@@ -89,11 +89,8 @@ def positions(length, mode, s_click, o, eps=1e-6):
         n = int(o["count"])
         out = [] if b < a - eps else ([a + (b - a) * i / (n - 1.0) for i in range(n)] if n > 1 else [(a + b) / 2.0])
     else:  # Repeat: always from the middle, both ways
-        ds, k = [], 0
-        while o["every"] > eps and o["pos"] + k * o["every"] <= mid + eps:
-            ds.append(o["pos"] + k * o["every"])
-            k += 1
-        out = [mid + d for d in ds] + [mid - d for d in ds if d > eps]
+        ds = [k * o["every"] for k in range(int((mid + eps) / o["every"]) + 1)] if o["every"] > eps else []
+        out = [mid + d for d in ds] + [mid - d for d in ds[1:]]
     return sorted(min(max(s, 0.0), length) for s in out if -eps <= s <= length + eps)
 
 
@@ -244,7 +241,7 @@ def ask(gp, doc):
     Depth, Overcut, Move, Standard (Cut) / Angle. A point, UNDO or None (Enter / Esc). Values — in sc.sticky."""
     C = Rhino.Input.Custom
     num = tool_numbers(doc)
-    num.update((k, C.OptionDouble(opt(k, doc), 0.0, 1e6)) for k in ("dist", "first", "last", "pos", "every"))
+    num.update((k, C.OptionDouble(opt(k, doc), 0.0, 1e6)) for k in ("dist", "first", "last", "every"))
     count = C.OptionInteger(opt("count"), 1, 1000)
     pct = C.OptionToggle(opt("pct"), "No", "Yes")
     a = C.OptionDouble(opt("angle"), 1.0, 179.0)
@@ -262,7 +259,6 @@ def ask(gp, doc):
             gp.AddOptionDouble("Last", num["last"])
             gp.AddOptionInteger("Count", count)
         elif mode == "Repeat":
-            gp.AddOptionDouble("Position", num["pos"])
             gp.AddOptionDouble("Every", num["every"])
         tidx, i_std = tool_options(gp, num)
         idx.update(tidx)
@@ -278,7 +274,7 @@ def ask(gp, doc):
                 return UNDO
             if i == i_std:  # plotter standard into sticky and into the option fields shown
                 use_standard(doc)
-                for k in ("pos", "every", "kdepth", "over", "move"):
+                for k in ("every", "kdepth", "over", "move"):
                     num[k].CurrentValue = opt(k, doc)
                 a.CurrentValue = opt("angle")
             if i in idx:
@@ -290,13 +286,13 @@ def ask(gp, doc):
 HELP = u"""Options (where the click sits on the edge sets From: first third — Start = nearer corner, middle — Middle, last — End):
   Mode — Single: one notch at Distance from From (0 — at the click, Percent=Yes — % of the edge); Mid: middle of the edge;
     Evenly: First / Last from the corners (First — the corner nearer the click), Count notches in all, equal spacing;
-    Repeat: always from the middle of the edge, first at Position from it, then Every, both ways
+    Repeat: always from the middle of the edge — one at the middle, then every Every both ways
   Tool — Mark: pen, layer INK; Cut: knife, layer INT (inner cuts), always the V for the circular blade
   Mark: Style — Slit: a line; V: opening Width on the line, tip Depth away; Depth — notch depth;
     Placement — In: into the panel, Out: away from it, Center: across the line
   Cut: Depth — real V depth (default 2); Overcut — how far the blade cuts past each end of a line (measure: cut a
     1 mm line on scrap, Overcut = (slit − 1) / 2); Move — knife move per leg; the width follows (printed)
-  Standard — (Tool=Cut) back to the plotter standard: Repeat from the middle, Position 0, Every 300, Depth 2,
+  Standard — (Tool=Cut) back to the plotter standard: Repeat from the middle, Every 300, Depth 2,
     Overcut 1, Move 3, Angle 30
   Angle — a break larger than this angle = corner (edges are taken corner to corner)
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
