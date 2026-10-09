@@ -41,11 +41,10 @@ try:
     assert pos("Evenly", 10, first=50.0, last=50.0, count=3) == [50, 500, 950]
     assert pos("Evenly", 900, first=100.0, last=0.0, count=3) == [0, 450, 900]  # First from the corner nearer the click
     assert pos("Evenly", 10, first=100.0, last=100.0, count=1) == [500]
-    assert pos("Repeat", 500, pos=0.0, every=200.0, both=True) == [100, 300, 500, 700, 900]
-    assert pos("Repeat", 500, pos=100.0, every=200.0, both=True) == [0, 200, 400, 600, 800, 1000]
-    assert pos("Repeat", 600, pos=0.0, every=200.0, both=False) == [500, 700, 900]  # middle third, towards the click
-    assert pos("Repeat", 10, pos=50.0, every=200.0) == [50, 250, 450, 650, 850]
-    assert pos("Repeat", 990, pos=50.0, every=200.0) == [150, 350, 550, 750, 950]
+    assert pos("Repeat", 500, pos=0.0, every=200.0) == [100, 300, 500, 700, 900]
+    assert pos("Repeat", 500, pos=100.0, every=200.0) == [0, 200, 400, 600, 800, 1000]
+    assert pos("Repeat", 10, pos=0.0, every=300.0) == [200, 500, 800]  # from the middle wherever the click is
+    assert pos("Repeat", 990, pos=50.0, every=200.0) == [50, 250, 450, 550, 750, 950]
 
     # shapes at base (50, 60), outside +Y
     b, o = Point3d(50, 60, 0), Vector3d(0, 1, 0)
@@ -97,7 +96,7 @@ try:
         clicks = [
             ({"mode": 1, "tool": 1, "kdepth": 3.0, "over": 3.0, "move": 1.0}, Point3d(50, 61, 0)),  # Mid, knife V
 
-            ({"mode": 3, "pos": 0.0, "every": 20.0, "both": True, "tool": 0}, Point3d(-1, 30, 0)),  # left, no seam
+            ({"mode": 3, "pos": 0.0, "every": 20.0, "tool": 0}, Point3d(-1, 30, 0)),  # left, no seam
             ({}, N.UNDO),  # the 3 left notches go
             ({"mode": 0, "dist": 2.0, "tool": 0, "style": 0, "place": 0, "depth": 5.0}, Point3d(99, 61, 0)),  # pen
             ({}, None),
@@ -140,7 +139,7 @@ try:
 
         # one click, several notches (bottom edge, Repeat from the middle) — one group of their own
         before = set(n.Id for n in notches())
-        clicks = [({"mode": 3, "pos": 0.0, "every": 20.0, "both": True}, Point3d(50, -1, 0)), ({}, None)]
+        clicks = [({"mode": 3, "pos": 0.0, "every": 20.0}, Point3d(50, -1, 0)), ({}, None)]
         N.main()
         new = [n for n in notches() if n.Id not in before]
         assert len(new) == 5, len(new)  # 10, 30, 50, 70, 90
@@ -177,7 +176,7 @@ try:
         ask(gp, doc)
         assert "Standard" not in gp.names  # pen: no Standard
         sc.sticky.update(dict((N.STICKY + "_" + k, v) for k, v in {"tool": 1, "mode": 0, "pos": 7.0, "every": 123.0,
-                         "both": False, "kdepth": 5.0, "over": 3.0, "move": 1.0, "angle": 45.0}.items()))
+                         "kdepth": 5.0, "over": 3.0, "move": 1.0, "angle": 45.0}.items()))
         gp = FakeGP(["Standard", "point"])
         assert ask(gp, doc) == Point3d(1, 2, 0)
         assert "Position" in gp.names  # mode switched to Repeat, its options shown
