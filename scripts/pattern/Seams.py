@@ -8,8 +8,9 @@ click near a corner): Extend — both seams extend to their intersection, but at
 Slant — each seam extends to the sew line of the neighbouring edge (corner cut straight across);
 Return — the seam returns at 90° to the sew line at the corner. Inner corners — the seams are cut where they cross.
 All — the same for every edge / corner of the selected panels.
-The widths and corner styles live in the cut line's UserText (Seams, SeamCorners) keyed by points (edge middle,
-corner), not by object ids: the next click on the panel finds its cut line again and rebuilds it.
+The widths and corner styles live in the cut line's UserText (Seams, SeamCorners) by edge / corner number;
+the cut line is found by geometry (the one around the panel), not by ids or coordinates — moving or rotating
+the panel together with its cut line keeps the link; the next click on the panel rebuilds that cut line.
 Notches of the panel (Notches.py) move with the seam: out to the new cut line (back to the sew line — no seam).
 Later PreparePanelCut makes the cut line the outer contour on CUT and the panel edges the sew line on INK.
 """
@@ -21,7 +22,7 @@ import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
 from Rhino.Geometry import (Curve, CurveEnd, CurveExtensionStyle, CurveOffsetCornerStyle, CurveOrientation,
-                            Line, LineCurve, Point3d, PolylineCurve, Vector3d)
+                            Line, LineCurve, Plane, PointContainment, PolylineCurve, Vector3d)
 from Rhino.Geometry.Intersect import Intersection
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -39,7 +40,7 @@ NOTCH = "Notch"  # UserText of a notch (Notches.py)
 WIDTH_MM = 10.0  # default seam allowance
 MODES = ["Seam", "Corner"]
 STYLES = ["Extend", "Slant", "Return"]
-MATCH_MM = 1.0  # a stored edge middle / corner within this of the panel — still the same edge / corner
+MATCH_MM = 1.0  # a notch within this of the cut line lies on it
 ALL = "all"  # what the click prompt returns for the option All
 
 
@@ -166,49 +167,61 @@ def build(es, widths, styles, normal, tol):
     return out
 
 
-def parse(text):
-    """UserText "x,y,z=value;…" → [(point, value)]."""
-    out = []
-    for item in (text or "").split(";"):
-        if "=" in item:
-            p, v = item.split("=", 1)
-            x, y, z = (float(c) for c in p.split(","))
-            out.append((Point3d(x, y, z), v))
-    return out
+def measured(e, line, normal, tol):
+    """Seam width of edge e read off its cut line: from the edge middle straight out to the line (on it — 0)."""
+    m = mid(e)
+    if line.PointAt(line.ClosestPoint(m)[1]).DistanceTo(m) <= 10 * tol:
+        return 0.0
+    out = Vector3d.CrossProduct(e.TangentAt(e.ClosestPoint(m)[1]), normal)
+    out.Unitize()
+    x = Intersection.CurveCurve(LineCurve(m, m + out * line.GetBoundingBox(True).Diagonal.Length), line, tol, tol)
+    d = [ev.PointA.DistanceTo(m) for ev in x] if x else []
+    return round(min(d), 6) if d else 0.0
 
 
-def dump(items):
-    return ";".join("%.4f,%.4f,%.4f=%s" % (p.X, p.Y, p.Z, v) for p, v in items)
+def seam_data(cut, es, normal, tol):
+    """(widths, corner styles) of the edges es (loop order; corner k = start of edge k) from the cut line object
+    (None — no seam yet). Stored by number; another edge count (panel edited) or an older drawing — widths read
+    off the cut line itself, corners Extend."""
+    n = len(es)
+    if cut is None:
+        return [0.0] * n, [STYLES[0]] * n
+    a = cut.Attributes
+    try:
+        ws = [float(v) for v in (a.GetUserString(KEY) or "").split(";")]
+    except ValueError:  # older drawing: "x,y,z=width" items
+        ws = []
+    cs = (a.GetUserString(CORNERS) or "").split(";")
+    if len(ws) != n:
+        ws = [measured(e, cut.Geometry, normal, tol) for e in es]
+    if len(cs) != n or any(c not in STYLES for c in cs):
+        cs = [STYLES[0]] * n
+    return ws, cs
 
 
-def width_of(edge, stored, near):
-    """Stored width of the edge: the stored middle lying on it (nearest its own middle); none — 0."""
-    m = mid(edge)
-    on = [(p.DistanceTo(m), float(v)) for p, v in stored
-          if edge.PointAt(edge.ClosestPoint(p)[1]).DistanceTo(p) <= near]
-    return min(on)[1] if on else 0.0
-
-
-def style_of(pt, stored, near):
-    on = [(p.DistanceTo(pt), v) for p, v in stored if p.DistanceTo(pt) <= near and v in STYLES]
-    return min(on)[1] if on else STYLES[0]
-
-
-def find_cut(doc, lp, near):
-    """Cut line object of the panel loop lp: on Pattern::Seams, most of its stored edge middles lie on the panel
-    (a neighbour sharing one edge has fewer). None — not made yet."""
+def find_cut(doc, lp, es, normal, tol):
+    """Cut line object of the panel: the smallest closed curve on Pattern::Seams (UserText Seams) with every edge
+    middle of the panel inside it or on it. By geometry — it follows panel + cut line moved / rotated together.
+    None — not made yet."""
+    # ponytail: a panel lying inside another panel's cut line (a hole) takes that one if it has none of its own
     idx = doc.Layers.FindByFullPath(PARENT + "::" + NAME, -1)
     if idx < 0:
         return None
     s = Rhino.DocObjects.ObjectEnumeratorSettings()
     s.HiddenObjects = s.LockedObjects = True
     s.LayerIndexFilter = idx
-    best, score = None, 0
+    plane = Plane(lp.PointAtStart, normal)
+    pts = [mid(e) for e in es]
+    best, size = None, None
     for o in doc.Objects.GetObjectList(s):
-        pts = [p for p, _ in parse(o.Attributes.GetUserString(KEY))]
-        k = sum(1 for p in pts if lp.PointAt(lp.ClosestPoint(p)[1]).DistanceTo(p) <= near)
-        if 2 * k > len(pts) and k > score:
-            best, score = o, k
+        c = o.Geometry
+        if not o.Attributes.GetUserString(KEY) or not isinstance(c, Curve) or not c.IsClosed:
+            continue
+        if any(c.Contains(p, plane, tol) not in (PointContainment.Inside, PointContainment.Coincident) for p in pts):
+            continue
+        d = c.GetBoundingBox(True).Diagonal.Length
+        if best is None or d < size:
+            best, size = o, d
     return best
 
 
@@ -309,10 +322,9 @@ def apply(doc, oid, click, steps, tol):
     es = edges(lp, sc.sticky.get(STICKY + "_angle", 30.0), tol)
     mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
     near = max(MATCH_MM * mm, 10 * tol)
-    cut = find_cut(doc, lp, near)
+    cut = find_cut(doc, lp, es, normal, tol)
     attrs = cut.Attributes.Duplicate() if cut else None
-    widths = [width_of(e, parse(attrs.GetUserString(KEY)) if attrs else [], near) for e in es]
-    styles = [style_of(e.PointAtStart, parse(attrs.GetUserString(CORNERS)) if attrs else [], near) for e in es]
+    widths, styles = seam_data(cut, es, normal, tol)
     old, line = list(widths), cut.Geometry.Duplicate() if cut else lp  # notches sit on line now
     mode = sc.sticky.get(STICKY + "_mode", 0)
     if click is None:
@@ -342,8 +354,8 @@ def apply(doc, oid, click, steps, tol):
         attrs = layer_attrs(doc, NAME, PARENT)
         for g in obj.Attributes.GetGroupList() or []:  # moves / selects together with the panel
             attrs.AddToGroup(g)
-    attrs.SetUserString(KEY, dump([(mid(e), "%.6g" % w) for e, w in zip(es, widths)]))
-    attrs.SetUserString(CORNERS, dump([(e.PointAtStart, s) for e, s in zip(es, styles)]))
+    attrs.SetUserString(KEY, ";".join("%.6g" % w for w in widths))  # by edge number, loop order
+    attrs.SetUserString(CORNERS, ";".join(styles))  # by corner number
     if cut:
         steps.change(cut.Id)
         doc.Objects.Replace(cut.Id, new)

@@ -66,10 +66,6 @@ try:
     circ = NurbsCurve.CreateFromCircle(Circle(Point3d(0, 0, 0), 50))
     assert abs(area(cut(circ, 10.0, "Extend")) - math.pi * 60 * 60) < 1.0
 
-    # stored data round trip
-    assert [(p.X, v) for p, v in M.parse(M.dump([(Point3d(1.5, 2, 0), "10"), (Point3d(-3, 0, 0), "Slant")]))] \
-        == [(1.5, "10"), (-3.0, "Slant")]
-
     # main(): clicks with Undo / All / Corner / Width 0 on a grouped panel; one cut line on Pattern::Seams, rebuilt in place
     old = sc.doc, rs.GetObjects, M.ask
     try:
@@ -117,7 +113,8 @@ try:
         cid = cuts()[0].Id
         assert doc.Layers[cuts()[0].Attributes.LayerIndex].FullPath == "Pattern::Seams"
         assert list(cuts()[0].Attributes.GetGroupList() or []) == [g]  # moves with the panel
-        assert len(M.parse(cuts()[0].Attributes.GetUserString(M.KEY))) == 4
+        a = cuts()[0].Attributes  # by edge / corner number, loop order from (0, 0): bottom, right, top, left
+        assert (a.GetUserString(M.KEY), a.GetUserString(M.CORNERS)) == ("10;0;10;10", "Extend;Extend;Slant;Extend")
 
         # second run: the cut line itself selected too — not a panel; left edge 8 mm, same cut line object rebuilt
         todo = [({"mode": 0, "width": 8.0}, Point3d(-1, 30, 0), lambda: area_now() == 8640)]
@@ -125,6 +122,34 @@ try:
         M.main()
         assert [o.Id for o in cuts()] == [cid]
         assert doc.Objects.FindId(pid).Geometry.GetLength() == before  # panel not changed
+        assert cuts()[0].Attributes.GetUserString(M.KEY) == "10;0;10;8"
+
+        # panel + cut line moved and turned 90° together (as a group): the link holds — top 12, same cut line object
+        xf = Rhino.Geometry.Transform.Translation(Vector3d(500, 300, 0)) * \
+            Rhino.Geometry.Transform.Rotation(math.pi / 2, Point3d(0, 0, 0))
+        for i in (pid, cid):
+            g2 = doc.Objects.FindId(i).Geometry.Duplicate()
+            g2.Transform(xf)
+            doc.Objects.Replace(i, g2)
+        click = Point3d(50, 61, 0)
+        click.Transform(xf)
+        todo = [({"mode": 0, "width": 12.0}, click, lambda: area_now() == 8856)]  # 6000 + 1000 + 1200 + 480 + 80 + 96
+        M.main()
+        assert [o.Id for o in cuts()] == [cid]
+        assert cuts()[0].Attributes.GetUserString(M.KEY) == "10;0;12;8"
+
+        # older drawing (data by points) — widths read off the cut line itself, corners Extend
+        a = cuts()[0].Attributes.Duplicate()
+        a.SetUserString(M.KEY, "1,2,3=10")
+        a.SetUserString(M.CORNERS, "1,2,3=Slant")
+        doc.Objects.ModifyAttributes(cid, a, True)
+        crv = doc.Objects.FindId(pid).Geometry
+        n = M.up_normal(crv, doc, tol)
+        lp = M.loop(crv, n)
+        es = M.edges(lp, 30, tol)
+        assert M.find_cut(doc, lp, es, n, tol).Id == cid
+        ws, cs = M.seam_data(M.find_cut(doc, lp, es, n, tol), es, n, tol)
+        assert [round(w, 3) for w in ws] == [10, 0, 12, 8] and cs == ["Extend"] * 4, (ws, cs)
         doc.Dispose()
     finally:
         sc.doc, rs.GetObjects, M.ask = old

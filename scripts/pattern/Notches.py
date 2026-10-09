@@ -25,12 +25,12 @@ import System
 import System.Drawing
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import Curve, Interval, LineCurve, Point3d, PolylineCurve, Vector3d
+from Rhino.Geometry import Curve, Interval, LineCurve, PolylineCurve, Vector3d
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.modules.pop("Seams", None)  # Rhino keeps modules from the first run for the session
-from Seams import KEY, MATCH_MM, NOTCH, edges, find_cut, loop, parse, up_normal, width_of
+from Seams import KEY, NOTCH, edges, find_cut, loop, seam_data, up_normal
 sys.path.insert(0, os.path.dirname(HERE))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
@@ -117,10 +117,9 @@ def place(doc, oid, click, tol):
     if lp is None:
         return u"panel is not closed"
     es = edges(lp, opt("angle"), tol)
-    near = max(MATCH_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem), 10 * tol)
-    cut = find_cut(doc, lp, near)
-    e = min(es, key=lambda c: c.PointAt(c.ClosestPoint(click)[1]).DistanceTo(click))
-    w = width_of(e, parse(cut.Attributes.GetUserString(KEY)), near) if cut else 0.0  # notches on the cut line
+    k = min(range(len(es)), key=lambda i: es[i].PointAt(es[i].ClosestPoint(click)[1]).DistanceTo(click))
+    e = es[k]
+    w = seam_data(find_cut(doc, lp, es, normal, tol), es, normal, tol)[0][k]  # notches on the cut line
     length = e.GetLength()
     t = e.ClosestPoint(click)[1]
     o = dict((k, opt(k, doc)) for k in DEFAULTS)
