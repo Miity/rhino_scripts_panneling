@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ReinfCircle", "ZipCover", "ZipStops"):  # Rhino keeps modules from the first run for the session
     sys.modules.pop(_m, None)
 from ReinfCircle import UP_KEY, add_part, up_option  # copy of the part Up up, as Rinforzo
-from ZipCover import cm, label_style, layer_attrs, pick_edge, pick_style
+from ZipCover import cm, label_attrs, label_style, layer_attrs, pick_edge, pick_style
 from ZipStops import BORD_EDGE, BORD_LINE, LINE, bordino_near, labels_after, mid_point, point_at, zip_text
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
@@ -158,7 +158,7 @@ def main(kind="Bordino"):
         a.SetUserString(BORD_EDGE, u"%r,%r,%r" % (m.X, m.Y, m.Z))
         a.SetUserString(BORD_LINE, str(oid))
         a.SetUserString("PartMarkup", "1")  # LayoutParts: on the schema, not part of the part up
-        rs.AddObjectToGroup(doc.Objects.AddText(mark, a), rs.ObjectGroups(here[0])[0])  # one group with the part
+        rs.AddObjectToGroup(doc.Objects.AddText(mark, label_attrs(doc, a)), rs.ObjectGroups(here[0])[0])  # one group with the part
         near = lambda q, z: bordino_near(rs.GetUserText(z, LINE), q, m, oid, tol)
         zid = zip_text(lambda q, z: near(q, z) is not None, near)  # the zip of this side, also on a zip line inside
         labels_after(doc, zid, m, tol, steps, oid)  # Z<n> R<w> B<w> Pt<w>; no zip — after the first of R / B / Pt

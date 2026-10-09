@@ -71,6 +71,35 @@ def cm(x, doc=None):
     return "%g" % round(x * k, 1)
 
 
+PARTS, LABELS = "Parts", "Labels"  # texts / TextDots of Parts::<Name> live in Labels::<Name>: one switch hides them
+
+
+def label_layer(path, root=LABELS):
+    """Parts::Zip → Labels::Zip (root=PARTS — back); other layers as they are."""
+    head, sep, rest = path.partition("::")
+    return root + sep + rest if head in (PARTS, LABELS) else path
+
+
+def label_attrs(doc, attrs):
+    """Copy of attrs for a text / TextDot: on the Labels layer mirroring its Parts layer (made like it, same colours)."""
+    a = attrs.Duplicate()
+    path = doc.Layers[a.LayerIndex].FullPath.split("::") if a.LayerIndex >= 0 else []
+    if not path or path[0] != PARTS:
+        return a
+    for i in range(1, len(path) + 1):
+        src, dst = "::".join(path[:i]), "::".join([LABELS] + path[1:i])
+        if not rs.IsLayer(dst):
+            rs.AddLayer(dst.split("::")[-1], rs.LayerColor(src), parent=dst.rpartition("::")[0] or None)
+    a.LayerIndex = doc.Layers.FindByFullPath(dst, -1)
+    return a
+
+
+def by_layer(path):
+    """Ids on layer path and on its Parts / Labels twin (texts made before Labels sit in Parts)."""
+    paths = [path] + [p for p in (label_layer(path), label_layer(path, PARTS)) if p != path]
+    return [o for p in sorted(set(paths)) if rs.IsLayer(p) for o in rs.ObjectsByLayer(p) or []]
+
+
 def get_number(prompt, default, key, lower=0.0):
     """rs.GetReal with option Style (label style of the script key). Number or None."""
     while True:

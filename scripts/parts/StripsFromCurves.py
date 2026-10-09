@@ -82,11 +82,9 @@ def main():
             te = Rhino.Geometry.TextEntity.Create(label, tp, style, False, 0, 0)
             te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Left
             te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle  # stays inside the strip
-            t = sc.doc.Objects.AddText(te)
-            if t:
-                rs.ObjectLayer(t, layer)
-            d = rs.AddTextDot(label, mid)
-            rs.ObjectLayer(d, layer)
+            text = PatternTextStyles.label_attrs(sc.doc, rs.coercerhinoobject(rect).Attributes)  # Labels::Strips
+            sc.doc.Objects.AddText(te, text)
+            sc.doc.Objects.AddTextDot(label, mid, text)
             print(u"%s: length %.1f (+%g)" % (label, length, extra))
     finally:
         rs.EnableRedraw(True)

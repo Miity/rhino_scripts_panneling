@@ -49,6 +49,9 @@ try:
     import scriptcontext as sc
     sys.modules.pop("UpdateTubePockets", None)
     import UpdateTubePockets as U
+    sc.doc = Rhino.RhinoDoc.CreateHeadless(None)  # own document: rhinocode's shared sc.doc keeps other runs' leftovers
+    rs.AddLayer("Pockets", parent=rs.AddLayer("Parts"))
+    rs.CurrentLayer("Parts::Pockets")  # pockets on their Parts layer, labels in Labels::Pockets
     line = LineCurve(Point3d(0, 0, 0), Point3d(1000, 0, 0))
     toward = Point3d(300, 40, 0)
     res = M.pocket(line, toward, 600, 100, 50, True, Z, tol) + (toward,)
@@ -99,7 +102,9 @@ try:
         assert len(markup) == 2 and rs.ObjectGroups(markup[0]) == rs.ObjectGroups(markup[1])
         assert all(rs.BoundingBox(o)[0].Y < 1000 for o in markup)
         assert all(rs.BoundingBox(o)[0].Y > 9000 for o in full) and len(full) == 5  # contour, 2 folds, mark, text (seam line not drawn)
-        assert set(U.tagged(markup[0], "9", False)) == set(o for o in full if rs.ObjectLayer(o) == rs.ObjectLayer(markup[0]))
+        name = rs.ObjectLayer(markup[0]).split("::", 1)[1]  # curves in Parts::<name>, texts in Labels::<name>
+        assert set(U.tagged(markup[0], "9", False)) == set(o for o in full if rs.ObjectLayer(o) in ("Parts::" + name, "Labels::" + name))
+        assert [rs.ObjectLayer(o) for o in ids if rs.IsText(o)] == ["Labels::" + name] * 2
         assert len(rs.ObjectGroups(full[0])) == 1 and all(rs.ObjectGroups(o) == rs.ObjectGroups(full[0]) for o in ids)  # one group
         p = U.read_pocket([o for o in rs.ObjectsByGroup(rs.ObjectGroups(full[0])[0]) if not rs.GetUserText(o, "TP_Markup")], tol)
         assert p["up"] == up and set(p["markup"]) == set(markup) and p["n"] == 9, p

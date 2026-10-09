@@ -47,7 +47,7 @@ from click_undo import UNDO, Steps  # option Undo: take back the last click
 
 sys.path.insert(0, HERE)
 sys.modules.pop("ZipCover", None)
-from ZipCover import close_panel, pick_edge  # panel edge corner to corner
+from ZipCover import by_layer, close_panel, label_attrs, pick_edge  # panel edge corner to corner; Labels layers
 
 # type → (prefix, layer, in the prompt, from how many edges to ask about junctions, default Trim in cm)
 TYPES = {"Zip": ("Z", "Parts::Zip", u"of the zip (both sides)", 3, 4.0),
@@ -172,7 +172,7 @@ def marked_edges():
     """[(panel / curve id str, edge midpoint or None)] of the number texts in the type layers."""
     out = []
     for layer in [t[1] for t in TYPES.values()]:
-        for o in (rs.ObjectsByLayer(layer) or []) if rs.IsLayer(layer) else []:
+        for o in by_layer(layer):
             if rs.IsText(o) and rs.GetUserText(o, LINE):
                 try:
                     pt = Point3d(*[float(x) for x in rs.GetUserText(o, EDGE).split(",")])
@@ -216,7 +216,7 @@ def zip_text(at, key=None):
     or None; key(point, text) — of several, the smallest wins."""
     found = []
     for t in TYPES.values():
-        for o in (rs.ObjectsByLayer(t[1]) or []) if rs.IsLayer(t[1]) else []:
+        for o in by_layer(t[1]):
             pt = stored_point(o, EDGE)
             if pt is not None and rs.IsText(o) and at(pt, o):
                 found.append((key(pt, o) if key else 0, o))
@@ -500,7 +500,7 @@ def next_number(kind):
     """Next number after the largest <prefix><n> in the type's layer (UserText, text or TextDot of old marks)."""
     prefix, layer = TYPES[kind][:2]
     nums = [0]
-    for o in (rs.ObjectsByLayer(layer) or []) if rs.IsLayer(layer) else []:
+    for o in by_layer(layer):
         s = rs.GetUserText(o, KEY) or (rs.TextObjectText(o) if rs.IsText(o) else
                                        rs.TextDotText(o) if rs.IsTextDot(o) else "")
         m = re.match(prefix + r"(\d+)$", s or "")
@@ -616,7 +616,7 @@ def finish_zip(doc, lines, notch, name, kind, size, ds, gap, up, tol, angle, ste
         a.SetUserString(SIDE, str(side))
         a.SetUserString(JUNCTION, u"%d,%d" % tuple(junction))
         a.SetUserString("ZipSize", u"%r" % size)
-        zid = doc.Objects.AddText(te, a)
+        zid = doc.Objects.AddText(te, label_attrs(doc, a))
         new.append(zid)
         rs.AddObjectsToGroup(new, rs.AddGroup())
         rid = labels_after(doc, zid, m, tol, steps)  # Rinforzo / Bordino made before: Z<n> R<w> B<w>

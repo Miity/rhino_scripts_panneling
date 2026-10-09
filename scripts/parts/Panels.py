@@ -3,7 +3,7 @@
 Select closed curves (panels). Each panel is copied in place to layer Parts::Panels,
 the input curve (and its holes) is deleted. The copy gets number P<n>: text inside the panel in the corner you click near (Enter — top right;
 placement as in markup/DotToPanelText.py), style — option Style (remembered, default PAT 14 mm),
-and a TextDot "P<n>" (sublayer Parts::Panels::Dots) above-left of the panel edge, so the number is visible at any zoom.
+and a TextDot "P<n>" (sublayer Labels::Panels::Dots; the text in Labels::Panels) above-left of the panel edge, so the number is visible at any zoom.
 The number is written to the copy's UserText (Part = P<n>): a repeated run
 skips curves already in Parts::Panels with a number. A new panel gets the smallest free number in the layer,
 so the number of a deleted panel is reused.
@@ -26,7 +26,7 @@ for _m in ("DotToPanelText", "PatternTextStyles"):  # Rhino keeps modules from t
 import DotToPanelText as D
 
 LAYER = "Parts::Panels"
-DOTS = LAYER + "::Dots"  # TextDot — in a separate sublayer, everything else in LAYER
+DOTS = "Labels::Panels::Dots"  # TextDot — in a sublayer of the text's Labels::Panels, the panel curves in LAYER
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
@@ -72,8 +72,6 @@ def layer():
         rs.AddLayer("Parts")
     if not rs.IsLayer(LAYER):
         rs.AddLayer("Panels", parent="Parts")
-    if not rs.IsLayer(DOTS):
-        rs.AddLayer("Dots", parent=LAYER)
     return LAYER
 
 
@@ -84,9 +82,9 @@ def num(s):
 
 
 def used_numbers(lay):
-    """Used numbers P<n> in the layer (UserText, text or TextDot)."""
+    """Used numbers P<n> in the layer and its Labels twin (UserText, text or TextDot)."""
     nums = set()
-    for o in rs.ObjectsByLayer(lay) or []:
+    for o in D.pts.by_layer(lay):
         s = rs.GetUserText(o, KEY) or (rs.TextObjectText(o) if rs.IsText(o) else
                                        rs.TextDotText(o) if rs.IsTextDot(o) else "")
         if num(s):
@@ -145,7 +143,10 @@ def main():
     curves = [rs.coercecurve(i) for i in ids]
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
-    dot_attrs = attrs.Duplicate()
+    text_attrs = D.pts.label_attrs(doc, attrs)  # Labels::Panels
+    if not rs.IsLayer(DOTS):
+        rs.AddLayer("Dots", parent=doc.Layers[text_attrs.LayerIndex].FullPath)
+    dot_attrs = text_attrs.Duplicate()
     dot_attrs.LayerIndex = doc.Layers.FindByFullPath(DOTS, -1)
     used = used_numbers(LAYER)
     made = 0
@@ -184,7 +185,7 @@ def main():
         new = [doc.Objects.AddCurve(curves[k], tagged) for k in [i] + hole_idx]
         for k in [i] + hole_idx:  # input curves are deleted (Undo restores them)
             steps.delete(ids[k])
-        tid = D.place_text(doc, name, crv, click, ds, attrs, tol)
+        tid = D.place_text(doc, name, crv, click, ds, text_attrs, tol)
         if not tid:
             print(u"%s: text does not fit in the panel (smaller style — option Style), TextDot kept" % name)
         new += [o for o in (tid, doc.Objects.AddTextDot(dot, dot_attrs)) if o]

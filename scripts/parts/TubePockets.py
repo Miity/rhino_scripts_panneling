@@ -32,7 +32,7 @@ from Rhino.Geometry.Intersect import Intersection
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ZipCover",):  # Rhino keeps modules from the first run for the session — take fresh ones
     sys.modules.pop(_m, None)
-from ZipCover import cm, label_frame, label_style, pick_edge, pick_style  # edge corner to corner; label along the strip; style
+from ZipCover import by_layer, cm, label_attrs, label_frame, label_style, pick_edge, pick_style  # edge corner to corner; label along the strip; style
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curves"))
 sys.modules.pop("OffsetRigid", None)
 from OffsetRigid import shift  # rigid offset: move along the normal at a point
@@ -189,10 +189,11 @@ def add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid=False, hem
     rs.SetUserText(full[0], "TP_Seg", seam.ToJSON(None))
     if mark:
         full.append(add(mark, attrs))
-    full.append(add(te, attrs))
+    text = label_attrs(doc, attrs)  # labels — Labels::Pockets
+    full.append(add(te, text))
     groups = [full]
     if up is not None:
-        groups.append([doc.Objects.AddCurve(simple, attrs), doc.Objects.AddText(te, attrs)])
+        groups.append([doc.Objects.AddCurve(simple, attrs), doc.Objects.AddText(te, text)])
     for i, ids in enumerate(groups):
         for o in ids:
             for k, v in (("H", h), ("Trim", trim), ("Notch", int(notch)), ("Rigid", int(rigid)),
@@ -230,9 +231,9 @@ def layer():
 
 
 def next_number(lay):
-    """Next number after the largest T<n> already in the layer."""
+    """Next number after the largest T<n> already in the layer (or its Labels twin)."""
     nums = [0]
-    for o in rs.ObjectsByLayer(lay) or []:
+    for o in by_layer(lay):
         m = re.match(PREFIX + r"(\d+)\b", rs.TextObjectText(o) if rs.IsText(o) else "")
         if m:
             nums.append(int(m.group(1)))

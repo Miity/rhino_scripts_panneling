@@ -130,7 +130,9 @@ try:
             assert len(up_text) == 1, len(up_text)
             # the label on the panel, the part next to it, its label and the copy up — one group
             g = rs.ObjectGroups(t["B3.5"])
-            ids = set(str(o.Id) for o in doc.Objects if o.Attributes.LayerIndex == rect_layer)
+            lbl_layer = doc.Layers.FindByFullPath("Labels::Bordino", -1)  # its texts
+            ids = set(str(o.Id) for o in doc.Objects if o.Attributes.LayerIndex in (rect_layer, lbl_layer))
+            assert set(rs.ObjectLayer(i) for i in rs.ObjectsByGroup(g[0]) if rs.IsText(i)) == {"Labels::Bordino"}
             assert len(ids) == 5 and len(g) == 1 and set(str(i) for i in rs.ObjectsByGroup(g[0])) == ids, (len(ids), g)
             assert not Rhino.Geometry.Intersect.Intersection.CurveCurve(rect[0], pl, 0.001, 0.001).Count
             c = rect[0].GetBoundingBox(True).Center

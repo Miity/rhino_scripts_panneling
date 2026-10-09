@@ -111,7 +111,8 @@ try:
     L.main()
     copies = [o for o in doc.Objects if o.Attributes.GetUserString(L.STACK)]
     lay = set(doc.Layers[o.Attributes.LayerIndex].FullPath for o in copies)
-    assert lay == {"Parts::Bordino::Layout", "Parts::Reinforcements::Layout"}, lay
+    assert lay == {"Parts::Bordino::Layout", "Parts::Reinforcements::Layout",  # labels — in the Labels twins
+                   "Labels::Bordino::Layout", "Labels::Reinforcements::Layout"}, lay
     rects = sorted([o.Geometry for o in copies if isinstance(o.Geometry, Rhino.Geometry.Curve) and o.Geometry.IsClosed],
                    key=lambda c: -c.GetBoundingBox(True).Max.Y)
     lines = [o.Geometry for o in copies if isinstance(o.Geometry, Rhino.Geometry.Curve) and not o.Geometry.IsClosed]

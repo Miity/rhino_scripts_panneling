@@ -24,8 +24,8 @@ TOGGLES = ("Notch", "Rigid")
 
 
 def tagged(near, n, markup):
-    """Objects in layer near with UserText TP_N == n: markup or the full part."""
-    return [o for o in rs.ObjectsByLayer(rs.ObjectLayer(near)) or []
+    """Objects in layer near (and its Parts / Labels twin) with UserText TP_N == n: markup or the full part."""
+    return [o for o in TP.by_layer(rs.ObjectLayer(near))
             if rs.GetUserText(o, "TP_N") == n and bool(rs.GetUserText(o, "TP_Markup")) == markup]
 
 

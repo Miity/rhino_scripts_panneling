@@ -25,7 +25,7 @@ from Rhino.Geometry.Intersect import Intersection
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
 sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
-from PatternTextStyles import cm, label_style, pick_style  # label number in cm; style: option Style, default PAT 14 mm
+from PatternTextStyles import by_layer, cm, label_attrs, label_style, pick_style  # label number in cm; style: option Style, default PAT 14 mm
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
@@ -63,13 +63,14 @@ def add_part(doc, full, te, markup, attrs, layout=True):
     up = rs.ViewCPlane().YAxis * (sc.sticky.get(UP_KEY, UP) if layout else 0.0)
     xf = Transform.Translation(up)
 
-    def add(geo):
+    def add(geo, a=attrs):
         geo = geo.Duplicate()
         geo.Transform(xf)
-        return doc.Objects.Add(geo, attrs)
-    ids = [add(c) for c in full] + [add(te)], []
+        return doc.Objects.Add(geo, a)
+    text = label_attrs(doc, attrs)  # labels — Labels::<Name>
+    ids = [add(c) for c in full] + [add(te, text)], []
     if layout:
-        ids = ids[0], [doc.Objects.AddCurve(c, attrs) for c in markup] + [doc.Objects.AddText(te, attrs)]
+        ids = ids[0], [doc.Objects.AddCurve(c, attrs) for c in markup] + [doc.Objects.AddText(te, text)]
     if layout:
         link = str(System.Guid.NewGuid())
         for o in ids[0] + ids[1]:
@@ -133,9 +134,9 @@ def layer():
 
 
 def next_number(lay, prefix=PREFIX):
-    """Next number after the largest <prefix><n> (RC, RD…) already in the layer."""
+    """Next number after the largest <prefix><n> (RC, RD…) already in the layer (or its Labels twin)."""
     nums = [0]
-    for o in rs.ObjectsByLayer(lay) or []:
+    for o in by_layer(lay):
         m = re.match(prefix + r"(\d+)\b", rs.TextObjectText(o) if rs.IsText(o) else "")
         if m:
             nums.append(int(m.group(1)))

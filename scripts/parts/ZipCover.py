@@ -27,7 +27,7 @@ from Rhino.Geometry.Intersect import Intersection
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
 sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
-from PatternTextStyles import cm, label_style, pick_style  # label number in cm; style: option Style, default PAT 14 mm
+from PatternTextStyles import by_layer, cm, label_attrs, label_style, pick_style  # label number in cm; style: option Style, default PAT 14 mm
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
@@ -190,7 +190,7 @@ def layer_attrs(doc, name, parent="Parts"):
 
 def add_markup(doc, geoms, te, attrs):
     """Markup in place: geometry + label te, one group. Returns the ids."""
-    ids = [doc.Objects.Add(g, attrs) for g in geoms] + [doc.Objects.AddText(te, attrs)]
+    ids = [doc.Objects.Add(g, attrs) for g in geoms] + [doc.Objects.AddText(te, label_attrs(doc, attrs))]
     rs.AddObjectsToGroup(ids, rs.AddGroup())
     return ids
 

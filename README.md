@@ -33,6 +33,8 @@ Labels on the drawing are read by the seamstresses, so they are Italian codes; e
 | Tube Pockets |
 | `A–A`, `B–B`… | joint of panel pieces split to the material width | SplitToMaterial |
 
+**Layer `Labels`.** Every text and TextDot a parts script makes goes to `Labels::<Name>` — the twin of the part's `Parts::<Name>` (same colour): curves stay in `Parts::Zip`, the number `Z3` in `Labels::Zip`; Layout copies of labels — `Labels::<Name>::Layout`, panel TextDots — `Labels::Panels::Dots`. Hide `Labels` (or one `Labels::<Name>`) before export. Labels made before stay in `Parts::<Name>`; numbering and lookups see both layers.
+
 On the panel the labels of one edge stand in a row: `Z<n>  R<w>  B<w>  Pt<w>`; without a zip the first of `R<w>  B<w>  Pt<w>` stays where it was made and the rest follow it. Part Panel adds the panel number to a part's label: `R6 P4`, `B3.5 P4`, `T9 P5`.
 
 ### Old drawings

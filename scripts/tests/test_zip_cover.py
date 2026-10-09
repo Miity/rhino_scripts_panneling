@@ -90,7 +90,8 @@ try:
             M.main()
             name = "Parts::ZipCover"
             objs = [o for o in doc.Objects if o.Id != pid]
-            assert all(doc.Layers[o.Attributes.LayerIndex].FullPath == name for o in objs)
+            assert all(doc.Layers[o.Attributes.LayerIndex].FullPath ==
+                       ("Labels::ZipCover" if isinstance(o.Geometry, Rhino.Geometry.TextEntity) else name) for o in objs)
             texts = [o.Geometry.PlainText for o in objs if isinstance(o.Geometry, Rhino.Geometry.TextEntity)]
             assert texts == ["Off1"] * 2, texts
             assert not any(isinstance(o.Geometry, Rhino.Geometry.Point) for o in objs)
