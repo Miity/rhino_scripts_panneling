@@ -2,7 +2,7 @@
 """Seams — seam allowance after PatternSmith (Pattern Editor > Toolbar > Seams).
 The panel (closed curve) is the sew line. Its seam allowance is a separate closed cut line around it,
 layer Pattern::Seams; the panel itself is not changed. Each edge (corner to corner — a break larger than Angle)
-has its own width: select panels, then click near an edge (several in a row, Enter — done) — the edge gets
+has its own width (an edge also ends at a break point, Break.py): select panels, then click near an edge (several in a row, Enter — done) — the edge gets
 the current Width (typed, mm; remembered, default 10), Width=0 — the edge loses its seam. Where neighbouring seams meet, the corner style decides (Mode=Corner,
 click near a corner): Extend — both seams extend to their intersection, but at most by one seam width;
 Slant — each seam extends to the sew line of the neighbouring edge (corner cut straight across);
@@ -22,7 +22,7 @@ import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
 from Rhino.Geometry import (Curve, CurveEnd, CurveExtensionStyle, CurveOffsetCornerStyle, CurveOrientation,
-                            Line, LineCurve, Plane, PointContainment, PolylineCurve, Vector3d)
+                            Line, LineCurve, Plane, Point, PointContainment, PolylineCurve, Vector3d)
 from Rhino.Geometry.Intersect import Intersection
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -37,6 +37,7 @@ STICKY = "Seams"
 PARENT, NAME = "Pattern", "Seams"  # cut lines: layer Pattern::Seams
 KEY, CORNERS = "Seams", "SeamCorners"  # UserText on the cut line: edge widths, corner styles
 NOTCH = "Notch"  # UserText of a notch (Notches.py)
+BREAK, BREAKS = "Break", "Breaks"  # break points (Break.py): UserText, layer Pattern::Breaks
 WIDTH_MM = 10.0  # default seam allowance
 MODES = ["Seam", "Corner"]
 STYLES = ["Extend", "Slant", "Return"]
@@ -60,13 +61,53 @@ def loop(crv, normal):
     return c
 
 
-def edges(lp, angle, tol):
-    """Edges corner to corner in loop order: edge k runs from corner k to corner k + 1.
+def break_objects(doc):
+    """Break point objects (Break.py) of the document."""
+    idx = doc.Layers.FindByFullPath(PARENT + "::" + BREAKS, -1)
+    if idx < 0:
+        return []
+    s = Rhino.DocObjects.ObjectEnumeratorSettings()
+    s.HiddenObjects = s.LockedObjects = True
+    s.LayerIndexFilter = idx
+    return [o for o in doc.Objects.GetObjectList(s) if isinstance(o.Geometry, Point) and o.Attributes.GetUserString(BREAK)]
+
+
+def breaks_on(doc, lp, near):
+    """Break points lying on the panel loop lp (found by geometry)."""
+    pts = [o.Geometry.Location for o in break_objects(doc)]
+    return [p for p in pts if lp.PointAt(lp.ClosestPoint(p)[1]).DistanceTo(p) <= near]
+
+
+def edges(lp, angle, tol, breaks=()):
+    """Edges corner to corner in loop order: edge k runs from corner k to corner k + 1. Corners — direction breaks
+    larger than angle and the break points (PatternSmith Break) on the loop.
     Fewer than two corners (circle, drop) — one closed edge, the whole loop."""
-    segs = [s for s in lp.DuplicateSegments() if s.GetLength() > tol] or [lp.DuplicateCurve()]
+    near = 10 * tol
+
+    def cuts(s):  # parameters of the break points inside segment s
+        ts = []
+        for p in breaks:
+            t = s.ClosestPoint(p)[1]
+            q = s.PointAt(t)
+            if q.DistanceTo(p) <= near and q.DistanceTo(s.PointAtStart) > near and q.DistanceTo(s.PointAtEnd) > near:
+                ts.append(t)
+        return sorted(ts)
+
+    segs = []
+    for s in lp.DuplicateSegments() or [lp.DuplicateCurve()]:
+        if s.GetLength() <= tol:
+            continue
+        ts = cuts(s)
+        if ts and s.IsClosed:  # one closed segment (circle): it starts at the first break point
+            s = s.DuplicateCurve()
+            s.ChangeClosedCurveSeam(ts[0])
+            ts = cuts(s)
+        b = [s.Domain.T0] + ts + [s.Domain.T1]
+        segs += [p for p in (s.Trim(x, y) for x, y in zip(b, b[1:]) if y - x > 1e-9) if p] if ts else [s]
     n = len(segs)
-    corners = [i for i in range(n)
-               if Vector3d.VectorAngle(segs[i - 1].TangentAtEnd, segs[i].TangentAtStart) > math.radians(angle)]
+    rad = math.radians(angle)
+    corners = sorted(set(i for i in range(n) if Vector3d.VectorAngle(segs[i - 1].TangentAtEnd, segs[i].TangentAtStart) > rad)
+                     | set(i for i in range(n) for p in breaks if segs[i].PointAtStart.DistanceTo(p) <= near))
     if len(corners) < 2:
         return [lp.DuplicateCurve()]
     out = []
@@ -326,9 +367,9 @@ def apply(doc, oid, click, steps, tol):
     lp = loop(crv, normal)
     if lp is None:
         return u"panel is not closed"
-    es = edges(lp, sc.sticky.get(STICKY + "_angle", 30.0), tol)
     mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
     near = max(MATCH_MM * mm, 10 * tol)
+    es = edges(lp, sc.sticky.get(STICKY + "_angle", 30.0), tol, breaks_on(doc, lp, near))
     cut = find_cut(doc, lp, es, normal, tol)
     attrs = cut.Attributes.Duplicate() if cut else None
     widths, styles = seam_data(cut, es, normal, tol)

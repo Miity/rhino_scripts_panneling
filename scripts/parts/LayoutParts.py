@@ -103,6 +103,8 @@ def short(o):
 def mark(doc, o):
     """Geometry to copy to the canvas from a markup object, or None."""
     g = o.Geometry
+    if o.Attributes.GetUserString("Break"):  # break point of the panel contour (pattern/Break.py) — not a mark
+        return None
     if isinstance(g, (Rhino.Geometry.Point, Rhino.Geometry.PointCloud)):
         return g.Duplicate()
     if isinstance(g, Rhino.Geometry.Curve) and (g.IsCircle() or is_cross(doc, o)):

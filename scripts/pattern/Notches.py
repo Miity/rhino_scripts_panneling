@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Notches — battute after PatternSmith (Pattern Editor > Design > Create Tools > Notches).
 Select panels (closed curves = sew lines), click near an edge (corner to corner — a break larger than Angle;
-several in a row, Enter — done). Where the click sits on the edge sets From, as in PatternSmith: first third —
-Start (the corner nearest the click), middle third — Middle, last third — End (the other corner nearest the click).
+several in a row, Enter — done; an edge also ends at a break point, Break.py). Where the click sits on the edge
+sets From, as in PatternSmith: first third — Start (the corner nearest the click), middle third — Middle,
+last third — End (the other corner nearest the click).
 Mode (PatternSmith tools):
   Single — one notch: Distance from From (Percent=Yes — % of the edge length; Middle — towards the click);
     Distance=0 — right at the click (snaps work);
@@ -38,7 +39,7 @@ from Rhino.Geometry import Curve, Interval, LineCurve, PolylineCurve, Vector3d
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.modules.pop("Seams", None)  # Rhino keeps modules from the first run for the session
-from Seams import KEY, NOTCH, edges, find_cut, loop, seam_data, up_normal
+from Seams import KEY, MATCH_MM, NOTCH, breaks_on, edges, find_cut, loop, seam_data, up_normal
 sys.path.insert(0, os.path.dirname(HERE))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
@@ -192,7 +193,8 @@ def place(doc, oid, click, tol):
     lp = loop(crv, normal)
     if lp is None:
         return u"panel is not closed"
-    es = edges(lp, opt("angle"), tol)
+    near = max(MATCH_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem), 10 * tol)
+    es = edges(lp, opt("angle"), tol, breaks_on(doc, lp, near))  # edges also end at break points
     k = min(range(len(es)), key=lambda i: es[i].PointAt(es[i].ClosestPoint(click)[1]).DistanceTo(click))
     e = es[k]
     w = seam_data(find_cut(doc, lp, es, normal, tol), es, normal, tol)[0][k]  # notches on the cut line

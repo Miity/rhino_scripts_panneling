@@ -24,7 +24,7 @@ sys.path.insert(0, HERE)
 for _m in ("Seams", "Notches"):  # Rhino keeps modules from the first run for the session
     sys.modules.pop(_m, None)
 from Notches import notch_attrs, opt, shapes, spec, tell, tool_numbers, tool_options, use_standard
-from Seams import KEY, MATCH_MM, NOTCH, close_panel, edges, find_cut, loop, seam_data, up_normal
+from Seams import BREAK, KEY, MATCH_MM, NOTCH, breaks_on, close_panel, edges, find_cut, loop, seam_data, up_normal
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "markup"))
 sys.modules.pop("PointsToCrosses", None)
 from PointsToCrosses import is_mark_circle  # seam circles up to 10 mm are marks, bigger ones (holes) are not
@@ -42,6 +42,8 @@ def kind(doc, oid):
         return None
     if o.Attributes.GetUserString(NOTCH):
         return "notch"
+    if o.Attributes.GetUserString(BREAK):  # break points (Break.py) are not marks
+        return None
     if isinstance(g, Point) or (isinstance(g, Curve) and is_mark_circle(oid)):
         return "mark"
     if isinstance(g, Curve):
@@ -59,7 +61,8 @@ def prep(doc, oid, angle, tol):
     lp = loop(obj.Geometry, normal)
     if lp is None:
         return None
-    es = edges(lp, angle, tol)
+    near = max(MATCH_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem), 10 * tol)
+    es = edges(lp, angle, tol, breaks_on(doc, lp, near))
     cut = find_cut(doc, lp, es, normal, tol)
     return {"obj": obj, "lp": lp, "es": es, "normal": normal, "widths": seam_data(cut, es, normal, tol)[0],
             "line": cut.Geometry if cut else lp}
