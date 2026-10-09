@@ -11,7 +11,7 @@ Mode (PatternSmith tools):
     in all (both included), equal spacing;
   Repeat — Repeat Starting: from From, the first at Position, then Every; Middle + Both=Yes — both directions.
 Notch properties: Style Slit (a line) / V (opening Width on the line, tip Depth away), Placement In (into the
-panel) / Out / Center (across the line), Depth, Tool Mark (pen, layer INK) / Cut (knife, layer CUT).
+panel) / Out / Center (across the line), Depth, Tool Mark (pen, layer INK) / Cut (knife, layer INT — inner cuts).
 If the panel has a cut line (Seams, Pattern::Seams), the notches sit on it — moved out from the sew line by the
 edge's seam width; the next Seams change moves them again. A notch In that reaches the sew line
 (Depth ≥ seam width) — warning. UserText on each notch: Notch (style), NotchW, NotchD, NotchPlace, NotchTool;
@@ -40,7 +40,7 @@ MODES = ["Single", "Mid", "Evenly", "Repeat"]
 STYLES = ["Slit", "V"]
 PLACES = ["In", "Out", "Center"]
 TOOLS = ["Mark", "Cut"]
-LAYERS = {"Mark": ("INK", System.Drawing.Color.Blue), "Cut": ("CUT", System.Drawing.Color.Yellow)}
+LAYERS = {"Mark": ("INK", System.Drawing.Color.Blue), "Cut": ("INT", System.Drawing.Color.Orange)}  # INT — inner cuts
 # defaults, mm (doc units at run time); counts, toggles, list indices as they are
 DEFAULTS = {"mode": 3, "dist": 0.0, "pct": False, "first": 50.0, "last": 50.0, "count": 3, "pos": 0.0,
             "every": 200.0, "both": True, "style": 0, "width": 6.0, "depth": 5.0, "place": 0, "tool": 0,
@@ -96,7 +96,7 @@ def notch(base, out, normal, style, place, w, d):
 
 
 def tool_attrs(doc, tool):
-    """Mark — pen, layer INK; Cut — knife, layer CUT (created if missing)."""
+    """Mark — pen, layer INK; Cut — knife, layer INT (inner cuts; created if missing)."""
     name, color = LAYERS[tool]
     idx = doc.Layers.FindByFullPath(name, -1)
     if idx < 0:
@@ -202,7 +202,7 @@ HELP = u"""Options (where the click sits on the edge sets From: first third — 
     Repeat: from From, first at Position, then Every; Middle + Both=Yes — both directions
   Style — Slit: a line; V: opening Width on the line, tip Depth away
   Depth — notch depth; Placement — In: into the panel, Out: away from it, Center: across the line
-  Tool — Mark: pen, layer INK; Cut: knife, layer CUT
+  Tool — Mark: pen, layer INK; Cut: knife, layer INT (inner cuts)
   Angle — a break larger than this angle = corner (edges are taken corner to corner)
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
 
@@ -236,7 +236,7 @@ def main():
         else:  # nothing added: Undo skips this click too
             print(u"Skipped: %s" % res)
         doc.Views.Redraw()
-    print(u"Notches: %d → INK / CUT" % sum(made))
+    print(u"Notches: %d → INK / INT" % sum(made))
 
 
 if __name__ == "__main__":

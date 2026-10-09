@@ -371,7 +371,7 @@ NOTCH = "Notch"  # UserText of a notch (pattern/Notches.py): stays on its layer,
 def main():
     ids = rs.GetObjects(u"Step 1: select panel lines (polylines, lines, seam strips)", rs.filter.curve,
                         preselect=True, select=False)
-    ids = [i for i in ids or [] if not rs.GetUserText(i, NOTCH)]  # notches are already on INK / CUT
+    ids = [i for i in ids or [] if not rs.GetUserText(i, NOTCH)]  # notches are already on INK / INT
     if not ids:
         return
     tol = sc.doc.ModelAbsoluteTolerance

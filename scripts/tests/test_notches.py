@@ -98,7 +98,7 @@ try:
         ns = notches()
         assert [ends(n.Geometry) for n in ns] == [{(50, 70), (50, 65)}, {(98, 70), (98, 65)}], [ends(n.Geometry) for n in ns]
         lay = [doc.Layers[n.Attributes.LayerIndex].Name for n in ns]
-        assert lay == ["CUT", "INK"], lay  # Tool Cut → CUT, Mark → INK
+        assert lay == ["INT", "INK"], lay  # Tool Cut → INT (inner cuts), Mark → INK
         assert all(list(n.Attributes.GetGroupList() or []) == [g] for n in ns)  # move with the panel
         assert ns[0].Attributes.GetUserString("NotchPlace") == "In" and ns[0].Attributes.GetUserString(N.NOTCH) == "Slit"
 
