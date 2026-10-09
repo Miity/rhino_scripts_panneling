@@ -223,9 +223,15 @@ def presets(doc):
 
 def edit_presets(doc):
     cur = " ".join("%g" % p for p in presets(doc))
-    s = rs.GetString(u"Seam allowance presets, mm (separated by spaces)", cur)
+    gs = Rhino.Input.Custom.GetString()
+    gs.SetCommandPrompt(u"Seam allowance presets, mm (separated by spaces)")
+    gs.SetDefaultString(cur)
+    gs.AcceptNothing(True)
+    if gs.GetLiteralString() != Rhino.Input.GetResult.String:  # not rs.GetString: there space = Enter
+        return  # Esc / Enter — nothing to change
+    s = gs.StringResult()
     try:
-        vals = [float(v) for v in (s or "").replace(";", " ").split()]
+        vals = [float(v) for v in (s or "").replace(";", " ").replace(",", ".").split()]  # 12,5 = 12.5
     except ValueError:
         vals = []
     if vals and all(v > 0 for v in vals):
