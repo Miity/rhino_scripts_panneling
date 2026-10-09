@@ -147,6 +147,42 @@ try:
         own = set(tuple(sorted(n.Attributes.GetGroupList())) for n in new)
         assert len(own) == 1 and g in list(own)[0] and len(list(own)[0]) == 2, own
         assert not any(set(list(own)[0]) - {g} <= set(x) for x in gs)  # not the group of an earlier click
+
+        # option Standard (knife only): the plotter standard back into sticky and the option fields
+        class FakeGP(object):  # the command line: picks options by name, then a point
+            def __init__(self, picks):
+                self.picks, self.names = picks, []
+            def ClearCommandOptions(self):
+                self.names = []
+            def SetCommandPrompt(self, text):
+                pass
+            def add(self, name, *a):
+                self.names.append(name)
+                return len(self.names)
+            AddOption = AddOptionList = AddOptionDouble = AddOptionToggle = AddOptionInteger = add
+            def Get(self):
+                pick = self.picks.pop(0)
+                if pick == "point":
+                    return Rhino.Input.GetResult.Point
+                self.i = self.names.index(pick) + 1
+                return Rhino.Input.GetResult.Option
+            def OptionIndex(self):
+                return self.i
+            def Point(self):
+                return Point3d(1, 2, 0)
+
+        sc.sticky.update({N.STICKY + "_tool": 0})
+        ask = old[2]  # the real one (N.ask is the fake click list here)
+        gp = FakeGP(["point"])
+        ask(gp, doc)
+        assert "Standard" not in gp.names  # pen: no Standard
+        sc.sticky.update(dict((N.STICKY + "_" + k, v) for k, v in {"tool": 1, "mode": 0, "pos": 7.0, "every": 123.0,
+                         "both": False, "kdepth": 5.0, "over": 3.0, "move": 1.0, "angle": 45.0}.items()))
+        gp = FakeGP(["Standard", "point"])
+        assert ask(gp, doc) == Point3d(1, 2, 0)
+        assert "Position" in gp.names  # mode switched to Repeat, its options shown
+        got = dict((k, N.opt(k, doc)) for k in N.STANDARD)
+        assert got == N.STANDARD, got  # survives the write-back of the option fields after the next Get
         doc.Dispose()
     finally:
         sc.doc, rs.GetObjects, N.ask = old

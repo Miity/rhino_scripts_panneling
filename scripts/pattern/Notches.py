@@ -16,7 +16,9 @@ Tool Cut (knife, layer INT — inner cuts) — a V for the circular blade (lama 
 both ends of every line: each leg is its own short line pointing to the apex, from Overcut to Overcut + Move along
 the leg; the blade's own overrun then cuts exactly from the edge to the apex — nothing behind the edge, the
 triangle falls out. Legs are 2·Overcut + Move long, so the width follows: 2·√((2·Overcut + Move)² − Depth²)
-(Overcut 3, Move 1, Depth 3 → ≈ 12.6 mm). Depth over 2·Overcut + Move — the legs meet straight: one slit.
+(Overcut 1, Move 2, Depth 3 → ≈ 5.3 mm). Depth over 2·Overcut + Move — the legs meet straight: one slit.
+Standard (Tool=Cut) — back to the plotter's standard: Repeat from the middle both ways, Position 0, Every 300,
+Depth 3, Overcut 1, Move 2, Angle 30 (the last values are remembered otherwise).
 If the panel has a cut line (Seams, Pattern::Seams), the notches sit on it — moved out from the sew line by the
 edge's seam width; the next Seams change moves them again. A notch In that reaches the sew line
 (Depth ≥ seam width) — warning. UserText on each notch: Notch (style), NotchW, NotchD, NotchPlace, NotchTool.
@@ -50,7 +52,9 @@ LAYERS = {"Mark": ("INK", System.Drawing.Color.Blue), "Cut": ("INT", System.Draw
 # defaults, mm (doc units at run time); counts, toggles, list indices as they are
 DEFAULTS = {"mode": 3, "dist": 0.0, "pct": False, "first": 50.0, "last": 50.0, "count": 3, "pos": 0.0,
             "every": 200.0, "both": True, "style": 0, "width": 6.0, "depth": 5.0, "place": 0, "tool": 0,
-            "kdepth": 3.0, "over": 3.0, "move": 1.0, "angle": 30.0}  # kdepth / over / move — knife V
+            "kdepth": 3.0, "over": 1.0, "move": 2.0, "angle": 30.0}  # kdepth / over / move — knife V
+# plotter standard for knife notches (option Standard; mm, list index, toggle as in DEFAULTS)
+STANDARD = {"mode": 3, "pos": 0.0, "every": 300.0, "both": True, "kdepth": 3.0, "over": 1.0, "move": 2.0, "angle": 30.0}
 MM_KEYS = ("dist", "first", "last", "pos", "every", "width", "depth", "kdepth", "over", "move")
 
 
@@ -60,6 +64,12 @@ def opt(name, doc=None):
     if doc is not None and name in MM_KEYS:
         v *= Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
     return sc.sticky.get(STICKY + "_" + name, v)
+
+
+def use_standard(doc):
+    """Option Standard: the plotter's standard values for knife notches into sc.sticky."""
+    mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
+    sc.sticky.update(dict((STICKY + "_" + k, v * mm if k in MM_KEYS else v) for k, v in STANDARD.items()))
 
 
 def positions(length, mode, s_click, o, eps=1e-6):
@@ -184,7 +194,7 @@ def place(doc, oid, click, tol):
 
 def ask(gp, doc):
     """Click with options Undo / Mode / (mode options) / Tool / Style, Width (V), Depth, Placement (Mark) or
-    Depth, Overcut, Move (Cut) / Angle. A point, UNDO or None (Enter / Esc). Values — in sc.sticky."""
+    Depth, Overcut, Move, Standard (Cut) / Angle. A point, UNDO or None (Enter / Esc). Values — in sc.sticky."""
     C = Rhino.Input.Custom
     num = dict((k, C.OptionDouble(opt(k, doc), 0.0, 1e6)) for k in ("dist", "first", "last", "pos", "every", "width",
                                                                      "depth", "kdepth", "over"))
@@ -198,6 +208,7 @@ def ask(gp, doc):
         gp.ClearCommandOptions()
         gp.SetCommandPrompt(u"Click near an edge: first third — from its nearer corner, middle third — from the middle (Enter — done)")
         i_undo = gp.AddOption("Undo")
+        i_std = -1
         idx = {}
         idx[gp.AddOptionList("Mode", MODES, opt("mode"))] = "mode"
         if mode == "Single":
@@ -216,6 +227,7 @@ def ask(gp, doc):
             gp.AddOptionDouble("Depth", num["kdepth"])
             gp.AddOptionDouble("Overcut", num["over"])
             gp.AddOptionDouble("Move", num["move"])
+            i_std = gp.AddOption("Standard")
         else:
             idx[gp.AddOptionList("Style", STYLES, opt("style"))] = "style"
             if style == "V":
@@ -232,6 +244,11 @@ def ask(gp, doc):
             i = gp.OptionIndex()
             if i == i_undo:
                 return UNDO
+            if i == i_std:  # plotter standard into sticky and into the option fields shown
+                use_standard(doc)
+                for k in ("pos", "every", "kdepth", "over", "move"):
+                    num[k].CurrentValue = opt(k, doc)
+                both.CurrentValue, a.CurrentValue = opt("both"), opt("angle")
             if i in idx:
                 sc.sticky[STICKY + "_" + idx[i]] = gp.Option().CurrentListOptionIndex
             continue
@@ -247,6 +264,8 @@ HELP = u"""Options (where the click sits on the edge sets From: first third — 
     Placement — In: into the panel, Out: away from it, Center: across the line
   Cut: Depth — real V depth (default 3); Overcut — how far the blade cuts past each end of a line (measure: cut a
     1 mm line on scrap, Overcut = (slit − 1) / 2); Move — knife move per leg; the width follows (printed)
+  Standard — (Tool=Cut) back to the plotter standard: Repeat from the middle, Both, Position 0, Every 300, Depth 3,
+    Overcut 1, Move 2, Angle 30
   Angle — a break larger than this angle = corner (edges are taken corner to corner)
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
 
