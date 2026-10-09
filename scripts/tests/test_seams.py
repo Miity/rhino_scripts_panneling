@@ -36,7 +36,7 @@ try:
         return [10.0 if abs(M.mid(e).Y - 60) < 1e-6 else 0.0 for e in es]
 
     # option values shown in the prompt must be valid Rhino option values
-    for v in [M.label(p) for p in M.PRESETS_MM] + ["Off", M.label(12.5)] + M.STYLES + M.MODES:
+    for v in M.STYLES + M.MODES:
         assert Rhino.Input.Custom.CommandLineOption.IsValidOptionValueName(v), v
 
     # rectangle 100×60, both orientations: all edges 10 → Extend square corners, Slant cut across, Return 90° back
@@ -70,7 +70,7 @@ try:
     assert [(p.X, v) for p, v in M.parse(M.dump([(Point3d(1.5, 2, 0), "10"), (Point3d(-3, 0, 0), "Slant")]))] \
         == [(1.5, "10"), (-3.0, "Slant")]
 
-    # main(): clicks with Undo / All / Corner / Off on a grouped panel; one cut line on Pattern::Seams, rebuilt in place
+    # main(): clicks with Undo / All / Corner / Width 0 on a grouped panel; one cut line on Pattern::Seams, rebuilt in place
     old = sc.doc, rs.GetObjects, M.ask
     try:
         doc = Rhino.RhinoDoc.CreateHeadless(None)
@@ -90,12 +90,12 @@ try:
             return area(cs[0].Geometry)
 
         script = [
-            ({"mode": 0, "width": 1}, Point3d(50, 61, 0), lambda: area_now() == 7000),  # top edge 10 mm
+            ({"mode": 0, "width": 10.0}, Point3d(50, 61, 0), lambda: area_now() == 7000),  # top edge 10 mm
             ({}, M.UNDO, lambda: not cuts()),
             ({}, Point3d(50, 61, 0), lambda: area_now() == 7000),
             ({}, M.ALL, lambda: area_now() == 9600),  # every edge 10
             ({"mode": 1, "corner": 1}, Point3d(99, 59, 0), lambda: area_now() == 9550),  # corner (100, 60) Slant
-            ({"mode": 0, "width": len(M.PRESETS_MM)}, Point3d(101, 30, 0), lambda: area_now() == 8800),  # right Off
+            ({"mode": 0, "width": 0.0}, Point3d(101, 30, 0), lambda: area_now() == 8800),  # right: Width 0 — no seam
         ]
         checks = []
 
@@ -120,7 +120,7 @@ try:
         assert len(M.parse(cuts()[0].Attributes.GetUserString(M.KEY))) == 4
 
         # second run: the cut line itself selected too — not a panel; left edge 8 mm, same cut line object rebuilt
-        todo = [({"mode": 0, "width": 0}, Point3d(-1, 30, 0), lambda: area_now() == 8640)]
+        todo = [({"mode": 0, "width": 8.0}, Point3d(-1, 30, 0), lambda: area_now() == 8640)]
         rs.GetObjects = lambda *a, **k: [pid, cid]
         M.main()
         assert [o.Id for o in cuts()] == [cid]

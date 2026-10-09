@@ -91,7 +91,7 @@ GROUPS = [
 # Separate toolbar file Pattern.rui: pattern tools after the PatternSmith guide (seam allowance, notches)
 PATTERN = [
     (u"Pattern", u"Pattern tools after PatternSmith: seam allowance, notches", [
-        (u"Seams", u"Seam allowance: panel = sew line → closed cut line around it in Pattern::Seams; click an edge — Width (presets 8 / 10 / 12 / 15 / 20 mm, Edit), Mode=Corner — corner style Extend / Slant / Return, All — every edge", py("pattern/Seams.py"), None),
+        (u"Seams", u"Seam allowance: panel = sew line → closed cut line around it in Pattern::Seams; click an edge — it gets Width (typed, mm; 0 — no seam), Mode=Corner — corner style Extend / Slant / Return, All — every edge", py("pattern/Seams.py"), None),
     ]),
 ]
 
@@ -156,7 +156,7 @@ IT = {
     u"Legend": (u"Legenda", u"Legenda delle etichette (P, F, Off, C, Z, Can, R, RC, RD, RO, T, A–A): solo quelle presenti nel disegno, come testo nel punto cliccato; lingua IT / EN / UA"),
     u"Panel Page": (u"Pagina pannello", u"Foglio A4 per la selezione: un nuovo Layout P<n>, vista Top, come Zoom Selected su tutta la selezione"),
     u"Pattern": (u"Modello", u"Strumenti del cartamodello come in PatternSmith: margini di cucitura, tacche"),
-    u"Seams": (u"Margini", u"Margine di cucitura: il pannello è la linea di cucitura → linea di taglio chiusa attorno in Pattern::Seams; clic su un lato — larghezza (8 / 10 / 12 / 15 / 20 mm, Edit), Mode=Corner — angolo Extend / Slant / Return, All — tutti i lati"),
+    u"Seams": (u"Margini", u"Margine di cucitura: il pannello è la linea di cucitura → linea di taglio chiusa attorno in Pattern::Seams; clic su un lato — larghezza Width (mm, si digita; 0 — senza margine), Mode=Corner — angolo Extend / Slant / Return, All — tutti i lati"),
 }
 
 

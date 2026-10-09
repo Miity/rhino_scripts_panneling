@@ -3,8 +3,7 @@
 The panel (closed curve) is the sew line. Its seam allowance is a separate closed cut line around it,
 layer Pattern::Seams; the panel itself is not changed. Each edge (corner to corner — a break larger than Angle)
 has its own width: select panels, then click near an edge (several in a row, Enter — done) — the edge gets
-the current Width (one of the presets, 8 / 10 / 12 / 15 / 20 mm; Edit — change them, kept in the .3dm),
-Width=Off — the edge loses its seam. Where neighbouring seams meet, the corner style decides (Mode=Corner,
+the current Width (typed, mm; remembered, default 10), Width=0 — the edge loses its seam. Where neighbouring seams meet, the corner style decides (Mode=Corner,
 click near a corner): Extend — both seams extend to their intersection, but at most by one seam width;
 Slant — each seam extends to the sew line of the neighbouring edge (corner cut straight across);
 Return — the seam returns at 90° to the sew line at the corner. Inner corners — the seams are cut where they cross.
@@ -35,7 +34,7 @@ from click_undo import UNDO, Steps  # option Undo: take back the last click
 STICKY = "Seams"
 PARENT, NAME = "Pattern", "Seams"  # cut lines: layer Pattern::Seams
 KEY, CORNERS = "Seams", "SeamCorners"  # UserText on the cut line: edge widths, corner styles
-PRESETS_MM = [8.0, 10.0, 12.0, 15.0, 20.0]  # PatternSmith: five preset widths
+WIDTH_MM = 10.0  # default seam allowance
 MODES = ["Seam", "Corner"]
 STYLES = ["Extend", "Slant", "Return"]
 MATCH_MM = 1.0  # a stored edge middle / corner within this of the panel — still the same edge / corner
@@ -211,43 +210,11 @@ def find_cut(doc, lp, near):
     return best
 
 
-def presets(doc):
-    """Preset widths in mm: from the .3dm (Edit), else PRESETS_MM."""
-    s = doc.Strings.GetValue(STICKY, "presets")
-    try:
-        vals = [float(v) for v in s.split()] if s else []
-    except ValueError:
-        vals = []
-    return [v for v in vals if v > 0] or list(PRESETS_MM)
-
-
-def edit_presets(doc):
-    """PatternSmith Edit Seam Allowances: a dialog with a field per preset width (on the command line a space
-    ends the input). Empty field — that preset is dropped; 12,5 = 12.5."""
-    cur = presets(doc)
-    n = max(len(PRESETS_MM), len(cur))
-    res = rs.PropertyListBox(["Width %d" % (i + 1) for i in range(n)],
-                             ["%g" % v for v in cur] + [""] * (n - len(cur)),
-                             u"Seam allowance presets, mm (empty — not used)", u"Seams")
-    if res is None:
-        return  # Cancel
-    try:
-        vals = [float(v.replace(",", ".")) for v in res if v.strip()]
-    except ValueError:
-        vals = []
-    if vals and all(v > 0 for v in vals):
-        doc.Strings.SetString(STICKY, "presets", " ".join("%g" % v for v in vals))
-    else:
-        print(u"Presets not changed: %s" % u", ".join(res))
-
-
-def label(v):
-    return ("%g" % v).replace(".", "_")  # option values: no dots
-
-
 def ask(gp, doc):
-    """Click with options Undo / Mode / Width / Edit (Seam) or Corner (Corner) / All / Angle.
-    A point, UNDO, ALL or None (Enter / Esc). Mode, width index, corner style, angle — in sc.sticky."""
+    """Click with options Undo / Mode / Width (Seam) or Corner (Corner) / All / Angle.
+    A point, UNDO, ALL or None (Enter / Esc). Mode, width, corner style, angle — in sc.sticky."""
+    mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
+    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_width", WIDTH_MM * mm), 0.0, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     while True:
         mode = sc.sticky.setdefault(STICKY + "_mode", 0)
@@ -256,17 +223,15 @@ def ask(gp, doc):
                             u"Click near a corner — it gets the corner style (Enter — done)")
         i_undo = gp.AddOption("Undo")
         i_mode = gp.AddOptionList("Mode", MODES, mode)
-        i_w = i_edit = i_c = -1
+        i_c = -1
         if mode == 0:
-            labels = [label(v) for v in presets(doc)] + ["Off"]
-            w = min(sc.sticky.setdefault(STICKY + "_width", 1), len(labels) - 1)
-            i_w = gp.AddOptionList("Width", labels, w)
-            i_edit = gp.AddOption("Edit")
+            gp.AddOptionDouble("Width", w)
         else:
             i_c = gp.AddOptionList("Corner", STYLES, sc.sticky.setdefault(STICKY + "_corner", 0))
         i_all = gp.AddOption("All")
         gp.AddOptionDouble("Angle", a)
         r = gp.Get()
+        sc.sticky[STICKY + "_width"] = w.CurrentValue
         sc.sticky[STICKY + "_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
             i = gp.OptionIndex()
@@ -276,10 +241,6 @@ def ask(gp, doc):
                 return ALL
             if i == i_mode:
                 sc.sticky[STICKY + "_mode"] = gp.Option().CurrentListOptionIndex
-            elif i == i_w:
-                sc.sticky[STICKY + "_width"] = gp.Option().CurrentListOptionIndex
-            elif i == i_edit:
-                edit_presets(doc)
             elif i == i_c:
                 sc.sticky[STICKY + "_corner"] = gp.Option().CurrentListOptionIndex
             continue
@@ -308,7 +269,8 @@ def apply(doc, oid, click, steps, tol):
     if lp is None:
         return u"panel is not closed"
     es = edges(lp, sc.sticky.get(STICKY + "_angle", 30.0), tol)
-    near = max(MATCH_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem), 10 * tol)
+    mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
+    near = max(MATCH_MM * mm, 10 * tol)
     cut = find_cut(doc, lp, near)
     attrs = cut.Attributes.Duplicate() if cut else None
     widths = [width_of(e, parse(attrs.GetUserString(KEY)) if attrs else [], near) for e in es]
@@ -321,9 +283,7 @@ def apply(doc, oid, click, steps, tol):
     else:
         pick = [min(range(len(es)), key=lambda k: es[k].PointAtStart.DistanceTo(click))]
     if mode == 0:
-        ps = presets(doc)
-        i = sc.sticky.get(STICKY + "_width", 1)
-        w = ps[i] * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem) if i < len(ps) else 0.0
+        w = sc.sticky.get(STICKY + "_width", WIDTH_MM * mm)
         for k in pick:
             widths[k] = w
     elif cut is None:
@@ -355,8 +315,7 @@ def apply(doc, oid, click, steps, tol):
 
 HELP = u"""Options:
   Mode — Seam: click near a panel edge, it gets the seam Width; Corner: click near a corner, it gets the Corner style
-  Width — seam allowance, one of the presets (mm); Off — the edge loses its seam
-  Edit — change the preset widths in a dialog, a field per width (kept in the .3dm)
+  Width — seam allowance (mm), type the one you need now; 0 — the edge loses its seam
   Corner — Extend: seams extend to their intersection, at most one seam width; Slant: each seam to the neighbour's
     sew line (corner cut across); Return: the seam returns at 90° to the sew line
   All — the same for every edge / corner of the selected panels
