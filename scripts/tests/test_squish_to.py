@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Check of pattern/SquishTo (3D marks onto the squished surface wherever it is now: moved, turned, mirrored;
 the link's 3D side shifted from the 3D surface — fitted onto the selected one, of several; marks off the panel skipped;
+marks already there not placed again, only the new ones selected; only the surface selected — the visible marks on it;
 no 3D surface / wrong one / DupBorder curve refused) in Rhino 8:
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_squish_to.txt next to it."""
@@ -76,8 +77,8 @@ try:
         mid.Transform(xf)
 
         def check(name, d, fid):
-            added, skipped = M.transfer(d, marks, fid, tol, [other, sid])
-            assert skipped == 1 and len(added) == 3, (name, skipped, len(added))
+            added, skipped, dups = M.transfer(d, marks, fid, tol, [other, sid])
+            assert skipped == 1 and len(added) == 3 and dups == 0, (name, skipped, len(added), dups)
             g = [d.Objects.FindId(i).Geometry for i in added]
             got = [g[0].Location, g[1].Point, g[2].PointAtStart, g[2].PointAtEnd]
             e = max(x.DistanceTo(y) for x, y in zip(got, exp))
@@ -101,7 +102,28 @@ try:
         rs.GetObject = lambda *a, **k: fid
         before = set(o.Id for o in doc.Objects)
         M.main()
-        assert len([o for o in doc.Objects if o.Id not in before]) == 3
+        new = [o.Id for o in doc.Objects if o.Id not in before]
+        assert len(new) == 3
+        assert M.transfer(doc, marks, fid, tol, [sid])[1:] == (1, 3)  # again: all 3 already there
+        assert not list(doc.Objects.GetSelectedObjects(False, False))  # nothing new — nothing selected
+
+        # only the surface: the visible marks on it (a hidden one, one 40 mm off, one on the other surface — not)
+        for i in new:
+            doc.Objects.Delete(i, True)
+        h = doc.Objects.AddPoint(moved[0].Location + Vector3d(0, 0, 0))
+        doc.Objects.Hide(h, True)
+        doc.Objects.AddPoint(mv * Point3d(450, 450, 0))  # on the other surface
+        rs.GetObjects = lambda *a, **k: [sid]
+        before = set(o.Id for o in doc.Objects)
+        M.main()
+        new = [o.Id for o in doc.Objects if o.Id not in before]
+        assert len(new) == 3, len(new)
+        assert sorted(o.Id for o in doc.Objects.GetSelectedObjects(False, False)) == sorted(new)
+        assert M.transfer(doc, [], fid, tol, [sid])[1:] == (0, 3)
+        # a mark added on the 3D since: only it is placed
+        doc.Objects.AddPoint(at(0.6, 0.3) + v)
+        added, skipped, dups = M.transfer(doc, [], fid, tol, [sid, other])
+        assert (len(added), dups) == (1, 3), (len(added), dups)
 
         # DupBorder curve refused
         b = Curve.JoinCurves(doc.Objects.FindId(fid).Geometry.DuplicateNakedEdgeCurves(True, False))[0]

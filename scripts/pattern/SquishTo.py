@@ -9,8 +9,11 @@ from it: a fine mesh over the 2D surface is squished back to 3D, each mark is fo
 spot of the 2D mesh, then corrected with SquishBack until it goes back onto the mark.
 The 3D side of the link may come out shifted (seen after the 2D panel was moved: the command SquishBack follows the 3D
 object by its id, a script cannot read it) — so the squished-back mesh is first fitted onto the selected 3D surface.
-The marks go onto the 2D surface with the layer of their 3D originals (no groups) and are left selected. A mark farther
-than 5 mm from the squished 3D surface is skipped (not on this panel).
+Only the 3D surface selected, no marks — every visible, unlocked point / curve / TextDot lying on it (within 1 mm; a curve
+wholly) is taken.
+A mark already on the 2D surface (same kind, within 1 mm: a point, a TextDot with the same text, a curve of the same
+length along it) is not placed again. The new marks go onto the 2D surface with the layer of their 3D originals
+(no groups) and are left selected. A selected mark farther than 5 mm from the 3D surface is skipped (not on this panel).
 """
 import Rhino
 import rhinoscriptsyntax as rs
@@ -20,7 +23,9 @@ from Rhino.Geometry import (Curve, GeometryBase, Mesh, MeshingParameters, Point,
                             TextDot, Vector3d)
 from System.Collections.Generic import List
 
-ON_MM = 5.0  # a mark farther than this from the squished 3D surface is skipped
+ON_MM = 5.0  # a selected mark farther than this from the squished 3D surface is skipped
+SURF_MM = 1.0  # only the surface selected: the marks lying on it within this are taken
+SAME_MM = 1.0  # a 2D object of the same kind this close to a new mark is that mark: not placed again
 STEPS = 4  # SquishBack corrections
 KEEP = 0.7  # the 3D fit uses the closest 70 % of the mesh points
 
@@ -118,9 +123,46 @@ def flatten(link, geo, tol):
     return PolylineCurve(q), off
 
 
+def probe(geo):
+    """Points a mark is checked by."""
+    if isinstance(geo, Point):
+        return [geo.Location]
+    if isinstance(geo, TextDot):
+        return [geo.Point]
+    return [geo.PointAt(t) for t in geo.DivideByCount(8, True)]
+
+
+def objects(doc, bb):
+    """Visible, unlocked points / curves / TextDots inside bounding box bb."""
+    s = Rhino.DocObjects.ObjectEnumeratorSettings()
+    s.LockedObjects = False
+    s.VisibleFilter = True
+    s.ObjectTypeFilter = (Rhino.DocObjects.ObjectType.Point | Rhino.DocObjects.ObjectType.Curve |
+                          Rhino.DocObjects.ObjectType.TextDot)
+    return [o for o in doc.Objects.GetObjectList(s) if bb.Contains(o.Geometry.GetBoundingBox(True))]
+
+
+def marks_on(doc, brep, near):
+    """Ids of the marks lying on brep within near (a curve wholly)."""
+    bb = brep.GetBoundingBox(True)
+    bb.Inflate(near)
+    return [o.Id for o in objects(doc, bb)
+            if all(brep.ClosestPoint(p).DistanceTo(p) <= near for p in probe(o.Geometry))]
+
+
+def same(a, b, near):
+    """New 2D mark a is already there as b: same kind, within near (a curve — of the same length, all along b)."""
+    if isinstance(a, Point):
+        return isinstance(b, Point) and a.Location.DistanceTo(b.Location) <= near
+    if isinstance(a, TextDot):
+        return isinstance(b, TextDot) and a.Text == b.Text and a.Point.DistanceTo(b.Point) <= near
+    return (isinstance(b, Curve) and abs(a.GetLength() - b.GetLength()) <= max(near, 0.01 * a.GetLength()) and
+            all(b.PointAt(b.ClosestPoint(p)[1]).DistanceTo(p) <= near for p in probe(a)))
+
+
 def transfer(doc, mark_ids, flat_id, tol, srf_ids):
-    """Marks onto the squished surface, the link fitted onto the 3D surface it fits best of srf_ids:
-    (added ids, skipped) or why not (a message)."""
+    """Marks onto the squished surface, the link fitted onto the 3D surface it fits best of srf_ids; no mark_ids —
+    every mark lying on that surface: (added ids, skipped — off the surface, already there) or why not (a message)."""
     flat = rs.coercebrep(flat_id)
     if flat is None or not Squisher.Is2dPatternSquished(flat):
         return u"Not a Squish result: select the squished surface itself (a DupBorder curve does not know the 3D)"
@@ -132,7 +174,13 @@ def transfer(doc, mark_ids, flat_id, tol, srf_ids):
     if med > near:
         return u"None of the selected 3D surfaces is the one this panel was squished from (off by %.0f mm)" % (
             med / mm(doc))
-    added, skipped = [], 0
+    if not mark_ids:
+        mark_ids = marks_on(doc, link.brep, SURF_MM * mm(doc))
+    same_mm = SAME_MM * mm(doc)
+    bb = flat.GetBoundingBox(True)
+    bb.Inflate(same_mm)
+    there = [o.Geometry for o in objects(doc, bb)]  # what the 2D panel already has
+    added, skipped, dups = [], 0, 0
     for oid in mark_ids:
         o = doc.Objects.FindId(oid)
         if o is None or not isinstance(o.Geometry, (Point, Curve, TextDot)):
@@ -141,18 +189,23 @@ def transfer(doc, mark_ids, flat_id, tol, srf_ids):
         if off > near:
             skipped += 1
             continue
+        if any(same(g, b, same_mm) for b in there):
+            dups += 1
+            continue
+        there.append(g)
         a = o.Attributes.Duplicate()
         a.RemoveFromAllGroups()  # 3D groups do not belong on the 2D panel
         added.append(doc.Objects.Add(g, a))
     doc.Objects.UnselectAll()
     doc.Objects.Select(List[System.Guid](added))  # what was placed stays selected
     doc.Views.Redraw()
-    return added, skipped
+    return added, skipped, dups
 
 
 def main():
     doc = sc.doc
-    ids = rs.GetObjects(u"Select the new marks on the 3D model (points, curves, TextDots) and the 3D surface they are on",
+    ids = rs.GetObjects(u"Select the new marks on the 3D model (points, curves, TextDots) and the 3D surface they are on "
+                        u"(only the surface — every mark on it)",
                         rs.filter.point | rs.filter.curve | rs.filter.textdot | rs.filter.surface, preselect=True)
     if not ids:
         return
@@ -164,9 +217,10 @@ def main():
     if not isinstance(r, tuple):
         print(r)
         return
-    added, skipped = r
-    print(u"Squish To: %d marks placed%s" % (len(added), u"; %d skipped — farther than %g mm from this panel in 3D"
-                                             % (skipped, ON_MM) if skipped else u""))
+    added, skipped, dups = r
+    print(u"Squish To: %d marks placed%s%s" % (
+        len(added), u"; %d already there" % dups if dups else u"",
+        u"; %d skipped — farther than %g mm from this panel in 3D" % (skipped, ON_MM) if skipped else u""))
 
 
 if __name__ == "__main__":
