@@ -1,0 +1,4 @@
+rigid + mirror: off 0.0001 mm, fits ['0.000']
+edge changed: off 0.0000 mm, fits ['0.000']
+vertical plane: off 0.0001 mm, fits ['0.000']
+OK
