@@ -45,6 +45,7 @@ GROUPS = [
         (u"CutRisks", u"Mark risky cut spots (geometry unchanged)", py("analysis/CheckTangentialCutRisks.py"), None),
         (u"RecommendTabs", u"Select contours that need tabs (small or narrow)", py("analysis/RecommendCutTabs.py"), None),
         (u"CutTabs", u"Interactively add tabs to cut contours", py("analysis/AddCutTabs.py"), None),
+        (u"Zigzags", u"Find micro zigzags (segments < Size) on curves, show each and straighten it or skip", py("analysis/FindZigzags.py"), None),
     ]),
     (u"Cut", u"Cut preparation", [
         (u"PreparePanelCut", u"Panels → one outer contour on CUT, inner lines on INT/INK", py("cut/PreparePanelCut.py"), None),
@@ -121,6 +122,7 @@ IT = {
     u"CutRisks": (u"Rischi taglio", u"Segna i punti di taglio a rischio (geometria invariata)"),
     u"RecommendTabs": (u"Ponticelli consigliati", u"Seleziona i contorni che hanno bisogno di ponticelli (piccoli o stretti)"),
     u"CutTabs": (u"Ponticelli", u"Aggiunge i ponticelli ai contorni di taglio, in modo interattivo"),
+    u"Zigzags": (u"Microzigzag", u"Trova i microzigzag (segmenti < Size) sulle curve, li mostra uno per uno: raddrizza o salta"),
     u"Cut": (u"Taglio", u"Preparazione al taglio"),
     u"PreparePanelCut": (u"Prepara taglio", u"Pannelli → un contorno esterno su CUT, linee interne su INT/INK"),
     u"SplitToMaterial": (u"Dividi per tessuto", u"Divide i pannelli alla larghezza del tessuto: cucitura 1 cm, pezzi spostati di 50"),

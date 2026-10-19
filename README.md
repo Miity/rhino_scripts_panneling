@@ -92,6 +92,7 @@ before it) without leaving the command; a number given in that click is reused. 
 | CutRisks | mark risky cut spots (geometry unchanged) |
 | RecommendTabs | select contours that need tabs |
 | CutTabs | interactively add tabs |
+| Zigzags | `analysis/FindZigzags.py` — micro zigzags: select curves (polylines / lines) → runs of segments shorter than `Size` (mm, default 0.1; e.g. 0.02 mm steps back and forth at a corner from DXF / trims) each get a TextDot `Zig<n>` (layer `Analysis::Zigzags`), the view zooms to each in turn: `Fix` (Enter) — one straight segment from the run's first to last point (shorter than Size — one point; curve ends stay), `Skip` — left, its dot stays, `FixAll`, `Undo`; Esc — stop. Layer, groups, UserText kept; a fixed panel — click it again in Seams |
 
 **Cut** — `scripts/cut/`
 | Button | Left click |
