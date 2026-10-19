@@ -22,7 +22,7 @@ import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
 from Rhino.Geometry import (Curve, CurveEnd, CurveExtensionStyle, CurveOffsetCornerStyle, CurveOrientation,
-                            Line, LineCurve, Plane, Point, PointContainment, PolylineCurve, Vector3d)
+                            Interval, Line, LineCurve, Plane, Point, PointContainment, PolylineCurve, Vector3d)
 from Rhino.Geometry.Intersect import Intersection
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -38,6 +38,7 @@ PARENT, NAME = "Pattern", "Seams"  # cut lines: layer Pattern::Seams
 KEY, CORNERS = "Seams", "SeamCorners"  # UserText on the cut line: edge widths, corner styles
 NOTCH = "Notch"  # UserText of a notch (Notches.py)
 BREAK, BREAKS = "Break", "Breaks"  # break points (Break.py): UserText, layer Pattern::Breaks
+RIPRESA = "Ripresa"  # Break value of a ripresa mark (Break.py, Type Ripresa): its contour segment is taken in when sewn
 WIDTH_MM = 10.0  # default seam allowance
 MODES = ["Seam", "Corner"]
 STYLES = ["Extend", "Slant", "Return"]
@@ -73,14 +74,56 @@ def break_objects(doc):
 
 
 def breaks_on(doc, lp, near):
-    """Break points lying on the panel loop lp (found by geometry)."""
-    pts = [o.Geometry.Location for o in break_objects(doc)]
+    """Break points lying on the panel loop lp (found by geometry); ripresa marks are not break points."""
+    pts = [o.Geometry.Location for o in break_objects(doc) if o.Attributes.GetUserString(BREAK) != RIPRESA]
     return [p for p in pts if lp.PointAt(lp.ClosestPoint(p)[1]).DistanceTo(p) <= near]
 
 
-def edges(lp, angle, tol, breaks=()):
+def segment(lp, p):
+    """The loop segment nearest p (a closed one — circle, smooth panel — None)."""
+    segs = [s for s in lp.DuplicateSegments() or [] if not s.IsClosed]
+    return min(segs, key=lambda s: s.PointAt(s.ClosestPoint(p)[1]).DistanceTo(p)) if segs else None
+
+
+def riprese_on(doc, lp, near):
+    """Ripresa segments of the panel loop lp: the loop segment under each ripresa mark (Break.py) lying on it."""
+    out = []
+    for o in break_objects(doc):
+        p = o.Geometry.Location
+        if o.Attributes.GetUserString(BREAK) == RIPRESA and lp.PointAt(lp.ClosestPoint(p)[1]).DistanceTo(p) <= near:
+            s = segment(lp, p)
+            if s:
+                out.append(s)
+    return out
+
+
+def skips(e, riprese, near):
+    """Riprese lying on edge e: (from, to) lengths from its start, sorted — the parts taken in when sewn."""
+    out = []
+    for r in riprese:
+        ts = [e.ClosestPoint(p)[1] for p in (r.PointAtStart, mid(r), r.PointAtEnd)]
+        if all(e.PointAt(t).DistanceTo(p) <= near for t, p in zip(ts, (r.PointAtStart, mid(r), r.PointAtEnd))):
+            out.append(tuple(sorted(e.GetLength(Interval(e.Domain.T0, t)) for t in (ts[0], ts[2]))))
+    return sorted(out)
+
+
+def to_sewn(s, sk):
+    """Length s along the edge → length along the sewn seam (riprese sk taken out; inside one — at its start)."""
+    return s - sum(min(s, b) - a for a, b in sk if s > a)
+
+
+def to_real(s, sk, eps=1e-9):
+    """Length s along the sewn seam → length along the edge (riprese sk put back; at a ripresa — at its start)."""
+    for a, b in sk:
+        if s > a + eps:
+            s += b - a
+    return s
+
+
+def edges(lp, angle, tol, breaks=(), riprese=()):
     """Edges corner to corner in loop order: edge k runs from corner k to corner k + 1. Corners — direction breaks
-    larger than angle and the break points (PatternSmith Break) on the loop.
+    larger than angle and the break points (PatternSmith Break) on the loop; the ends of riprese (riprese_on) are
+    not corners — the edge runs through the ripresa (Notches / Match Notches measure it sewn: skips, to_real).
     Fewer than two corners (circle, drop) — one closed edge, the whole loop."""
     near = 10 * tol
 
@@ -106,8 +149,11 @@ def edges(lp, angle, tol, breaks=()):
         segs += [p for p in (s.Trim(x, y) for x, y in zip(b, b[1:]) if y - x > 1e-9) if p] if ts else [s]
     n = len(segs)
     rad = math.radians(angle)
-    corners = sorted(set(i for i in range(n) if Vector3d.VectorAngle(segs[i - 1].TangentAtEnd, segs[i].TangentAtStart) > rad)
-                     | set(i for i in range(n) for p in breaks if segs[i].PointAtStart.DistanceTo(p) <= near))
+    ends = [p for r in riprese for p in (r.PointAtStart, r.PointAtEnd)]
+    # ponytail: a ripresa end that is also a real panel corner loses that corner — riprese sit inside an edge
+    corners = sorted((set(i for i in range(n) if Vector3d.VectorAngle(segs[i - 1].TangentAtEnd, segs[i].TangentAtStart) > rad)
+                      | set(i for i in range(n) for p in breaks if segs[i].PointAtStart.DistanceTo(p) <= near))
+                     - set(i for i in range(n) for p in ends if segs[i].PointAtStart.DistanceTo(p) <= near))
     if len(corners) < 2:
         return [lp.DuplicateCurve()]
     out = []

@@ -15,6 +15,8 @@ Mode (PatternSmith tools):
 Each notch is a point on the sew line (seen at any zoom), layer Pattern::Notches, UserText Notch = Point; the points
 of one click are one group, also in the panel's groups (move with it). Convert Notches turns them into the real
 notches — pen (INK) or knife V (INT) — on the cut line if the panel has one.
+A ripresa (Break.py, Type Ripresa) is not a corner: the edge runs through it and is measured sewn — without
+the ripresa (Mid — the middle of the sewn seam); a notch that falls on the ripresa goes to its start.
 """
 import os
 import sys
@@ -27,7 +29,8 @@ from Rhino.Geometry import Curve, Interval, Point
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.modules.pop("Seams", None)  # Rhino keeps modules from the first run for the session
-from Seams import KEY, MATCH_MM, NOTCH, PARENT, breaks_on, edges, layer_attrs, loop, up_normal
+from Seams import (KEY, MATCH_MM, NOTCH, PARENT, breaks_on, edges, layer_attrs, loop, riprese_on, skips, to_real,
+                   to_sewn, up_normal)
 sys.path.insert(0, os.path.dirname(HERE))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
@@ -79,12 +82,14 @@ def place(doc, oid, click, tol):
     if lp is None:
         return u"panel is not closed"
     near = max(MATCH_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem), 10 * tol)
-    es = edges(lp, opt("angle"), tol, breaks_on(doc, lp, near))  # edges also end at break points
+    rips = riprese_on(doc, lp, near)
+    es = edges(lp, opt("angle"), tol, breaks_on(doc, lp, near), rips)  # edges also end at break points
     e = min(es, key=lambda c: c.PointAt(c.ClosestPoint(click)[1]).DistanceTo(click))
-    length = e.GetLength()
+    sk = skips(e, rips, near)  # measured sewn: riprese taken out
+    length = to_sewn(e.GetLength(), sk)
     t = e.ClosestPoint(click)[1]
     o = dict((k, opt(k, doc)) for k in DEFAULTS)
-    ss = positions(length, MODES[o["mode"]], e.GetLength(Interval(e.Domain.T0, t)), o)
+    ss = positions(length, MODES[o["mode"]], to_sewn(e.GetLength(Interval(e.Domain.T0, t)), sk), o)
     if not ss:
         return u"no notch fits on the edge (%g)" % round(length, 1)
     attrs = layer_attrs(doc, LAYER, PARENT)
@@ -92,7 +97,7 @@ def place(doc, oid, click, tol):
     for g in list(obj.Attributes.GetGroupList() or []) + [doc.Groups.Add()]:  # panel's + one per click
         attrs.AddToGroup(g)
     for s in ss:
-        ok, ts = e.LengthParameter(s)
+        ok, ts = e.LengthParameter(to_real(s, sk))
         doc.Objects.Add(Point(e.PointAt(ts if ok else t)), attrs)
     return len(ss)
 
@@ -139,7 +144,8 @@ HELP = u"""Options (where the click sits on the edge sets From: first third — 
   Mode — Single: one notch at Distance from From (0 — at the click, Percent=Yes — % of the edge); Mid: middle of the edge;
     Evenly: First / Last from the corners (First — the corner nearer the click), Count notches in all, equal spacing;
     Repeat: always from the middle of the edge — one at the middle, then every Every both ways (default 300)
-  Angle — a break larger than this angle = corner (edges are taken corner to corner)
+  Angle — a break larger than this angle = corner (edges are taken corner to corner; a ripresa is not one —
+    the edge is measured without it, Break.py Type=Ripresa)
   Undo — take back the last click (again — the click before it)
 Notches are points (Pattern::Notches); Convert Notches turns them into pen / knife notches"""  # printed at start
 

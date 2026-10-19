@@ -46,7 +46,7 @@ try:
         # main(): add (50, 60) and (0, 30), a click on (50, 60) removes it, Undo brings it back
         clicks = [Point3d(50, 61, 0), Point3d(0.5, 30, 0), Point3d(50.5, 60.2, 0), B.UNDO, None]
         B.ask = lambda gp, d: clicks.pop(0)
-        sc.sticky["Break_pick"] = 3.0
+        sc.sticky.update({"Break_pick": 3.0, "Break_type": 0})  # Type=Break (sticky lives on in Rhino)
         rs.GetObjects = lambda *a, **k: [pid]
         B.main()
         bs = S.break_objects(doc)

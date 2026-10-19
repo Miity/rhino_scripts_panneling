@@ -7,6 +7,8 @@ Every notch point of A (Notches) gets a point on B at the same distance from the
 UserText Notch = Point, one group per seam + panel B's groups. A notch already on B there (within 1 mm) is kept,
 one past the end of B is skipped (counted). A has no notches but B has — copied from B to A.
 The lengths of both edges and their difference are printed (what the seamstress has to ease in).
+A ripresa (Break.py, Type Ripresa) is not a corner: the edge runs through it and every distance and length is taken
+sewn — without the ripresa; its end notches meet one point on the other edge.
 """
 import os
 import sys
@@ -19,7 +21,8 @@ from Rhino.Geometry import Interval, Point
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.modules.pop("Seams", None)  # Rhino keeps modules from the first run for the session
-from Seams import KEY, MATCH_MM, NOTCH, PARENT, breaks_on, edges, layer_attrs, loop, up_normal
+from Seams import (KEY, MATCH_MM, NOTCH, PARENT, breaks_on, edges, layer_attrs, loop, riprese_on, skips, to_real,
+                   to_sewn, up_normal)
 sys.path.insert(0, os.path.dirname(HERE))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last seam
@@ -37,22 +40,24 @@ def near(doc, tol):
 
 
 def pick(doc, ids, click, tol):
-    """(panel id, its edge nearest the click, running from the corner nearest the click) or None — panel not closed."""
+    """(panel id, its edge nearest the click, running from the corner nearest the click, its riprese — skips)
+    or None — panel not closed."""
     def dist(c):
         return c.PointAt(c.ClosestPoint(click)[1]).DistanceTo(click)
     oid, crv = min(((i, rs.coercecurve(i)) for i in ids), key=lambda ic: dist(ic[1]) if ic[1] else 1e300)
     lp = loop(crv, up_normal(crv, doc, tol)) if crv else None
     if lp is None:
         return None
-    es = edges(lp, sc.sticky.get(STICKY + "_angle", 30.0), tol, breaks_on(doc, lp, near(doc, tol)))
+    rips = riprese_on(doc, lp, near(doc, tol))
+    es = edges(lp, sc.sticky.get(STICKY + "_angle", 30.0), tol, breaks_on(doc, lp, near(doc, tol)), rips)
     e = min(es, key=dist).DuplicateCurve()
     if e.PointAtEnd.DistanceTo(click) < e.PointAtStart.DistanceTo(click):
         e.Reverse()
-    return oid, e
+    return oid, e, skips(e, rips, near(doc, tol))
 
 
-def on_edge(doc, e, nr):
-    """Lengths from the start of edge e of the notch points lying on it."""
+def on_edge(doc, e, nr, sk=()):
+    """Sewn lengths (riprese sk out) from the start of edge e of the notch points lying on it, one per spot."""
     s = Rhino.DocObjects.ObjectEnumeratorSettings()
     s.HiddenObjects = s.LockedObjects = True
     out = []
@@ -62,18 +67,22 @@ def on_edge(doc, e, nr):
         p = o.Geometry.Location
         t = e.ClosestPoint(p)[1]
         if e.PointAt(t).DistanceTo(p) <= nr:
-            out.append(e.GetLength(Interval(e.Domain.T0, t)))
+            s = to_sewn(e.GetLength(Interval(e.Domain.T0, t)), sk)
+            if not any(abs(s - x) <= nr for x in out):  # both ends of a ripresa — one spot
+                out.append(s)
     return sorted(out)
 
 
 def match(doc, a, b, tol):
     """Notch points of edge a copied onto edge b at the same lengths from their start (a, b — from pick);
-    a without notches and b with them — b onto a. (made, past the end, length from, length to)."""
+    a without notches and b with them — b onto a. (made, past the end, length from, length to), lengths sewn
+    (riprese out)."""
     nr = near(doc, tol)
-    sa, sb = on_edge(doc, a[1], nr), on_edge(doc, b[1], nr)
+    sa, sb = on_edge(doc, a[1], nr, a[2]), on_edge(doc, b[1], nr, b[2])
     if not sa and sb:
         a, b, sa, sb = b, a, sb, sa
-    e, lb = b[1], b[1].GetLength()
+    e, sk = b[1], b[2]
+    lb = to_sewn(e.GetLength(), sk)
     attrs = layer_attrs(doc, LAYER, PARENT)
     attrs.SetUserString(NOTCH, "Point")
     made = past = 0
@@ -84,10 +93,10 @@ def match(doc, a, b, tol):
             if not made:  # panel B's groups + one per seam, only when something is placed
                 for g in list(doc.Objects.FindId(b[0]).Attributes.GetGroupList() or []) + [doc.Groups.Add()]:
                     attrs.AddToGroup(g)
-            ok, t = e.LengthParameter(min(s, lb))
+            ok, t = e.LengthParameter(to_real(min(s, lb), sk))
             doc.Objects.Add(Point(e.PointAt(t if ok else e.Domain.T1)), attrs)
             made += 1
-    return made, past, a[1].GetLength(), lb
+    return made, past, to_sewn(a[1].GetLength(), a[2]), lb
 
 
 def ask(prompt):
@@ -111,7 +120,7 @@ def ask(prompt):
 
 HELP = u"""Per seam two clicks: edge A near the corner where the seam starts, edge B near the corner sewn to it.
   The notch points of A go onto B at the same distances from the clicked corner (A without notches — from B to A);
-  the lengths of both edges and the difference are printed
+  the lengths of both edges and the difference are printed; a ripresa (Break.py Type=Ripresa) — measured without it
   Angle — a break larger than this angle = corner (edges are taken corner to corner)
   Undo — on edge A: take back the last seam (again — the one before it); on edge B: pick edge A again"""  # printed at start
 
@@ -148,8 +157,10 @@ def main():
         if n:
             made.append(n)
         k = mm(doc)
-        print(u"Notches: %d placed%s; edges %.1f → %.1f mm, difference %+.1f mm" % (
-            n, u", %d past the end" % past if past else u"", la / k, lb / k, (lb - la) / k))
+        rip = sum(y - x for x, y in a[2] + b[2])
+        print(u"Notches: %d placed%s; edges %.1f → %.1f mm%s, difference %+.1f mm" % (
+            n, u", %d past the end" % past if past else u"", la / k, lb / k,
+            u" (sewn, ripresa %.1f mm out)" % (rip / k) if rip else u"", (lb - la) / k))
         doc.Views.Redraw()
     print(u"Match Notches: %d points → Pattern::%s (Convert Notches — into pen / knife notches)" % (sum(made), LAYER))
 
