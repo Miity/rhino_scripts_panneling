@@ -6,7 +6,7 @@ coplanar polylines or lines (panels, seam strips, loose edges, duplicates are
 fine); every area they enclose counts as a panel, and each separate
 group of touching areas becomes its own panel. Step 2: select what belongs on ``int``
 (Enter = nothing). Step 3: select what belongs on ``ink`` (Enter = every other
-visible curve and text; objects already on ``int`` stay there, their count is printed). Only curves lying inside the panels (texts by their
+visible curve and text; objects already on ``int`` stay there, also when selected in step 1; their count is printed). Only curves lying inside the panels (texts by their
 centre) are used in steps 2 and 3;
 everything else is left untouched. Panels are hidden after success and can be restored with
 Rhino's _Show command. Each panel becomes one outside loop on ``cut``; every
@@ -384,6 +384,11 @@ def main():
     ids = rs.GetObjects(u"Step 1: select panel lines (polylines, lines, seam strips)", rs.filter.curve,
                         preselect=True, select=False)
     ids = [i for i in ids or [] if not rs.GetUserText(i, NOTCH)]  # notches are already on INK / INT
+    # Already on int (layer names ignore case: INT is int): never panel lines, left as they are.
+    on_int = [i for i in ids if rs.ObjectLayer(i).lower() == "int"]
+    if on_int:
+        ids = [i for i in ids if i not in on_int]
+        print(u"Step 1: already on int, not panel lines, left as they are: {0}.".format(len(on_int)))
     if not ids:
         return
     tol = sc.doc.ModelAbsoluteTolerance
