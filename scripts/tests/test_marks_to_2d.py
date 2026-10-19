@@ -115,6 +115,7 @@ try:
         M.main()
         new = [o for o in doc.Objects if o.Id not in before]
         assert len(new) == 3, len(new)
+        assert sorted(o.Id for o in doc.Objects.GetSelectedObjects(False, False)) == sorted(o.Id for o in new)
         pt = [o for o in new if isinstance(o.Geometry, Point)][0]
         assert pt.Attributes.LayerIndex == li and not list(pt.Attributes.GetGroupList() or []), pt.Attributes.LayerIndex
         assert pt.Geometry.Location.DistanceTo(expect(xf)[0]) < 0.01

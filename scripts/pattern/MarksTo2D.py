@@ -12,6 +12,7 @@ import math
 
 import Rhino
 import rhinoscriptsyntax as rs
+import System
 import scriptcontext as sc
 from Rhino.Geometry import (AreaMassProperties, Brep, Curve, Plane, Point, Point3d, SquishParameters, Squisher,
                             TextDot, Transform, Vector3d)
@@ -147,6 +148,8 @@ def transfer(doc, srf_id, mark_ids, panel_id, tol):
             a = o.Attributes.Duplicate()
             a.RemoveFromAllGroups()  # 3D groups do not belong on the 2D panel
             added.append(doc.Objects.Add(g, a))
+        doc.Objects.UnselectAll()
+        doc.Objects.Select(List[System.Guid](added))  # what was placed stays selected
         doc.Views.Redraw()
         return list(added)
 
