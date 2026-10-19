@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Check of pattern/SquishTo (3D marks onto the squished surface wherever it is now: moved, turned, mirrored,
-saved and opened; marks off the panel skipped; DupBorder curve refused) in Rhino 8:
+"""Check of pattern/SquishTo (3D marks onto the squished surface wherever it is now: moved, turned, mirrored;
+the link's 3D side shifted from the 3D surface — fitted onto the selected one, of several; marks off the panel skipped;
+no 3D surface / wrong one / DupBorder curve refused) in Rhino 8:
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_squish_to.txt next to it."""
 import os
@@ -51,8 +52,19 @@ try:
         fid = doc.Objects.AddBrep(flat)
         doc.Objects.Transform(fid, xf, True)
 
-        marks = [doc.Objects.AddPoint(geos[0].Location), doc.Objects.AddTextDot(geos[1]), doc.Objects.AddCurve(iso),
-                 doc.Objects.AddPoint(at(0.5, 0.5) + Vector3d(0, 0, 40))]  # 40 mm off the surface — skipped
+        # the 3D model (surface + marks) sits 5 m away from where the link's 3D side is (seen in a real drawing)
+        v = Vector3d(5572, -12427, 0)
+        mv = Transform.Translation(v)
+        sid = doc.Objects.AddSurface(srf)
+        other = doc.Objects.AddSurface(NurbsSurface.CreateFromCorners(Point3d(0, 0, 0), Point3d(900, 0, 0),
+                                                                      Point3d(900, 900, 0), Point3d(0, 900, 0)))
+        for i in (sid, other):
+            doc.Objects.Transform(i, mv, True)
+        moved = [g.Duplicate() for g in geos] + [Point(at(0.5, 0.5) + Vector3d(0, 0, 40))]  # 40 mm off — skipped
+        for g in moved:
+            g.Transform(mv)
+        marks = [doc.Objects.AddPoint(moved[0].Location), doc.Objects.AddTextDot(moved[1]), doc.Objects.AddCurve(moved[2]),
+                 doc.Objects.AddPoint(moved[3].Location)]
         li = doc.Layers.Add("Buttons", System.Drawing.Color.Red)
         a = doc.Objects.FindId(marks[0]).Attributes.Duplicate()
         a.LayerIndex = li
@@ -64,7 +76,7 @@ try:
         mid.Transform(xf)
 
         def check(name, d, fid):
-            added, skipped = M.transfer(d, marks, fid, tol)
+            added, skipped = M.transfer(d, marks, fid, tol, [other, sid])
             assert skipped == 1 and len(added) == 3, (name, skipped, len(added))
             g = [d.Objects.FindId(i).Geometry for i in added]
             got = [g[0].Location, g[1].Point, g[2].PointAtStart, g[2].PointAtEnd]
@@ -83,7 +95,9 @@ try:
         check("moved, turned, mirrored", doc, fid)
 
         # main
-        rs.GetObjects = lambda *a, **k: marks
+        assert not isinstance(M.transfer(doc, marks, fid, tol, []), tuple)  # no 3D surface
+        assert not isinstance(M.transfer(doc, marks, fid, tol, [other]), tuple)  # not the squished one
+        rs.GetObjects = lambda *a, **k: marks + [sid]
         rs.GetObject = lambda *a, **k: fid
         before = set(o.Id for o in doc.Objects)
         M.main()
@@ -91,7 +105,7 @@ try:
 
         # DupBorder curve refused
         b = Curve.JoinCurves(doc.Objects.FindId(fid).Geometry.DuplicateNakedEdgeCurves(True, False))[0]
-        r = M.transfer(doc, marks, doc.Objects.AddCurve(b), tol)
+        r = M.transfer(doc, marks, doc.Objects.AddCurve(b), tol, [sid])
         assert not isinstance(r, tuple), r
         doc.Dispose()
     finally:
