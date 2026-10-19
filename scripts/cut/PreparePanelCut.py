@@ -319,8 +319,20 @@ def get_plane_and_segments(ids, tol):
             if abs(vector * plane.ZAxis) > tol:
                 raise ValueError(u"The selected shapes do not lie in one plane.")
             flat.append((vector * plane.XAxis, vector * plane.YAxis))
-        segments.extend((a, b) for a, b in zip(flat, flat[1:]) if dist(a, b) > tol)
+        segments.extend(chain_segments(flat, tol))
     return plane, segments
+
+
+def chain_segments(flat, tol):
+    """Segments of a point chain with micro steps (offset / join noise, a few tolerances long) merged
+    into their neighbours: the side test needs a quarter of a segment to be more than the tolerance."""
+    kept = flat[:1]
+    for point in flat[1:]:
+        if dist(point, kept[-1]) > 4 * tol:
+            kept.append(point)
+    if len(kept) > 1:
+        kept[-1] = flat[-1]  # the real end, so the chain still meets its neighbours / closes
+    return [(a, b) for a, b in zip(kept, kept[1:]) if dist(a, b) > tol]
 
 
 def point_covered(p, polygons, tol):
@@ -496,6 +508,10 @@ def _self_check():
     assert point_covered((10, 15), frame, 1e-6)      # on a shared edge
     assert point_covered((15, 15), frame, 1e-6)      # enclosed gap counts as panel
     assert not point_covered((40, 5), frame, 1e-6)   # outside
+    # A micro step (1.5 tolerances) at a corner of the cut line is merged away.
+    chain = [(0, 0), (10, 0), (10, 10), (0, 10), (0, 1.5e-6), (0, 0)]
+    (loop,), _ = pick(chain_segments(chain, 1e-6), 1e-6)
+    assert len(loop) == 4
     # Separate panels: one loop each.
     loops, internal = pick(closed(rectangle(0, 0, 10, 10), rectangle(20, 0, 30, 10)), 1e-6)
     assert len(loops) == 2 and not internal
