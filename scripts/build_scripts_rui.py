@@ -52,7 +52,7 @@ GROUPS = [
         (u"CurveOverlap", u"Delete exact duplicates (SelDup), select the shorter curve of each overlapping pair (among selected, or all curves)", py("cut/sel_curve_overlap.py"), None),
     ]),
     (u"Parts", u"Creating parts (strips, reinforcements…) in the Parts layer", [
-        (u"Panels", u"Panels → copy in Parts::Panels numbered P1, P2… (text inside + TextDot)", py("parts/Panels.py"), None),
+        (u"Panels", u"Panels → copy in Parts::Panels numbered P1, P2… (text inside)", py("parts/Panels.py"), None),
         (u"Strips", u"Fascia strips under the selected lines: width W, length = length of each curve; label F<w>  l=… (cm)", py("parts/StripsFromCurves.py"), None),
         (u"ZipCover", u"Zip cover: panel edge (corner to corner) + offset W outward, ends along the neighbouring edges; label Off<w> (cm, offset); EditPanel=Yes — the panel contour itself grows", py("parts/ZipCover.py"), None),
         (u"Join Corner", u"Join any two open curves at a corner, edge to edge: click near the corner → edges (corner to corner) extended / trimmed to their intersection, ends beyond removed, one curve", py("parts/JoinCorner.py"), None),
@@ -126,7 +126,7 @@ IT = {
     u"SplitToMaterial": (u"Dividi per tessuto", u"Divide i pannelli alla larghezza del tessuto: cucitura 1 cm, pezzi spostati di 50"),
     u"CurveOverlap": (u"Sovrapposizioni", u"Elimina i doppioni esatti (SelDup), seleziona la curva più corta di ogni coppia sovrapposta (tra le selezionate o tutte)"),
     u"Parts": (u"Pezzi", u"Creazione dei pezzi (fasce, rinforzi…) nel layer Parts"),
-    u"Panels": (u"Pannelli", u"Pannelli → copia in Parts::Panels numerata P1, P2… (testo dentro + TextDot)"),
+    u"Panels": (u"Pannelli", u"Pannelli → copia in Parts::Panels numerata P1, P2… (testo dentro)"),
     u"Strips": (u"Fasce", u"Fasce sotto le linee selezionate: larghezza W, lunghezza = lunghezza di ogni curva; etichetta F<w>  l=… (cm)"),
     u"ZipCover": (u"CopriZip", u"Copri zip: lato del pannello (da angolo ad angolo) + offset W verso l'esterno, estremità lungo i lati vicini; etichetta Off<w> (cm, offset); EditPanel=Yes — cresce il contorno stesso del pannello"),
     u"Join Corner": (u"UnisciAng", u"Unisce due curve aperte in un angolo, lato a lato: clic vicino all'angolo → i lati (da angolo ad angolo) estesi / tagliati fino all'intersezione, le estremità oltre tolte, una curva"),

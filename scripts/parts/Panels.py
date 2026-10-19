@@ -2,13 +2,12 @@
 """Panels → parts P1, P2, P3…
 Select closed curves (panels). Each panel is copied in place to layer Parts::Panels,
 the input curve (and its holes) is deleted. The copy gets number P<n>: text inside the panel in the corner you click near (Enter — top right;
-placement as in markup/DotToPanelText.py), style — option Style (remembered, default PAT 14 mm),
-and a TextDot "P<n>" (sublayer Labels::Panels::Dots; the text in Labels::Panels) above-left of the panel edge, so the number is visible at any zoom.
+placement as in markup/DotToPanelText.py), style — option Style (remembered, default PAT 14 mm), the text in Labels::Panels.
 The number is written to the copy's UserText (Part = P<n>): a repeated run
 skips curves already in Parts::Panels with a number. A new panel gets the smallest free number in the layer,
 so the number of a deleted panel is reused.
 A curve lying inside another selected one is a hole of that panel: it is copied together with it
-under the same number and does not take its own number. Copy, holes, text and TextDot are one group.
+under the same number and does not take its own number. Copy, holes and text are one group.
 """
 import os
 import re
@@ -26,7 +25,6 @@ for _m in ("DotToPanelText", "PatternTextStyles"):  # Rhino keeps modules from t
 import DotToPanelText as D
 
 LAYER = "Parts::Panels"
-DOTS = "Labels::Panels::Dots"  # TextDot — in a sublayer of the text's Labels::Panels, the panel curves in LAYER
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
@@ -144,10 +142,6 @@ def main():
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
     text_attrs = D.pts.label_attrs(doc, attrs)  # Labels::Panels
-    if not rs.IsLayer(DOTS):
-        rs.AddLayer("Dots", parent=doc.Layers[text_attrs.LayerIndex].FullPath)
-    dot_attrs = text_attrs.Duplicate()
-    dot_attrs.LayerIndex = doc.Layers.FindByFullPath(DOTS, -1)
     used = used_numbers(LAYER)
     made = 0
     steps = Steps(doc)
@@ -174,12 +168,6 @@ def main():
         done_n.append(n)
         steps.start()
         ds = D.pts.label_style(doc, STYLE)
-        # TextDot near the top-left of the panel: curve point closest to the bbox corner, slightly up-left
-        x0, y0, x1, y1 = bbox(crv, plane)
-        ok, t = crv.ClosestPoint(plane.PointAt(x0, y1))
-        gap = 2 * ds.TextHeight * ds.DimensionScale
-        dot = Rhino.Geometry.TextDot(name, crv.PointAt(t) + (plane.YAxis - plane.XAxis) * gap)
-
         tagged = attrs.Duplicate()
         tagged.SetUserString(KEY, name)
         new = [doc.Objects.AddCurve(curves[k], tagged) for k in [i] + hole_idx]
@@ -187,8 +175,8 @@ def main():
             steps.delete(ids[k])
         tid = D.place_text(doc, name, crv, click, ds, text_attrs, tol)
         if not tid:
-            print(u"%s: text does not fit in the panel (smaller style — option Style), TextDot kept" % name)
-        new += [o for o in (tid, doc.Objects.AddTextDot(dot, dot_attrs)) if o]
+            print(u"%s: text does not fit in the panel (smaller style — option Style), no label" % name)
+        new += [tid] if tid else []
         rs.AddObjectsToGroup(new, rs.AddGroup())
         doc.Views.Redraw()
         print(u"%s%s" % (name, u"  (holes: %d)" % len(hole_idx) if hole_idx else u""))
