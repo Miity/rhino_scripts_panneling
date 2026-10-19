@@ -280,6 +280,7 @@ def prepare(segments, tol):
 
 
 DUPLICATE_MM = 0.5  # copies closer than this are one cut line
+CLEAN_MM = 0.05  # linework noise below this (micro zigzags at a corner) is one point / one line; a plotter cuts far coarser
 
 
 def unique_polylines(ids):
@@ -391,7 +392,8 @@ def main():
         print(u"Step 1: already on int, not panel lines, left as they are: {0}.".format(len(on_int)))
     if not ids:
         return
-    tol = sc.doc.ModelAbsoluteTolerance
+    tol = max(sc.doc.ModelAbsoluteTolerance,
+              CLEAN_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem))
     try:
         plane, segments = get_plane_and_segments(ids, tol)
         nodes, loops, internal, polygons = prepare(segments, tol)
@@ -521,6 +523,12 @@ def _self_check():
     # A micro step (1.5 tolerances) at a corner of the cut line is merged away.
     chain = [(0, 0), (10, 0), (10, 10), (0, 10), (0, 1.5e-6), (0, 0)]
     (loop,), _ = pick(chain_segments(chain, 1e-6), 1e-6)
+    assert len(loop) == 4
+    # A back-and-forth zigzag (steps of 0.02) at a corner, open panel line on top of it: one loop at tol 0.05.
+    zig = [(10, 10), (10.02, 10.02), (10.01, 10.0), (10.03, 10.01), (10.02, 10.0), (10, 10)]
+    chain = [(0, 0), (10, 0)] + zig + [(0, 10), (0, 0)]
+    segments = chain_segments(chain, 0.05) + chain_segments([(5, 0)] + chain[1:7], 0.05)
+    (loop,), _ = pick(segments, 0.05)
     assert len(loop) == 4
     # Separate panels: one loop each.
     loops, internal = pick(closed(rectangle(0, 0, 10, 10), rectangle(20, 0, 30, 10)), 1e-6)
