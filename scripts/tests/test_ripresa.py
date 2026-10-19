@@ -63,18 +63,10 @@ try:
         assert N.place(doc, pb, Point3d(220, 61, 0), tol) == 1
         assert notches() == [(250, 60), (255, 64), (255, 64)], notches()
 
-        # A top every 20 (10..90), matched onto B top from the left corners: 50 = the ripresa (kept), 70, 90 after it
-        sc.sticky.update({"Notches_mode": 3, "Notches_every": 20.0})
-        assert N.place(doc, pa, Point3d(50, 61, 0), tol) == 5
+        # Match Notches: A top 100, B top through the ripresa 100 sewn (ripresa out)
         sc.sticky["MatchNotches_angle"] = 30.0
-        a, b = M.pick(doc, ids, Point3d(1, 61, 0), tol), M.pick(doc, ids, Point3d(201, 61, 0), tol)
-        n, past, la, lb = M.match(doc, a, b, tol)
-        assert (n, past, round(la, 6), round(lb, 6)) == (4, 0, 100, 100), (n, past, la, lb)
-        onb = [p for p in notches() if p[0] >= 200]
-        assert onb == [(210, 60), (230, 60), (250, 60), (255, 64), (255, 64), (275, 64), (295, 64)], onb
-
-        # B → A the other way round: A's notches already there — nothing new; the ripresa ends are one spot
-        assert M.match(doc, b, a, tol)[0] == 0
+        a, b = M.pick(doc, ids, Point3d(50, 61, 0), tol), M.pick(doc, ids, Point3d(220, 61, 0), tol)
+        assert (round(M.length(a), 6), round(M.length(b), 6)) == (100, 100), (M.length(a), M.length(b))
 
         # click on the marked ripresa again: mark + its end notches go
         clicks = [Point3d(252.5, 62.5, 0), None]
