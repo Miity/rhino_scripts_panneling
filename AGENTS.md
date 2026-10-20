@@ -67,7 +67,7 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
 
 ## Toolbar (`Scripts.rui`)
 
-- Button names — no spaces, each next word starts with a capital letter (`TubePockets`, `AggiornaTasche`), in `GROUPS` and in `IT`. A companion tool (update / variant / opposite of the same thing) goes on the right click of its main button (`TubePockets` → `UpdatePockets`, `Bordino` → `Pettola`, `SquishTo` → `MarksTo2D`).
+- Button names — no spaces, each next word starts with a capital letter (`TubePockets`, `AggiornaTasche`), in `GROUPS` and in `IT`. A companion tool (update / variant / opposite of the same thing) goes on the right click of its main button (`TubePockets` → `UpdatePockets`, `Bordino` → `Pettola`, `SquishTo` → `MarksTo2D`, `Notches` → `MatchNotches`, `ZipStops` → `ZipList`, `Layout` → `LayoutStack`).
 - New script → add a line to `GROUPS` in `scripts/build_scripts_rui.py` (English) + its Italian name and tooltip to `IT` (and to the table in `README.md`).
 - **Do NOT run the builder `build_scripts_rui.py`** — the user rebuilds `Scripts.rui` themselves (with Rhino closed). Remind them of the build command at the end of the reply.
 - After every created / changed script, end the reply with the full button macro:
