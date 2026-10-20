@@ -9,7 +9,7 @@ The toolbar is in **Italian** (customers and seamstresses are Italian): tabs **M
 | Scripts (one subfolder per tab) | `scripts/sizes/` · `curves/` · `analysis/` · `cut/` · `parts/` · `markup/` |
 | Grasshopper definitions | `Grasshoper scripts/*.gh` |
 | Toolbar file (generated, do not edit by hand) | `Scripts.rui` |
-| Separate toolbar file **Pattern** (Modello) — tools after the PatternSmith guide | `Pattern.rui`, scripts in `scripts/pattern/` |
+| Tab **Pattern** (Modello) — tools after the PatternSmith guide | `Scripts.rui`, scripts in `scripts/pattern/` |
 | Toolbar builder — **the button list is edited here** | `scripts/build_scripts_rui.py` |
 | Backup of the old `_Scripts` toolbar | `_backup_toolbar_20260930_2058/` |
 
@@ -135,7 +135,7 @@ before it) without leaving the command; a number given in that click is reused. 
 | Legend | label legend (P, F, Off, C, Z, Can, R, RC, RD, RO, T, A–A) — only those present in the drawing, as text at the click point; option Lang = IT (default) / EN / UA | — |
 | PanelPage | sheet for PDF: selected objects (panel contour or any of its parts) → one new A4 Layout (always portrait — Print on Mac uses one orientation for all sheets), one Top detail aimed at the whole selection (like Zoom Selected), scale as in Zoom Selected (the selection fills the frame, not rounded), the detail is not locked; name — UserText `Part` / label `P<n>` within the selection / the next free `P<n>`; one run — one sheet; labels are not touched | — |
 
-**Pattern** (Modello) — separate toolbar file `Pattern.rui`; `scripts/pattern/`. Tools rebuilt after the PatternSmith guide (Pattern Editor): the panel is the **sew line**, the seam allowance is a separate **cut line** around it.
+**Pattern** (Modello) — 7th tab of `Scripts.rui`; `scripts/pattern/`. Tools rebuilt after the PatternSmith guide (Pattern Editor): the panel is the **sew line**, the seam allowance is a separate **cut line** around it.
 | Button | Left click | Right click |
 |---|---|---|
 | Break (Spezza) | `pattern/Break.py` — break points (PatternSmith: Edit Tools > Break) to pick exactly the stretch of a closed panel you need: select panels → click on a contour (snaps work; several, Enter — done) → a break point at the contour point nearest the click, layer `Pattern::Breaks` (UserText `Break`, in the panel's groups); a click on a break point (within `Pick`, default 3 mm) removes it; `Undo`. A break point splits the edge (corner to corner) there as a corner does — Seams gives each part its own width and corner style, Notches counts From / Mid / Repeat on each part, Convert Notches takes the nearest part; the points are found on the panel by geometry. On a panel that already has a seam the edges are numbered anew: widths are read off the cut line, corner styles go back to Extend. Layout does not copy break points. `Type=Ripresa` — a click near a straight contour segment inside an edge that a seam takes in when sewn (ripresa): a mark at its middle (UserText `Break = Ripresa`) + notch points at both ends, one group; a click on a marked one removes all three. Notches / Match Notches take the edge through the ripresa and measure it sewn (without it: Mid = middle of the sewn seam, seam lengths without it); Seams does not see it | — |
@@ -152,7 +152,7 @@ Deliberately left off the toolbar: `build_scripts_rui.py` (builder).
 
 ## 2. Where to find the toolbar
 
-Tabs **Sizes / Curves / Analysis / Cut / Parts / Markup** — in the top toolbar panel.
+Tabs **Sizes / Curves / Analysis / Cut / Parts / Markup / Pattern** — in the top toolbar panel. Tooltips are one short sentence; the details are in this README and in the `HELP` each script prints first.
 
 **A tab disappeared** — in Rhino: menu **Window → Toolbars** (or the `Toolbar` command), find the **Scripts** library, enable the toolbar you need. It appears as a floating window — drag it by its tab into the top panel.
 
@@ -165,7 +165,7 @@ Rhino.RhinoApp.ToolbarFiles.Open("/Users/dmytro/Documents/Rhino/Scripts.rui")
 
 Then show the toolbars as described above. Rhino remembers the file and opens it itself.
 
-**Pattern** toolbar (Modello) is a separate file: the same builder writes `Pattern.rui` next to `Scripts.rui`; open it once the same way — `Rhino.RhinoApp.ToolbarFiles.Open("/Users/dmytro/Documents/Rhino/Pattern.rui")`.
+**Pattern** (Modello) used to be a separate file `Pattern.rui` — now it is the 7th tab of `Scripts.rui`. If Rhino still has the old `Pattern.rui` open: **Window → Toolbars**, close the `Pattern` file, delete `Pattern.rui`, then enable the **Pattern** toolbar of the Scripts library and drag it into the top panel.
 
 ---
 
@@ -179,9 +179,9 @@ Then show the toolbars as described above. Rhino remembers the file and opens it
    ```
 
    - `u"MyNew"` — English button text (short); it is also the key of the button GUID.
-   - `u"What the script does…"` — English tooltip.
+   - `u"What the script does…"` — English tooltip: **one short sentence** (Rhino shows it on every hover); details go to README and `HELP`.
    - Add the Italian name and tooltip to `IT` in the same file: `u"MyNew": (u"Nome", u"Cosa fa lo script"),` — the toolbar shows these (`LANG = "IT"`).
-   - `py("curves/MyNewScript.py")` — path to the file from `scripts/`. The file goes in its tab's subfolder: `sizes/` (Sizes), `curves/` (Curves), `analysis/` (Analysis), `cut/` (Cut), `parts/` (Parts), `markup/` (Markup).
+   - `py("curves/MyNewScript.py")` — path to the file from `scripts/`. The file goes in its tab's subfolder: `sizes/` (Sizes), `curves/` (Curves), `analysis/` (Analysis), `cut/` (Cut), `parts/` (Parts), `markup/` (Markup), `pattern/` (Pattern).
    - `None` — nothing on right click. To put a second script there:
      ```python
      (u"MyNew", u"Tooltip", py("curves/MyNewScript.py"),

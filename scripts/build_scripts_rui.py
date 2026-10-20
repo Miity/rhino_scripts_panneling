@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Builds Scripts.rui (project root): 6 separate toolbars (Sizes / Curves / Analysis / Cut / Parts / Markup)
-shown as tabs in one Rhino panel; and Pattern.rui — a separate toolbar file (PATTERN: tools after PatternSmith).
+"""Builds Scripts.rui (project root): 7 separate toolbars (Sizes / Curves / Analysis / Cut / Parts / Markup / Pattern)
+shown as tabs in one Rhino panel.
 Run with plain python3 outside Rhino: python3 scripts/build_scripts_rui.py
 Build with Rhino closed; Rhino picks up the changes after a restart. How to connect it the first time — README.md.
 To add a script — add a line to GROUPS (English) and to IT (Italian), and rerun this file.
@@ -22,80 +22,77 @@ def py(name):
 
 
 # (group = tab name, group description, [(button, tooltip, macro, (right button, tooltip, macro) | None)])
+# Button names: no spaces (CamelCase); tooltip: one short sentence, details — README / HELP.
 GROUPS = [
     (u"Sizes", u"Sizes and extents", [
-        (u"BBoxSize", u"Bounding box in the CPlane with XYZ size labels", py("sizes/BoundingBoxWithSize_Rhino8_CPlane.py"),
+        (u"BBoxSize", u"Bounding box in the CPlane with XYZ sizes", py("sizes/BoundingBoxWithSize_Rhino8_CPlane.py"),
          (u"BBoxCenterLines", u"Flat box in the CPlane + two centre lines", py("sizes/BoundingBoxCenterLines.py"))),
-        (u"LabelSizes", u"Label the size inside each closed curve", py("sizes/LabelClosedCurveSizes.py"), None),
-        (u"Rect1340", u"Rectangle 1340 × 6658 centred on the CPlane", py("sizes/draw_centered_rectangle.py"), None),
+        (u"LabelSizes", u"Size label inside each closed curve", py("sizes/LabelClosedCurveSizes.py"), None),
+        (u"Rect1340", u"Rectangle 1340 × 6658 centred at a click", py("sizes/draw_centered_rectangle.py"), None),
     ]),
     (u"Curves", u"Curve editing", [
-        (u"SplitByAngle", u"Split curves at corners sharper than the threshold", py("curves/SplitCrvByAngle.py"),
-         (u"SmoothCorners", u"Round polyline corners sharper than the threshold", py("curves/smooth_corners.py"))),
-        (u"CrvToPolyline", u"Convert curves to polylines (layer kept)", py("curves/CrvToPolyline.py"), None),
-        (u"TrimEnds", u"Trim curve ends by a given distance", py("curves/TrimCrvEnds.py"),
-         (u"KeepEnds", u"Cut out the middle of a curve, keep ends of a given length", py("curves/KeepCrvEnds.py"))),
-        (u"TrimOutside", u"Trim everything outside the panel contour", py("curves/TrimOutsidePanel.py"), None),
-        (u"ExactConnection", u"Contact point on a curve at a given length", py("curves/find_exact_connection.py"), None),
-        (u"MidLine", u"Line from the midpoint of one curve to the midpoint of another", py("curves/MidLine.py"), None),
-        (u"OffsetRigid", u"Copy of a curve without changing its shape, moved along the normal at the clicked point", py("curves/OffsetRigid.py"), None),
+        (u"SplitByAngle", u"Split curves at corners sharper than the angle", py("curves/SplitCrvByAngle.py"),
+         (u"SmoothCorners", u"Round polyline corners sharper than the angle", py("curves/smooth_corners.py"))),
+        (u"CrvToPolyline", u"Curves → polylines, layer kept", py("curves/CrvToPolyline.py"), None),
+        (u"TrimEnds", u"Trim curve ends by a distance", py("curves/TrimCrvEnds.py"),
+         (u"KeepEnds", u"Keep only the curve ends of a given length", py("curves/KeepCrvEnds.py"))),
+        (u"TrimOutside", u"Delete everything outside the panel contour", py("curves/TrimOutsidePanel.py"), None),
+        (u"ExactConnection", u"Point on a curve at a fixed length from a point", py("curves/find_exact_connection.py"), None),
+        (u"MidLine", u"Line between the midpoints of two curves", py("curves/MidLine.py"), None),
+        (u"OffsetRigid", u"Copy of a curve moved along the normal, shape unchanged", py("curves/OffsetRigid.py"), None),
     ]),
     (u"Analysis", u"Panel and cut analysis", [
-        (u"SmallClosed", u"Select closed curves smaller than the minimum cut area", py("analysis/SelectSmallClosedCurves.py"), None),
-        (u"CutRisks", u"Mark risky cut spots (geometry unchanged)", py("analysis/CheckTangentialCutRisks.py"), None),
-        (u"RecommendTabs", u"Select contours that need tabs (small or narrow)", py("analysis/RecommendCutTabs.py"), None),
-        (u"CutTabs", u"Interactively add tabs to cut contours", py("analysis/AddCutTabs.py"), None),
-        (u"Zigzags", u"Find micro zigzags (segments < Size) on curves, show each and straighten it or skip", py("analysis/FindZigzags.py"), None),
+        (u"SmallClosed", u"Select closed curves too small to cut", py("analysis/SelectSmallClosedCurves.py"), None),
+        (u"CutRisks", u"Mark risky cut spots, geometry unchanged", py("analysis/CheckTangentialCutRisks.py"), None),
+        (u"RecommendTabs", u"Select contours that need tabs", py("analysis/RecommendCutTabs.py"), None),
+        (u"CutTabs", u"Add tabs to cut contours, click by click", py("analysis/AddCutTabs.py"), None),
+        (u"Zigzags", u"Find micro zigzags: straighten or skip each", py("analysis/FindZigzags.py"), None),
     ]),
     (u"Cut", u"Cut preparation", [
-        (u"PreparePanelCut", u"Panels → one outer contour on CUT, inner lines on INT/INK", py("cut/PreparePanelCut.py"), None),
-        (u"SplitToMaterial", u"Split panels to the material width: 1 cm seam, pieces moved by 50", py("cut/SplitPanelsToMaterial.py"), None),
-        (u"CurveOverlap", u"Delete exact duplicates (SelDup), select the shorter curve of each overlapping pair (among selected, or all curves)", py("cut/sel_curve_overlap.py"), None),
+        (u"PreparePanelCut", u"Panels → outer contour on CUT, inner lines on INT / INK", py("cut/PreparePanelCut.py"), None),
+        (u"SplitToMaterial", u"Split panels to the fabric width: 1 cm seam, A–A pairs", py("cut/SplitPanelsToMaterial.py"), None),
+        (u"CurveOverlap", u"Delete duplicates, select the shorter of overlapping curves", py("cut/sel_curve_overlap.py"), None),
     ]),
-    (u"Parts", u"Creating parts (strips, reinforcements…) in the Parts layer", [
-        (u"Panels", u"Panels → copy in Parts::Panels numbered P1, P2… (text inside)", py("parts/Panels.py"), None),
-        (u"Strips", u"Fascia strips under the selected lines: width W, length = length of each curve; label F<w>  l=… (cm)", py("parts/StripsFromCurves.py"), None),
-        (u"ZipCover", u"Zip cover: panel edge (corner to corner) + offset W outward, ends along the neighbouring edges; label Off<w> (cm, offset); EditPanel=Yes — the panel contour itself grows", py("parts/ZipCover.py"), None),
-        (u"JoinCorner", u"Join any two open curves at a corner, edge to edge: click near the corner → edges (corner to corner) extended / trimmed to their intersection, ends beyond removed, one curve", py("parts/JoinCorner.py"), None),
-        (u"MergeOutline", u"Merge a closed panel and a curve that together enclose an area into one panel by the outer line; the old edge left inside becomes an open curve", py("parts/MergeOutline.py"), None),
-        (u"ZipStops", u"Zips (Z<n>) and tracks (canalina Can<n>, option Type): click panel edges / curves; L-stops Trim in, junction ticks, number — all on the text side", py("parts/ZipStops.py"),
-         (u"ZipList", u"Order table: zips (longer side, cm × pcs) and tracks (full length); CSV next to the .3dm + clipboard", py("parts/ZipList.py"))),
-        (u"MarkReinf", u"Reinforcement strip without a part: select labels (Off / C…), the panel is found automatically → append R<w> (cm), edge length in UserText", py("parts/MarkReinf.py"), None),
-        (u"ReinfStrip", u"Reinforcement R<w> laid on the panel, not folded: edge (corner to corner) + offset W (6 cm) into the panel, ends along the neighbouring edges; cut longer by Plus (10 cm), trimmed after sewing; label R<w>  l=… (cm)", py("parts/Rinforzo.py"), None),
-        (u"Bordino", u"Bordino B<w>: panel edge (corner to corner) → separate straight strip W (3.5 cm; 4.5 rinforzato) × edge + Plus (6 cm) next to the panel + its copy Up (10000) up, label B<w> (cm); on the panel only B<w> after Z<n> R<w>", py("parts/Bordino.py"),
-         (u"Pettola", u"Pettola Pt<w>: the same as Bordino, only wider (6–14 cm and more, default 10): separate straight strip W × edge + Plus (6 cm) next to the panel + its copy Up (10000) up, label Pt<w> (cm); on the panel only Pt<w> after Z<n> R<w> B<w>", py("parts/Pettola.py"))),
-        (u"ReinfD", u"D reinforcement at the end of a pocket: top corner → bottom corner, width W, extension R", py("parts/ReinfD.py"), None),
-        (u"ReinfO", u"O reinforcement at the end of a full-width pocket: centre at the top corner → click on a line, R = distance + Plus (5 cm), only inside the panel", py("parts/ReinfO.py"), None),
-        (u"RList", u"Reinforcement strip table: edge + Plus (10 cm), totals by width; CSV next to the .3dm + clipboard", py("parts/RList.py"), None),
-        (u"TubePockets", u"Tube pockets T<n>: panel → click near an edge, W centred on the edge, height H, narrowing Trim, no seam allowance, hem allowance at the ends Hem, centre mark, Rigid — rigid offset", py("parts/TubePockets.py"),
-         (u"UpdatePockets", u"Update existing T pockets: new H / Trim / Hem / Notch / Rigid in place, same number (only what you changed changes)", py("parts/UpdateTubePockets.py"))),
-        (u"PartPanel", u"Panel number on parts: select parts (window) → \" P<n>\" added to each part's label; the panel is found from where the part sits on it (part up → back down; Bordino — its edge)", py("parts/PartPanel.py"), None),
-        (u"Layout", u"Canvas: parts with contour, seam points, centre ticks and label codes in a row, in <layer>::Layout; the rest stays on the schema", py("parts/LayoutParts.py"),
-         (u"LayoutStack", u"Strips that may turn along the grain — options Rinforzo / Bordini: copies on the canvas along CPlane X, stacked down from the click Gap apart (0 — touching), longest first; <layer>::Layout; Hide=Yes — the laid out parts are hidden", py("parts/LayoutStack.py"))),
-        (u"PackStrips", u"Strips with a straight top and bottom along CPlane X (Layout Stack, Strips; ends may be slanted) moved into a compact block (curved — not moved, listed): rows as long as the longest strip, within the roll Width (rows get longer if needed), one block per strip width, Gap between strips (0 — touching); Enter — in place", py("parts/PackStrips.py"), None),
+    (u"Parts", u"Parts (strips, reinforcements…) in the Parts layer", [
+        (u"Panels", u"Number panels P1, P2… in Parts::Panels", py("parts/Panels.py"), None),
+        (u"Strips", u"Fascia strips F<w> under the selected curves", py("parts/StripsFromCurves.py"), None),
+        (u"ZipCover", u"Zip cover Off<w>: panel edge + offset outward", py("parts/ZipCover.py"), None),
+        (u"JoinCorner", u"Join two open curves at a corner: click near it", py("parts/JoinCorner.py"), None),
+        (u"MergeOutline", u"Panel + curve enclosing an area → one panel by the outer line", py("parts/MergeOutline.py"), None),
+        (u"ZipStops", u"Zips Z<n> and tracks Can<n>: click panel edges", py("parts/ZipStops.py"),
+         (u"ZipList", u"Zip and track order table → CSV + clipboard", py("parts/ZipList.py"))),
+        (u"MarkReinf", u"Append R<w> to the selected labels, no part", py("parts/MarkReinf.py"), None),
+        (u"ReinfStrip", u"Rinforzo R<w>: strip inward along a panel edge", py("parts/Rinforzo.py"), None),
+        (u"Bordino", u"Bordino B<w>: separate strip folded over an edge", py("parts/Bordino.py"),
+         (u"Pettola", u"Pettola Pt<w>: like Bordino, wider", py("parts/Pettola.py"))),
+        (u"ReinfD", u"D reinforcement RD<n> at a pocket end", py("parts/ReinfD.py"), None),
+        (u"ReinfO", u"O reinforcement RO<n> at a full-width pocket", py("parts/ReinfO.py"), None),
+        (u"RList", u"Reinforcement strip table → CSV + clipboard", py("parts/RList.py"), None),
+        (u"TubePockets", u"Tube pockets T<n> on a panel edge", py("parts/TubePockets.py"),
+         (u"UpdatePockets", u"Change H / Trim / Hem of existing pockets", py("parts/UpdateTubePockets.py"))),
+        (u"PartPanel", u"Append the panel number P<n> to part labels", py("parts/PartPanel.py"), None),
+        (u"Layout", u"Parts in a row on the cutting canvas", py("parts/LayoutParts.py"),
+         (u"LayoutStack", u"Rinforzo / bordino strips stacked along X", py("parts/LayoutStack.py"))),
+        (u"PackStrips", u"Pack straight strips into a block within the roll width", py("parts/PackStrips.py"), None),
     ]),
     (u"Markup", u"Markup on INK", [
-        (u"Crosses", u"Points / seam circles → crosses or circles", py("markup/PointsToCrosses.py"), None),
-        (u"Linetype400,2", u"Assign linetype 400,2 to the selected curves", py("markup/line_type.py"), None),
-        (u"TextStyles", u"Create/update PAT 2.5–40 mm text styles for 1:1 patterns", py("markup/PatternTextStyles.py"), None),
+        (u"Crosses", u"Points / small circles → crosses or circles", py("markup/PointsToCrosses.py"), None),
+        (u"Linetype400,2", u"Linetype 400,2 on the selected curves", py("markup/line_type.py"), None),
+        (u"TextStyles", u"Create / update the PAT text styles", py("markup/PatternTextStyles.py"), None),
         (u"TextToDot", u"Text → TextDot", py("markup/TextToDot.py"),
-         (u"DotToPanelText", u"TextDot → text in the top-right corner of the panel (INK)", py("markup/DotToPanelText.py"))),
-        (u"TextToCurves", u"Text → curves for nesting (like Explode, but mirrored / upside-down text stays readable, as on screen)", py("markup/TextToCurves.py"), None),
-        (u"Legend", u"Label legend (P, F, Off, C, Z, Can, R, RC, RD, RO, T, A–A): only those present in the drawing, as text at the click point; Lang IT / EN / UA", py("markup/Legend.py"), None),
-        (u"PanelPage", u"A4 sheet for the selection: one new Layout P<n>, detail Top, like Zoom Selected on the whole selection", py("markup/PanelPage.py"), None),
+         (u"DotToPanelText", u"TextDot → text in the panel corner (INK)", py("markup/DotToPanelText.py"))),
+        (u"TextToCurves", u"Text → curves for nesting, readable when mirrored", py("markup/TextToCurves.py"), None),
+        (u"Legend", u"Legend of the label codes in the drawing", py("markup/Legend.py"), None),
+        (u"PanelPage", u"A4 Layout page for the selection", py("markup/PanelPage.py"), None),
     ]),
-]
-
-# Separate toolbar file Pattern.rui: pattern tools after the PatternSmith guide (seam allowance, notches)
-PATTERN = [
     (u"Pattern", u"Pattern tools after PatternSmith: seam allowance, notches", [
-        (u"Break", u"Break points: click on a panel contour → a break point there (Pattern::Breaks); a click on a break point removes it. The edge is split there as at a corner: Seams — each part its own width, Notches — From / Mid / Repeat on each part. Type=Ripresa: click a segment taken in when sewn → mark + notches at its ends; Notches / Match Notches measure the edge without it", py("pattern/Break.py"), None),
-        (u"Seams", u"Seam allowance: panel = sew line → closed cut line around it in Pattern::Seams; click an edge — it gets Width (typed, mm; 0 — no seam), Mode=Corner — corner style Extend / Slant / Return, All — every edge", py("pattern/Seams.py"), None),
-        (u"Notches", u"Notches (battute): click an edge — its third sets From (corner / middle); Mode Single (Distance, 0 — at the click) / Mid / Evenly (First, Last, Count) / Repeat (from the middle, Every); points on the sew line (Pattern::Notches) — Convert Notches makes them pen / knife notches", py("pattern/Notches.py"),
-         (u"MatchNotches", u"Checks a seam: click near edge A, then near edge B sewn to it → both lengths and their difference printed (a ripresa — measured without it); nothing is placed", py("pattern/MatchNotches.py"))),
-        (u"SquishTo", u"The opposite of SquishBack: select new marks on the 3D model (points, curves, TextDots) with the 3D surface they are on (window; only the surface — every mark on it), then the squished 2D surface (the Squish result, not a DupBorder curve) → the marks at their place on it, wherever the surface was moved / turned / mirrored since; layer of the 3D originals; marks already there not placed again, the new ones selected", py("pattern/SquishTo.py"),
-         (u"MarksTo2D", u"New marks drawn on the 3D panel onto its 2D panel already worked on: select the 3D surface with the marks (points, curves, TextDots), then the 2D panel → surface squished again in memory with the marks, outline fitted onto the panel (turned, moved, mirrored; edges changed since are fine), only the marks added, layer of the 3D originals; symmetric panel — Next shows the next fit", py("pattern/MarksTo2D.py"))),
-        (u"ConvertNotches", u"Notch points (and notches already made, older battute: points, seam circles, old ticks) → seam markers: select them with their panels → Tool Mark (INK, pen: Style Slit / V, Placement, Depth) / Cut (INT, knife: V for the circular blade — Depth 2, Overcut 1, Move 3, width computed; Standard — the plotter standard), Enter; each goes to the nearest panel edge within Reach, on the cut line if there is one; Originals Delete / Keep", py("pattern/ConvertNotches.py"), None),
+        (u"Break", u"Break point on a panel contour; Type=Ripresa", py("pattern/Break.py"), None),
+        (u"Seams", u"Seam allowance: click an edge, Width", py("pattern/Seams.py"), None),
+        (u"Notches", u"Notch points on the sew line", py("pattern/Notches.py"),
+         (u"MatchNotches", u"Compare the lengths of two sewn edges", py("pattern/MatchNotches.py"))),
+        (u"SquishTo", u"3D marks onto the squished 2D surface", py("pattern/SquishTo.py"),
+         (u"MarksTo2D", u"3D marks onto a 2D panel already worked on", py("pattern/MarksTo2D.py"))),
+        (u"ConvertNotches", u"Notch points → pen / knife notches", py("pattern/ConvertNotches.py"), None),
     ]),
 ]
 
@@ -104,68 +101,68 @@ LANG = "IT"
 # Italian toolbar: English name in GROUPS → (name, tooltip); groups → (tab name, description)
 IT = {
     u"Sizes": (u"Misure", u"Misure e ingombri"),
-    u"BBoxSize": (u"Ingombro", u"Riquadro di ingombro nel CPlane con le misure XYZ"),
-    u"BBoxCenterLines": (u"AssiIngombro", u"Riquadro piatto nel CPlane + due linee di mezzeria"),
-    u"LabelSizes": (u"ScriviMisure", u"Scrive la misura dentro ogni curva chiusa"),
-    u"Rect1340": (u"Rett1340", u"Rettangolo 1340 × 6658 centrato sul CPlane"),
+    u"BBoxSize": (u"Ingombro", u"Ingombro nel CPlane con le misure XYZ"),
+    u"BBoxCenterLines": (u"AssiIngombro", u"Riquadro piatto nel CPlane + due mezzerie"),
+    u"LabelSizes": (u"ScriviMisure", u"Misura dentro ogni curva chiusa"),
+    u"Rect1340": (u"Rett1340", u"Rettangolo 1340 × 6658 centrato nel clic"),
     u"Curves": (u"Curve", u"Modifica delle curve"),
     u"SplitByAngle": (u"DividiAdAngolo", u"Divide le curve negli angoli più acuti della soglia"),
-    u"SmoothCorners": (u"ArrotondaAngoli", u"Arrotonda gli angoli della polilinea più acuti della soglia"),
-    u"CrvToPolyline": (u"Curva→Polilinea", u"Converte le curve in polilinee (layer mantenuto)"),
-    u"TrimEnds": (u"AccorciaEstremi", u"Taglia le estremità della curva di una distanza data"),
-    u"KeepEnds": (u"TieniEstremi", u"Toglie il centro della curva, tiene le estremità di lunghezza data"),
-    u"TrimOutside": (u"TagliaFuori", u"Taglia tutto ciò che è fuori dal contorno del pannello"),
-    u"ExactConnection": (u"PuntoDiContatto", u"Punto di contatto su una curva a una lunghezza data"),
-    u"MidLine": (u"LineaDiMezzo", u"Linea dal punto medio di una curva al punto medio di un'altra"),
-    u"OffsetRigid": (u"OffsetRigido", u"Copia della curva senza cambiarne la forma, spostata lungo la normale nel punto cliccato"),
+    u"SmoothCorners": (u"ArrotondaAngoli", u"Arrotonda gli angoli più acuti della soglia"),
+    u"CrvToPolyline": (u"Curva→Polilinea", u"Curve → polilinee, layer mantenuto"),
+    u"TrimEnds": (u"AccorciaEstremi", u"Accorcia le estremità di una distanza"),
+    u"KeepEnds": (u"TieniEstremi", u"Tiene solo le estremità di una lunghezza data"),
+    u"TrimOutside": (u"TagliaFuori", u"Taglia tutto fuori dal contorno del pannello"),
+    u"ExactConnection": (u"PuntoDiContatto", u"Punto su una curva a lunghezza fissa da un punto"),
+    u"MidLine": (u"LineaDiMezzo", u"Linea tra i punti medi di due curve"),
+    u"OffsetRigid": (u"OffsetRigido", u"Copia della curva spostata lungo la normale, forma invariata"),
     u"Analysis": (u"Analisi", u"Analisi di pannelli e taglio"),
-    u"SmallClosed": (u"ChiusePiccole", u"Seleziona le curve chiuse più piccole dell'area minima di taglio"),
-    u"CutRisks": (u"RischiTaglio", u"Segna i punti di taglio a rischio (geometria invariata)"),
-    u"RecommendTabs": (u"PonticelliConsigliati", u"Seleziona i contorni che hanno bisogno di ponticelli (piccoli o stretti)"),
-    u"CutTabs": (u"Ponticelli", u"Aggiunge i ponticelli ai contorni di taglio, in modo interattivo"),
-    u"Zigzags": (u"Microzigzag", u"Trova i microzigzag (segmenti < Size) sulle curve, li mostra uno per uno: raddrizza o salta"),
+    u"SmallClosed": (u"ChiusePiccole", u"Seleziona le curve chiuse troppo piccole da tagliare"),
+    u"CutRisks": (u"RischiTaglio", u"Segna i punti di taglio a rischio, geometria invariata"),
+    u"RecommendTabs": (u"PonticelliConsigliati", u"Seleziona i contorni che hanno bisogno di ponticelli"),
+    u"CutTabs": (u"Ponticelli", u"Aggiunge ponticelli ai contorni, clic per clic"),
+    u"Zigzags": (u"Microzigzag", u"Trova i microzigzag: raddrizza o salta"),
     u"Cut": (u"Taglio", u"Preparazione al taglio"),
-    u"PreparePanelCut": (u"PreparaTaglio", u"Pannelli → un contorno esterno su CUT, linee interne su INT/INK"),
-    u"SplitToMaterial": (u"DividiPerTessuto", u"Divide i pannelli alla larghezza del tessuto: cucitura 1 cm, pezzi spostati di 50"),
-    u"CurveOverlap": (u"Sovrapposizioni", u"Elimina i doppioni esatti (SelDup), seleziona la curva più corta di ogni coppia sovrapposta (tra le selezionate o tutte)"),
-    u"Parts": (u"Pezzi", u"Creazione dei pezzi (fasce, rinforzi…) nel layer Parts"),
-    u"Panels": (u"Pannelli", u"Pannelli → copia in Parts::Panels numerata P1, P2… (testo dentro)"),
-    u"Strips": (u"Fasce", u"Fasce sotto le linee selezionate: larghezza W, lunghezza = lunghezza di ogni curva; etichetta F<w>  l=… (cm)"),
-    u"ZipCover": (u"CopriZip", u"Copri zip: lato del pannello (da angolo ad angolo) + offset W verso l'esterno, estremità lungo i lati vicini; etichetta Off<w> (cm, offset); EditPanel=Yes — cresce il contorno stesso del pannello"),
-    u"JoinCorner": (u"UnisciAng", u"Unisce due curve aperte in un angolo, lato a lato: clic vicino all'angolo → i lati (da angolo ad angolo) estesi / tagliati fino all'intersezione, le estremità oltre tolte, una curva"),
-    u"MergeOutline": (u"UnisciContorno", u"Unisce un pannello chiuso e una curva che insieme racchiudono un'area in un solo pannello lungo il contorno esterno; il vecchio lato rimasto dentro diventa una curva aperta"),
-    u"ZipStops": (u"Zip", u"Cerniere (Z<n>) e canaline (Can<n>, opzione Type): clic sui lati dei pannelli / curve; fermi a L rientrati di Trim, tacca alle giunzioni, numero — tutto dal lato del testo"),
-    u"ZipList": (u"ZList", u"Tabella d'ordine: cerniere (lato più lungo, cm × pz) e canaline (lunghezza intera); CSV accanto al .3dm + appunti"),
-    u"MarkReinf": (u"MarkR", u"Rinforzo senza pezzo: seleziona le etichette (Off / C…), il pannello si trova da solo → aggiunge R<w> (cm), lunghezza del lato in UserText"),
-    u"RList": (u"ListaR", u"Tabella dei rinforzi R: lato + Plus (10 cm), totali per larghezza; CSV accanto al .3dm + appunti"),
-    u"Bordino": (u"Bord", u"Bordino B<w>: lato del pannello (da angolo ad angolo) → striscia diritta a parte W (3,5 cm; 4,5 rinforzato) × lato + Plus (6 cm) accanto al pannello + copia Up (10000) in alto, etichetta B<w> (cm); sul pannello solo B<w> dopo Z<n> R<w>"),
-    u"Pettola": (u"Pett", u"Pettola Pt<w>: come il Bordino, solo più larga (6–14 cm e più, default 10): striscia diritta a parte W × lato + Plus (6 cm) accanto al pannello + copia Up (10000) in alto, etichetta Pt<w> (cm); sul pannello solo Pt<w> dopo Z<n> R<w> B<w>"),
-    u"ReinfD": (u"RfD", u"Rinforzo a D (RD<n>) alla fine di una tasca: angolo alto → angolo basso, larghezza W, prolungamento R"),
-    u"ReinfO": (u"RfO", u"Rinforzo a O (RO<n>) alla fine di una tasca a tutta larghezza: centro nell'angolo alto → clic su una linea, r = distanza + Plus (5 cm), solo dentro il pannello"),
-    u"ReinfStrip": (u"Rf", u"Rinforzo R<w> sul pannello, senza piega: lato (da angolo ad angolo) + offset W (6 cm) verso l'interno, estremità lungo i lati vicini; tagliato più lungo di Plus (10 cm), rifilato dopo la cucitura; etichetta R<w>  l=… (cm)"),
-    u"TubePockets": (u"Tasche", u"Tasche per tubo T<n>: pannello → clic vicino a un lato, W centrata sul lato, altezza H, restringimento Trim, senza margine di cucitura, orlo alle estremità Hem, tacca al centro, Rigid — offset rigido"),
-    u"UpdatePockets": (u"AggiornaTasche", u"Aggiorna le tasche T esistenti: nuovi H / Trim / Hem / Notch / Rigid sul posto, stesso numero (cambia solo quello che hai cambiato)"),
-    u"PartPanel": (u"NPannello", u"Numero del pannello sui pezzi: seleziona i pezzi (finestra) → \" P<n>\" aggiunto all'etichetta di ogni pezzo; il pannello si trova dalla posizione del pezzo (pezzo in alto → riportato giù; Bordino — dal suo lato)"),
-    u"Layout": (u"Piazzamento", u"Piazzamento per il taglio: pezzi con contorno, battute, tacche al centro e codici in fila, in <layer>::Layout; il resto resta sullo schema"),
-    u"LayoutStack": (u"PiazzaInPila", u"Strisce che si possono girare lungo il drittofilo — opzioni Rinforzo / Bordini: copie sul piazzamento lungo X del CPlane, in pila in giù dal clic a distanza Gap (0 — a contatto), le più lunghe prima; <layer>::Layout; Hide=Yes — i pezzi piazzati vengono nascosti"),
-    u"PackStrips": (u"CompattaStrisce", u"Strisce con lato sopra e sotto dritto lungo X del CPlane (Piazza in pila, Fasce; estremi anche obliqui) spostate in un blocco compatto (curve — non spostate, elencate): righe lunghe quanto la striscia più lunga, entro la larghezza del rotolo Width (le righe si allungano se serve), un blocco per ogni larghezza, Gap tra le strisce (0 — a contatto); Invio — sul posto"),
+    u"PreparePanelCut": (u"PreparaTaglio", u"Pannelli → contorno su CUT, linee interne su INT / INK"),
+    u"SplitToMaterial": (u"DividiPerTessuto", u"Divide i pannelli alla larghezza del tessuto: cucitura 1 cm, coppie A–A"),
+    u"CurveOverlap": (u"Sovrapposizioni", u"Elimina i doppioni, seleziona la più corta delle sovrapposte"),
+    u"Parts": (u"Pezzi", u"Pezzi (fasce, rinforzi…) nel layer Parts"),
+    u"Panels": (u"Pannelli", u"Numera i pannelli P1, P2… in Parts::Panels"),
+    u"Strips": (u"Fasce", u"Fasce F<w> sotto le curve selezionate"),
+    u"ZipCover": (u"CopriZip", u"Copri zip Off<w>: lato del pannello + offset verso l'esterno"),
+    u"JoinCorner": (u"UnisciAng", u"Unisce due curve aperte in un angolo: clic vicino"),
+    u"MergeOutline": (u"UnisciContorno", u"Pannello + curva che chiude un'area → un pannello lungo il contorno esterno"),
+    u"ZipStops": (u"Zip", u"Cerniere Z<n> e canaline Can<n>: clic sui lati"),
+    u"ZipList": (u"ZList", u"Tabella d'ordine cerniere e canaline → CSV + appunti"),
+    u"MarkReinf": (u"MarkR", u"Aggiunge R<w> alle etichette selezionate, senza pezzo"),
+    u"ReinfStrip": (u"Rf", u"Rinforzo R<w>: striscia verso l'interno lungo un lato"),
+    u"Bordino": (u"Bord", u"Bordino B<w>: striscia a parte ripiegata sul lato"),
+    u"Pettola": (u"Pett", u"Pettola Pt<w>: come il Bordino, più larga"),
+    u"ReinfD": (u"RfD", u"Rinforzo a D RD<n> alla fine di una tasca"),
+    u"ReinfO": (u"RfO", u"Rinforzo a O RO<n> a una tasca a tutta larghezza"),
+    u"RList": (u"ListaR", u"Tabella dei rinforzi R → CSV + appunti"),
+    u"TubePockets": (u"Tasche", u"Tasche per tubo T<n> su un lato del pannello"),
+    u"UpdatePockets": (u"AggiornaTasche", u"Cambia H / Trim / Hem delle tasche esistenti"),
+    u"PartPanel": (u"NPannello", u"Aggiunge il numero del pannello P<n> alle etichette dei pezzi"),
+    u"Layout": (u"Piazzamento", u"Pezzi in fila sul piazzamento per il taglio"),
+    u"LayoutStack": (u"PiazzaInPila", u"Strisce rinforzo / bordino in pila lungo X"),
+    u"PackStrips": (u"CompattaStrisce", u"Compatta le strisce dritte in un blocco entro la larghezza del rotolo"),
     u"Markup": (u"Segni", u"Segni su INK"),
-    u"Crosses": (u"Croci", u"Punti / cerchi delle battute → croci o cerchi"),
-    u"Linetype400,2": (u"Linea400,2", u"Assegna il tipo di linea 400,2 alle curve selezionate"),
-    u"TextStyles": (u"StiliTesto", u"Crea / aggiorna gli stili di testo PAT 2.5–40 mm per cartamodelli 1:1"),
+    u"Crosses": (u"Croci", u"Punti / cerchietti → croci o cerchi"),
+    u"Linetype400,2": (u"Linea400,2", u"Tipo di linea 400,2 sulle curve selezionate"),
+    u"TextStyles": (u"StiliTesto", u"Crea / aggiorna gli stili di testo PAT"),
     u"TextToDot": (u"Testo→Dot", u"Testo → TextDot"),
-    u"DotToPanelText": (u"Dot→Testo", u"TextDot → testo nell'angolo in alto a destra del pannello (INK)"),
-    u"TextToCurves": (u"Testo→Curve", u"Testo → curve per il nesting (come Explode, ma il testo specchiato / capovolto resta leggibile, come a schermo)"),
-    u"Legend": (u"Legenda", u"Legenda delle etichette (P, F, Off, C, Z, Can, R, RC, RD, RO, T, A–A): solo quelle presenti nel disegno, come testo nel punto cliccato; lingua IT / EN / UA"),
-    u"PanelPage": (u"PaginaPannello", u"Foglio A4 per la selezione: un nuovo Layout P<n>, vista Top, come Zoom Selected su tutta la selezione"),
-    u"Pattern": (u"Modello", u"Strumenti del cartamodello come in PatternSmith: margini di cucitura, tacche"),
-    u"Break": (u"Spezza", u"Punti di interruzione: clic sul contorno del pannello → un punto lì (Pattern::Breaks); clic su un punto — lo toglie. Il lato si divide lì come in un angolo: Margini — ogni parte la sua larghezza, Tacche — From / Mid / Repeat su ogni parte. Type=Ripresa: clic su un segmento ripreso nella cucitura → segno + tacche ai suoi estremi; Tacche / Abbina tacche misurano il lato senza la ripresa"),
-    u"Seams": (u"Margini", u"Margine di cucitura: il pannello è la linea di cucitura → linea di taglio chiusa attorno in Pattern::Seams; clic su un lato — larghezza Width (mm, si digita; 0 — senza margine), Mode=Corner — angolo Extend / Slant / Return, All — tutti i lati"),
-    u"Notches": (u"Tacche", u"Tacche (battute): clic su un lato — il terzo cliccato dà il punto di partenza (angolo / metà); Mode Single (Distance, 0 — nel punto cliccato) / Mid / Evenly (First, Last, Count) / Repeat (dalla metà, Every); punti sulla linea di cucitura (Pattern::Notches) — Converti tacche li fa tacche di penna / lama"),
-    u"MatchNotches": (u"AbbinaTacche", u"Controlla una cucitura: clic vicino al lato A, poi vicino al lato B cucito a esso → stampa le due lunghezze e la differenza (ripresa — misurata senza); non piazza niente"),
-    u"MarksTo2D": (u"SegniIn2D", u"Segni nuovi disegnati sul pannello 3D sul suo pannello 2D già lavorato: seleziona la superficie 3D con i segni (punti, curve, TextDot), poi il pannello 2D → superficie rifatta in Squish in memoria con i segni, contorno adattato al pannello (girato, spostato, specchiato; lati cambiati dopo vanno bene), aggiunti solo i segni, layer degli originali 3D; pannello simmetrico — Next mostra l'adattamento successivo"),
-    u"SquishTo": (u"SquishTo", u"Il contrario di SquishBack: seleziona i segni nuovi sul modello 3D (punti, curve, TextDot) con la superficie 3D su cui stanno (finestra; solo la superficie — tutti i segni su di essa), poi la superficie 2D fatta con Squish (non la curva DupBorder) → i segni al loro posto su di essa, anche se è stata spostata / girata / specchiata; layer degli originali 3D; i segni già presenti non si ripetono, i nuovi restano selezionati"),
-    u"ConvertNotches": (u"ConvertiTacche", u"Punti delle Tacche (e tacche già fatte, battute vecchie: punti, cerchi, tacche al centro) → segni di cucitura: selezionali con i pannelli → Tool Mark (INK, penna: Style Slit / V, Placement, Depth) / Cut (INT, lama circolare: V — Depth 2, Overcut 1, Move 3, larghezza calcolata; Standard — i valori standard del plotter), Invio; ognuna va al lato del pannello più vicino entro Reach, sulla linea di taglio se c'è; Originals Delete / Keep"),
+    u"DotToPanelText": (u"Dot→Testo", u"TextDot → testo nell'angolo del pannello (INK)"),
+    u"TextToCurves": (u"Testo→Curve", u"Testo → curve per il nesting, leggibile anche specchiato"),
+    u"Legend": (u"Legenda", u"Legenda dei codici presenti nel disegno"),
+    u"PanelPage": (u"PaginaPannello", u"Pagina Layout A4 per la selezione"),
+    u"Pattern": (u"Modello", u"Strumenti del cartamodello: margini di cucitura, tacche"),
+    u"Break": (u"Spezza", u"Punto di interruzione sul contorno; Type=Ripresa"),
+    u"Seams": (u"Margini", u"Margine di cucitura: clic su un lato, Width"),
+    u"Notches": (u"Tacche", u"Tacche (punti) sulla linea di cucitura"),
+    u"MatchNotches": (u"AbbinaTacche", u"Confronta le lunghezze di due lati cuciti insieme"),
+    u"SquishTo": (u"SquishTo", u"Segni 3D sulla superficie 2D fatta con Squish"),
+    u"MarksTo2D": (u"SegniIn2D", u"Segni 3D su un pannello 2D già lavorato"),
+    u"ConvertNotches": (u"ConvertiTacche", u"Tacche → segni di penna / lama"),
 }
 
 
@@ -203,8 +200,8 @@ def toolbar(key, name, items):
     return u'    <tool_bar guid="%s">\n%s%s    </tool_bar>\n' % (gid("toolbar", key), loc("text", name, "      "), u"".join(items))
 
 
-def build(groups, *file_key):
-    """RUI text with one toolbar per group; file_key — the file GUID (Scripts.rui keeps its old one)."""
+def build(groups):
+    """RUI text with one toolbar per group."""
     del macros[:]
     bars = []
     for group, group_tip, buttons in groups:
@@ -231,16 +228,16 @@ def build(groups, *file_key):
   </bitmaps>
   <scripts />
 </RhinoUI>
-''' % (gid(*file_key), u"".join(bars), u"".join(macros))
+''' % (gid("file"), u"".join(bars), u"".join(macros))
 
 
 if __name__ == "__main__":
     import re
-    for name, rui in (("Scripts.rui", build(GROUPS, "file")), ("Pattern.rui", build(PATTERN, "file", "Pattern"))):
-        # Check: every .py/.gh in the macros exists on disk.
-        missing = [p for p in re.findall(r'"([^"]+\.(?:py|gh))"', rui) if not os.path.isfile(p)]
-        assert not missing, "Missing files: %s" % missing
-        out = os.path.join(ROOT, name)
-        with open(out, "wb") as f:
-            f.write(rui.encode("utf-8"))
-        print("OK -> %s" % out)
+    rui = build(GROUPS)
+    # Check: every .py/.gh in the macros exists on disk.
+    missing = [p for p in re.findall(r'"([^"]+\.(?:py|gh))"', rui) if not os.path.isfile(p)]
+    assert not missing, "Missing files: %s" % missing
+    out = os.path.join(ROOT, "Scripts.rui")
+    with open(out, "wb") as f:
+        f.write(rui.encode("utf-8"))
+    print("OK -> %s" % out)
