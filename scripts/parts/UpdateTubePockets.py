@@ -2,13 +2,10 @@
 """Update existing TubePockets pockets with new parameters (H / Trim / Hem / Notch / Rigid).
 Select any part of a pocket (or several with a window) — the pocket is rebuilt from its edge
 in place, with the same number T<n>, layer and side. Only the parameters you changed in the options
-change; the rest stay each pocket's own. Parameters are read from UserText (TP_H…); in old pockets
-without UserText — from the geometry (h from an old label "h=…", in cm; Trim — from the contour);
-an old seam allowance SA is dropped on rebuild (the seam is on the panel).
+change; the rest stay each pocket's own. Parameters are read from UserText (TP_H…, edge — TP_Seg on the contour).
 Pocket = markup on the panel + full part above (TP_Up): you can select either, both are rebuilt.
 """
 import os
-import re
 import sys
 
 import Rhino
@@ -30,42 +27,21 @@ def tagged(near, n, markup):
 
 
 def read_pocket(ids, tol):
-    """dict with the pocket's parameters and geometry from group ids, or a reason string."""
-    curves = [(i, rs.coercecurve(i)) for i in ids if rs.IsCurve(i)]
+    """dict with the pocket's parameters (UserText TP_*) and geometry from group ids, or a reason string."""
+    outline_ids = [i for i in ids if rs.IsCurve(i) and rs.GetUserText(i, "TP_Seg")]
     texts = [i for i in ids if rs.IsText(i)]
-    m = re.match(TP.PREFIX + r"(\d+)(?:\s+h=([\d.]+))?", rs.TextObjectText(texts[0]) if texts else "")
-    outline_ids = [i for i, c in curves if c.IsClosed]
-    outline = [c for i, c in curves if c.IsClosed]
-    opened = sorted([c for i, c in curves if not c.IsClosed], key=lambda c: -c.GetLength())
-    if not m or len(outline) != 1:
-        return u"does not look like a pocket (no T<n> label or contour)"
-    js = rs.GetUserText(outline_ids[0], "TP_Seg")  # new pockets: seam line stored on the contour, not drawn
-    if not js and not opened:
-        # ponytail: an old pocket with SA=0 has no separate seam line — rebuilding from the contour is not done.
-        return u"no seam line (SA=0) — rebuild with TubePockets"
-    seg = Rhino.Runtime.CommonObject.FromJSON(js) if js else opened[0]
-    outline = outline[0]
-    ok, plane = outline.TryGetPlane(tol)
-    normal = plane.ZAxis if ok else rs.ViewCPlane().ZAxis
-    toward = rs.coercegeometry(texts[0]).Plane.Origin  # the label sits inside the pocket
-    side = lambda p: Rhino.Geometry.Vector3d.Multiply(
-        Rhino.Geometry.Vector3d.CrossProduct(seg.TangentAt(seg.ClosestPoint(p)[1]), p - seg.PointAt(seg.ClosestPoint(p)[1])), normal)
-    s_in = side(toward)
-    pts = [c.PointAtStart for c in outline.DuplicateSegments()]
-    h = float(rs.GetUserText(ids[0], "TP_H") or 0) or float(m.group(2) or 0) * Rhino.RhinoMath.UnitScale(
-        Rhino.UnitSystem.Centimeters, sc.doc.ModelUnitSystem)  # label h is rounded to 1 mm, in cm
-    inner = [p for p in pts if side(p) * s_in > 0 and abs(abs(side(p)) - h) < 0.01 * h]
-    trim = min([seg.GetLength(Rhino.Geometry.Interval(seg.Domain.Min, seg.ClosestPoint(p)[1])) for p in inner] or [0.0])
-    vals = {"H": h, "Trim": trim, "Notch": float(len(opened) > (0 if js else 1)), "Rigid": 0.0, "Hem": 0.0}  # old pockets: + drawn seam line
-    for k in KEYS:
-        v = rs.GetUserText(ids[0], "TP_" + k)
-        if v:
-            vals[k] = float(v)
-    up = rs.GetUserText(outline_ids[0], "TP_Up")
+    if len(outline_ids) != 1 or not texts:
+        return u"not a TubePockets pocket (no TP_Seg contour or T<n> label)"
+    oid = outline_ids[0]
+    seg = Rhino.Runtime.CommonObject.FromJSON(rs.GetUserText(oid, "TP_Seg"))  # the edge, stored on the contour
+    ok, plane = rs.coercecurve(oid).TryGetPlane(tol)
+    vals = dict((k, float(rs.GetUserText(oid, "TP_" + k) or 0)) for k in KEYS)
+    up = rs.GetUserText(oid, "TP_Up")
     vals["up"] = Rhino.Geometry.Vector3d(*[float(x) for x in up.split(",")]) if up else None
-    vals["markup"] = tagged(outline_ids[0], rs.GetUserText(outline_ids[0], "TP_N"), True) if up else []
-    vals.update(n=int(m.group(1)), seg=seg, toward=toward, normal=normal, ids=ids,
-                attrs=sc.doc.Objects.FindId(rs.coerceguid(outline_ids[0])).Attributes.Duplicate())  # contour layer, not Fold
+    vals["markup"] = tagged(oid, rs.GetUserText(oid, "TP_N"), True) if up else []
+    vals.update(n=int(rs.GetUserText(oid, "TP_N")), seg=seg, toward=rs.coercegeometry(texts[0]).Plane.Origin,  # label inside the pocket
+                normal=plane.ZAxis if ok else rs.ViewCPlane().ZAxis, ids=ids,
+                attrs=sc.doc.Objects.FindId(rs.coerceguid(oid)).Attributes.Duplicate())  # contour layer, not Fold
     return vals
 
 
@@ -91,17 +67,6 @@ def main():
             continue
         groups.add(g)
         ids = [i for i in rs.ObjectsByGroup(g) if not rs.GetUserText(i, "TP_Markup")]  # one group: markup + full part
-        if not ids:  # older drawings: markup in its own group → full part above
-            m = rs.ObjectsByGroup(g)[0]
-            full = tagged(m, rs.GetUserText(m, "TP_N"), False)
-            g = full and (rs.ObjectGroups(full[0]) or [None])[0]
-            if not g:
-                print(u"Skipped: no full part for markup TP%s" % rs.GetUserText(m, "TP_N"))
-                continue
-            if g in groups:
-                continue
-            groups.add(g)
-            ids = rs.ObjectsByGroup(g)
         res = read_pocket(ids, tol)
         if isinstance(res, dict):
             pockets.append(res)

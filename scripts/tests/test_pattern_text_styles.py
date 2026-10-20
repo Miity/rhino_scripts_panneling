@@ -7,7 +7,7 @@ import sys
 import Rhino
 import Rhino.Geometry as rg
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
 import PatternTextStyles as P
 
 doc = Rhino.RhinoDoc.CreateHeadless(None)

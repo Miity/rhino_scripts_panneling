@@ -43,7 +43,7 @@ try:
         bb = outline.GetBoundingBox(True)
         assert abs(bb.Min.Y - 400) < 1e-6 and abs(bb.Max.Y - 500) < 1e-6, bb
         assert abs(AreaMassProperties.Compute(outline).Area - 55000) < 1e-3
-    # UpdateTubePockets.read_pocket: pocket in the document → parameters; without UserText — from geometry
+    # UpdateTubePockets.read_pocket: pocket in the document → parameters from UserText
     import Rhino
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
@@ -59,19 +59,11 @@ try:
     M.add_pocket(sc.doc, res, 100, 50, True, 7, sc.doc.CreateDefaultAttributes(), Z, tol)
     ids = [o for o in rs.AllObjects() if o not in before]
     try:
-        for legacy in (False, True):
-            if legacy:
-                for o in ids:
-                    for k in U.KEYS:
-                        rs.SetUserText(o, "TP_" + k, None)
-                    if rs.IsText(o):  # old pockets: h in the label (cm)
-                        rs.TextObjectText(o, u"T7  h=%g" % (100 * Rhino.RhinoMath.UnitScale(
-                            sc.doc.ModelUnitSystem, Rhino.UnitSystem.Centimeters)))
-            p = U.read_pocket(ids, tol)
-            assert p["n"] == 7 and p["H"] == 100 and abs(p["Trim"] - 50) < 1e-6, p
-            assert p["Notch"] == 1 and abs(p["seg"].GetLength() - 600) < 1e-6, (legacy, p)
-            r = M.pocket(p["seg"], p["toward"], 0, 100, 30, True, Z, tol)  # Trim 50 → 30
-            assert abs(AreaMassProperties.Compute(r[0]).Area - 57000) < 1e-3
+        p = U.read_pocket(ids, tol)
+        assert p["n"] == 7 and p["H"] == 100 and abs(p["Trim"] - 50) < 1e-6, p
+        assert p["Notch"] == 1 and abs(p["seg"].GetLength() - 600) < 1e-6, p
+        r = M.pocket(p["seg"], p["toward"], 0, 100, 30, True, Z, tol)  # Trim 50 → 30
+        assert abs(AreaMassProperties.Compute(r[0]).Area - 57000) < 1e-3
     finally:
         rs.DeleteObjects(ids)
     # Hem: fold lines in sublayer <layer>::Fold, in the group; Update takes the contour layer and Hem from UserText
