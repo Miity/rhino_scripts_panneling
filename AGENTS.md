@@ -73,7 +73,7 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
 - New script → add a line to `GROUPS` in `scripts/build_scripts_rui.py` (English) + its Italian name and tooltip to `IT` (and to the table in `README.md`).
 - **Do NOT run the builder `build_scripts_rui.py`** — the user rebuilds `Scripts.rui` themselves (with Rhino closed). Remind them of the build command at the end of the reply.
 - After every created / changed script, end the reply with the full button macro:
-  `!_-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/<subfolder/><Script>.py"`
+  `!_-RunPythonScript "/Users/dmytro/Documents/Projects/Rhino/scripts/<subfolder/><Script>.py"`
 
 ## Git
 

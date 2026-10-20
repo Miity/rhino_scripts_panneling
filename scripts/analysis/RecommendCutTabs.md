@@ -3,7 +3,7 @@
 Toolbar button macro:
 
 ```text
-! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/RecommendCutTabs.py"
+! _-RunPythonScript "/Users/dmytro/Documents/Projects/Rhino/scripts/analysis/RecommendCutTabs.py"
 ```
 
 1. Select part contours and run the script.

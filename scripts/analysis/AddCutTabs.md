@@ -7,7 +7,7 @@ Script for Rhino 6/7/8: manual placement of short gaps in the cut on closed plan
 Paste into the Macro field:
 
 ```text
-! _-RunPythonScript "/Users/dmytro/Documents/Rhino/scripts/analysis/AddCutTabs.py"
+! _-RunPythonScript "/Users/dmytro/Documents/Projects/Rhino/scripts/analysis/AddCutTabs.py"
 ```
 
 ## Usage

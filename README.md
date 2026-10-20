@@ -44,7 +44,7 @@ New scripts do not recognise older labels (numbering, ZipList, MarkReinf, Update
 - `legacy-ua-it` — before 6 October 2026: UA/IT names, layers `Parts::CopriZip`, `Parts::Canalina`, labels `CZ W`, `Can<n>`, `F<n>`.
 
 ```bash
-git -C /Users/dmytro/Documents/Rhino worktree add ../Rhino-legacy legacy-en
+git -C /Users/dmytro/Documents/Projects/Rhino worktree add ../Rhino-legacy legacy-en
 ```
 
 ---
@@ -160,7 +160,7 @@ Tabs **Sizes / Curves / Parts / Pattern / Markup / Cut / Analysis** (Misure / Cu
 
 ```python
 import Rhino
-Rhino.RhinoApp.ToolbarFiles.Open("/Users/dmytro/Documents/Rhino/Scripts.rui")
+Rhino.RhinoApp.ToolbarFiles.Open("/Users/dmytro/Documents/Projects/Rhino/Scripts.rui")
 ```
 
 Then show the toolbars as described above. Rhino remembers the file and opens it itself.
@@ -194,7 +194,7 @@ Then show the toolbars as described above. Rhino remembers the file and opens it
 3. **Close Rhino** and rebuild the toolbar (only the user builds it — Claude only edits `GROUPS` and does not run the builder):
 
    ```bash
-   python3 /Users/dmytro/Documents/Rhino/scripts/build_scripts_rui.py
+   python3 /Users/dmytro/Documents/Projects/Rhino/scripts/build_scripts_rui.py
    ```
 
    It should print `OK -> …/Scripts.rui`. If a file is missing it stops with `Missing files: …` and breaks nothing.
