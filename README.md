@@ -152,7 +152,7 @@ Deliberately left off the toolbar: `build_scripts_rui.py` (builder).
 
 ## 2. Where to find the toolbar
 
-Tabs **Sizes / Curves / Analysis / Cut / Parts / Markup / Pattern** — in the top toolbar panel. Tooltips are one short sentence; the details are in this README and in the `HELP` each script prints first.
+Tabs **Sizes / Curves / Parts / Pattern / Markup / Cut / Analysis** (Misure / Curve / Pezzi / Modello / Segni / Taglio / Analisi) — in the top toolbar panel, tabs and buttons in the order of work on a cover. Each button has an icon: the label code it puts on the drawing (`P`, `Z`, `R`, `B`, `Pt`, `T`…) or a short abbreviation, on a tile coloured by tab (`ICONS`, `COLORS` in the builder; Pillow draws them). `ICON_MODE = "control_and_text"` — icon + name, `"control_only"` — icon only. Tooltips are one short sentence; the details are in this README and in the `HELP` each script prints first.
 
 **A tab disappeared** — in Rhino: menu **Window → Toolbars** (or the `Toolbar` command), find the **Scripts** library, enable the toolbar you need. It appears as a floating window — drag it by its tab into the top panel.
 
@@ -180,6 +180,7 @@ Then show the toolbars as described above. Rhino remembers the file and opens it
 
    - `u"MyNew"` — English button text (short); it is also the key of the button GUID.
    - `u"What the script does…"` — English tooltip: **one short sentence** (Rhino shows it on every hover); details go to README and `HELP`.
+   - Add its icon code to `ICONS` (the label code, else 1–3 letters) — the builder stops without it.
    - Add the Italian name and tooltip to `IT` in the same file: `u"MyNew": (u"Nome", u"Cosa fa lo script"),` — the toolbar shows these (`LANG = "IT"`).
    - `py("curves/MyNewScript.py")` — path to the file from `scripts/`. The file goes in its tab's subfolder: `sizes/` (Sizes), `curves/` (Curves), `analysis/` (Analysis), `cut/` (Cut), `parts/` (Parts), `markup/` (Markup), `pattern/` (Pattern).
    - `None` — nothing on right click. To put a second script there:
@@ -187,7 +188,7 @@ Then show the toolbars as described above. Rhino remembers the file and opens it
      (u"MyNew", u"Tooltip", py("curves/MyNewScript.py"),
       (u"MyNew 2", u"Second tooltip", py("Other.py"))),
      ```
-   - Line order = button order.
+   - Line order = button order: put it where it is used in the order of work.
    - For a Grasshopper file write the macro as a string instead of `py(...)`: `'! _-GrasshopperPlayer "%s/Grasshoper scripts/<file>.gh"\n\n\n\n' % ROOT`.
 
 3. **Close Rhino** and rebuild the toolbar (only the user builds it — Claude only edits `GROUPS` and does not run the builder):
