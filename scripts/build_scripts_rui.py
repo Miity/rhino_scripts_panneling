@@ -168,78 +168,6 @@ IT = {
     u"Zigzags": (u"Microzigzag", u"Trova i microzigzag: raddrizza o salta"),
 }
 
-# Button icons: the label code it puts on the drawing (P, Z, R, B, Pt, T…) or a short abbreviation, white on a tile
-# coloured by tab. ICON_MODE: "text_only" — names only (current); "control_and_text" — icon + name; "control_only" — icon only.
-ICON_MODE = "text_only"
-FONT = "/System/Library/Fonts/Helvetica.ttc"  # index 1 — Bold
-COLORS = {u"Sizes": "#5D6D7E", u"Curves": "#2E86C1", u"Parts": "#C0392B", u"Pattern": "#8E44AD",
-          u"Markup": "#229954", u"Cut": "#D35400", u"Analysis": "#7F8C8D"}
-ICONS = {
-    u"BBoxSize": u"BB", u"BBoxCenterLines": u"BC", u"LabelSizes": u"Sz", u"Rect1340": u"Re",
-    u"SplitByAngle": u"<", u"SmoothCorners": u"(", u"CrvToPolyline": u"PL", u"TrimEnds": u"TE", u"KeepEnds": u"KE",
-    u"TrimOutside": u"TO", u"ExactConnection": u"EC", u"MidLine": u"ML", u"OffsetRigid": u"OR",
-    u"Panels": u"P", u"JoinCorner": u"JC", u"MergeOutline": u"MO", u"ZipCover": u"Off", u"ZipStops": u"Z",
-    u"ZipList": u"ZL", u"ReinfStrip": u"R", u"MarkReinf": u"+R", u"RList": u"RL", u"ReinfD": u"RD", u"ReinfO": u"RO",
-    u"Bordino": u"B", u"Pettola": u"Pt", u"TubePockets": u"T", u"UpdatePockets": u"T+", u"Strips": u"F",
-    u"PartPanel": u"#P", u"Layout": u"Lay", u"LayoutStack": u"Stk", u"PackStrips": u"Pk",
-    u"SquishTo": u"Sq", u"MarksTo2D": u"2D", u"Break": u"Sp", u"Seams": u"Mg", u"Notches": u"Tc",
-    u"MatchNotches": u"=", u"ConvertNotches": u"V",
-    u"Crosses": u"+", u"Linetype400,2": u"--", u"TextStyles": u"Aa", u"TextToDot": u"Dot", u"DotToPanelText": u"Txt",
-    u"TextToCurves": u"A~", u"Legend": u"Leg", u"PanelPage": u"A4",
-    u"CurveOverlap": u"Dup", u"SplitToMaterial": u"A-A", u"PreparePanelCut": u"CUT", u"Preflight": u"OK?",
-    u"SmallClosed": u"Sm", u"CutRisks": u"!", u"RecommendTabs": u"Tb?", u"CutTabs": u"Tb", u"Zigzags": u"Zg",
-}
-SIZES = (("small_bitmap", 16), ("normal_bitmap", 24), ("large_bitmap", 32))
-
-
-def tile(code, color, px):
-    """Icon px × px: code in white bold, as large as fits, on a rounded tile."""
-    from PIL import Image, ImageDraw, ImageFont
-    im = Image.new("RGBA", (px, px), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    d.rounded_rectangle((0, 0, px - 1, px - 1), radius=max(2, px // 5), fill=color)
-    size = int(px * 0.8)
-    while True:
-        font = ImageFont.truetype(FONT, size, index=1)
-        l, t, r, b = d.textbbox((0, 0), code, font=font)
-        if (r - l <= px - max(2, px // 8) and b - t <= px * 0.7) or size <= 6:
-            break
-        size -= 1
-    d.text((px / 2.0, px / 2.0), code, fill="white", font=font, anchor="mm")
-    return im
-
-
-def bitmaps(icons):
-    """<bitmaps> with one strip per size; icons = [(bitmap guid, code, colour)]."""
-    try:
-        import PIL  # noqa: F401
-    except ImportError:
-        print("No Pillow (pip3 install pillow) — toolbar without icons")
-        icons = []
-    out = []
-    for tag, px in SIZES:
-        if not icons:
-            out.append(u'    <%s item_width="%d" item_height="%d" />\n' % (tag, px, px))
-            continue
-        import base64
-        import io
-        from PIL import Image
-        n = len(icons)
-        # ponytail: Rhino's strip direction is not documented — icon i is put both at (i, 0) and (0, i), so a
-        # horizontal and a vertical reader both find it; the rest of the square is empty (PNG keeps it tiny).
-        strip = Image.new("RGBA", (n * px, n * px), (0, 0, 0, 0))
-        for i, (g, code, color) in enumerate(icons):
-            im = tile(code, color, px)
-            strip.paste(im, (i * px, 0))
-            strip.paste(im, (0, i * px))
-        buf = io.BytesIO()
-        strip.save(buf, "PNG", optimize=True)
-        out.append(u'    <%s item_width="%d" item_height="%d">\n%s      <bitmap>%s</bitmap>\n    </%s>\n' % (
-            tag, px, px, u"".join(u'      <bitmap_item guid="%s" index="%d" />\n' % (g, i) for i, (g, c, k) in enumerate(icons)),
-            base64.b64encode(buf.getvalue()).decode("ascii"), tag))
-    return u"".join(out)
-
-
 def tr(name, tip):
     """(shown name, tooltip) in LANG; name stays the key of the GUIDs. The tooltip always reads "name: explanation"."""
     name, tip = IT[name] if LANG == "IT" else (name, tip)
@@ -255,21 +183,18 @@ def loc(tag, value, pad):
 
 
 macros = []
-icons = []
 
 
-def macro(key, text, tip, script, group):
+def macro(key, text, tip, script):
     g = gid("macro", key)
-    b = gid("bitmap", key)
-    icons.append((b, ICONS[key], COLORS[group]))
-    macros.append(u'    <macro_item guid="%s" bitmap_id="%s">\n%s%s%s    <script>%s</script>\n    </macro_item>\n' % (
-        g, b, loc("text", text, "      "), loc("tooltip", tip, "      "), loc("button_text", text, "      "), escape(script)))
+    macros.append(u'    <macro_item guid="%s">\n%s%s%s    <script>%s</script>\n    </macro_item>\n' % (
+        g, loc("text", text, "      "), loc("tooltip", tip, "      "), loc("button_text", text, "      "), escape(script)))
     return g
 
 
 def item(key, text, left, right=None):
-    out = u'      <tool_bar_item guid="%s" button_display_mode="%s">\n%s        <left_macro_id>%s</left_macro_id>\n' % (
-        gid("item", key), ICON_MODE, loc("text", text, "        "), left)
+    out = u'      <tool_bar_item guid="%s">\n%s        <left_macro_id>%s</left_macro_id>\n' % (
+        gid("item", key), loc("text", text, "        "), left)
     if right:
         out += u"        <right_macro_id>%s</right_macro_id>\n" % right
     return out + u"      </tool_bar_item>\n"
@@ -281,14 +206,14 @@ def toolbar(key, name, items):
 
 def build(groups):
     """RUI text with one toolbar per group."""
-    del macros[:], icons[:]
+    del macros[:]
     bars = []
     for group, group_tip, buttons in groups:
         items = []
         for text, tip, script, right in buttons:
             name, tip = tr(text, tip)
-            l = macro(text, name, tip, script, group)
-            r = macro(right[0], *tr(right[0], right[1]) + (right[2], group)) if right else None
+            l = macro(text, name, tip, script)
+            r = macro(right[0], *tr(right[0], right[1]) + (right[2],)) if right else None
             items.append(item(group + "/" + text, name, l, r))
         bars.append(toolbar(group, tr(group, group_tip)[0], items))
     return u'''<?xml version="1.0" encoding="utf-8"?>
@@ -301,10 +226,13 @@ def build(groups):
   <macros>
 %s  </macros>
   <bitmaps>
-%s  </bitmaps>
+    <small_bitmap item_width="16" item_height="16" />
+    <normal_bitmap item_width="24" item_height="24" />
+    <large_bitmap item_width="32" item_height="32" />
+  </bitmaps>
   <scripts />
 </RhinoUI>
-''' % (gid("file"), u"".join(bars), u"".join(macros), bitmaps(icons))
+''' % (gid("file"), u"".join(bars), u"".join(macros))
 
 
 if __name__ == "__main__":
