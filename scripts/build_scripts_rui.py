@@ -241,8 +241,9 @@ def bitmaps(icons):
 
 
 def tr(name, tip):
-    """(shown name, tooltip) in LANG; name stays the key of the GUIDs."""
-    return IT[name] if LANG == "IT" else (name, tip)
+    """(shown name, tooltip) in LANG; name stays the key of the GUIDs. The tooltip always reads "name: explanation"."""
+    name, tip = IT[name] if LANG == "IT" else (name, tip)
+    return name, u"%s: %s" % (name, tip)
 
 
 def gid(*parts):
