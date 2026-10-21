@@ -87,6 +87,7 @@ GROUPS = [
         (u"CurveOverlap", u"Delete duplicates, select the shorter of overlapping curves", py("cut/sel_curve_overlap.py"), None),
         (u"SplitToMaterial", u"Split panels to the fabric width: 1 cm seam, A–A pairs", py("cut/SplitPanelsToMaterial.py"), None),
         (u"PreparePanelCut", u"Panels → outer contour on CUT, inner lines on INT / INK", py("cut/PreparePanelCut.py"), None),
+        (u"Preflight", u"Checks before the cutter: duplicates etc., changes nothing", py("cut/PreflightCut.py"), None),
     ]),
     (u"Analysis", u"Panel and cut analysis", [
         (u"SmallClosed", u"Select closed curves too small to cut", py("analysis/SelectSmallClosedCurves.py"), None),
@@ -158,6 +159,7 @@ IT = {
     u"CurveOverlap": (u"Sovrapposizioni", u"Elimina i doppioni, seleziona la più corta delle sovrapposte"),
     u"SplitToMaterial": (u"DividiPerTessuto", u"Divide i pannelli alla larghezza del tessuto: cucitura 1 cm, coppie A–A"),
     u"PreparePanelCut": (u"PreparaTaglio", u"Pannelli → contorno su CUT, linee interne su INT / INK"),
+    u"Preflight": (u"ControlloTaglio", u"Controlli prima del taglio: doppioni ecc., non cambia nulla"),
     u"Analysis": (u"Analisi", u"Analisi di pannelli e taglio"),
     u"SmallClosed": (u"ChiusePiccole", u"Seleziona le curve chiuse troppo piccole da tagliare"),
     u"CutRisks": (u"RischiTaglio", u"Segna i punti di taglio a rischio, geometria invariata"),
@@ -184,7 +186,7 @@ ICONS = {
     u"MatchNotches": u"=", u"ConvertNotches": u"V",
     u"Crosses": u"+", u"Linetype400,2": u"--", u"TextStyles": u"Aa", u"TextToDot": u"Dot", u"DotToPanelText": u"Txt",
     u"TextToCurves": u"A~", u"Legend": u"Leg", u"PanelPage": u"A4",
-    u"CurveOverlap": u"Dup", u"SplitToMaterial": u"A-A", u"PreparePanelCut": u"CUT",
+    u"CurveOverlap": u"Dup", u"SplitToMaterial": u"A-A", u"PreparePanelCut": u"CUT", u"Preflight": u"OK?",
     u"SmallClosed": u"Sm", u"CutRisks": u"!", u"RecommendTabs": u"Tb?", u"CutTabs": u"Tb", u"Zigzags": u"Zg",
 }
 SIZES = (("small_bitmap", 16), ("normal_bitmap", 24), ("large_bitmap", 32))

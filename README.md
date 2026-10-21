@@ -99,6 +99,7 @@ before it) without leaving the command; a number given in that click is reused. 
 | PreparePanelCut | any panel lines (closed, separate, seam strips, duplicates) → the outer contour of each panel on CUT, the rest on INT/INK (texts too); objects already on INT stay there, also when selected in step 1 (count printed); linework noise under 0.05 mm (micro zigzags at corners) is ignored |
 | SplitToMaterial | split panels at the material lines: 1 cm seam, cut-off pieces moved by 50 mm, pairs labelled A–A, B–B… |
 | CurveOverlap | delete exact duplicates (SelDup), select the shorter curve of overlapping pairs (among selected, or all if nothing is selected) |
+| Preflight | checks before the file goes to the cutter, changes nothing: selects the offenders and prints PASS / FAIL per check. Now: **Duplicates** — curves lying on each other on the same tool (knife = CUT + INT, pen = INK; a copy on CUT over INT counts), the machine would cut them twice. More checks go to `CHECKS` in `PreflightCut.py` one by one |
 
 **Parts** — scripts that create parts (strips, reinforcements…); `scripts/parts/`, the result goes to layer `Parts::…`
 | Button | Left click |
