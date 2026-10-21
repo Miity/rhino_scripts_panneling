@@ -169,8 +169,8 @@ IT = {
 }
 
 # Button icons: the label code it puts on the drawing (P, Z, R, B, Pt, T…) or a short abbreviation, white on a tile
-# coloured by tab. ICON_MODE: "control_and_text" — icon + name; "control_only" — icon only (narrower toolbar).
-ICON_MODE = "control_and_text"
+# coloured by tab. ICON_MODE: "text_only" — names only (current); "control_and_text" — icon + name; "control_only" — icon only.
+ICON_MODE = "text_only"
 FONT = "/System/Library/Fonts/Helvetica.ttc"  # index 1 — Bold
 COLORS = {u"Sizes": "#5D6D7E", u"Curves": "#2E86C1", u"Parts": "#C0392B", u"Pattern": "#8E44AD",
           u"Markup": "#229954", u"Cut": "#D35400", u"Analysis": "#7F8C8D"}
