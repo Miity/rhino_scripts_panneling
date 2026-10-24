@@ -89,6 +89,28 @@ try:
         assert all(doc.Layers[o.Attributes.LayerIndex].FullPath == u"Labels::SquishJoined" for o in dots), "dot layer"
         assert all(abs(float(o.Geometry.Text)) < 1.0 for o in dots), [o.Geometry.Text for o in dots]
         out.write(u"Diff dots: %s\n" % u" ".join(o.Geometry.Text for o in dots))
+        # Outside=Down: the same layout mirrored — end0 now on the right
+        new3, _ = S.run(doc, ids, Point3d(0, -20000, 0), opts={"Down": True})
+        objs3 = [doc.Objects.FindId(i) for i in new3]
+        e0 = [o for o in objs3 if o.Attributes.Name == "end0"][0]
+        e2 = [o for o in objs3 if o.Attributes.Name == "end2"][0]
+        assert cx(e0) > cx(e2), "Outside=Down not mirrored"
+        # a closed surface: SplitSeams=No — Squish fails (as in the dialog), Yes — flat, area kept
+        cyl = Rhino.Geometry.Cylinder(Rhino.Geometry.Circle(Rhino.Geometry.Plane.WorldXY, 300), 800).ToNurbsSurface()
+        cid = doc.Objects.AddSurface(cyl, att)
+        r = S.run(doc, [cid], Point3d(0, -30000, 0))
+        assert not isinstance(r, tuple) and u"SplitSeams=Yes" in r, r
+        r = S.run(doc, [cid], Point3d(0, -30000, 0), opts={"SplitSeams": True})
+        assert isinstance(r, tuple), r
+        a2 = AreaMassProperties.Compute(doc.Objects.FindId(r[0][0]).Geometry).Area
+        a3 = AreaMassProperties.Compute(cyl).Area
+        assert abs(a2 / a3 - 1) < 0.01, (a2, a3)
+        # Material=Rigid / Deformation reach Squish: another shape than the default
+        def piece_area(opts):
+            rr = S.run(doc, [ids[1]], Point3d(0, -40000, 0), opts=opts)
+            return AreaMassProperties.Compute(doc.Objects.FindId(rr[0][0]).Geometry).Area
+        base, rigid, stretch = piece_area({}), piece_area({"Rigid": True}), piece_area({"Deformation": "StretchOnly"})
+        out.write(u"end0 area: default %.0f, Rigid %.0f, StretchOnly %.0f\n" % (base, rigid, stretch))
         out.write(u"OK\n")
     finally:
         sc.doc = old

@@ -2,8 +2,10 @@
 """Squish Joined — Squish of every surface on its own, the flat pieces laid out joined along their common sides.
 Select several surfaces and / or polysurfaces (every face is a piece), then click where the layout goes (its centre).
 Two pieces are neighbours where a side of one lies all along on a side of the other (within 1 mm — joined or not).
-Each piece is squished alone with a stiff edge (its sides keep their 3D length, ≈ 0.3 mm on 2.4 m); one squish of all
-pieces together stretches them by centimetres where they meet at an angle. The biggest piece stays as Squish gives
+Each piece is squished alone (by default with a stiff edge: its sides keep their 3D length, ≈ 0.3 mm on 2.4 m); one
+squish of all pieces together stretches them by centimetres where they meet at an angle. The options of the Squish
+dialog are in the click prompt (checked against the dialog: Material Rigid = PhysicalStress, Split Seams = the mesh may
+come apart along a seam, Preserve Boundary); Outside is this script's own: Up — like the model from Top, Down — mirrored. The biggest piece stays as Squish gives
 it, the others are turned and moved (mirrored if they came on the same side of the seam) so that the ends of each
 common side meet. A seam over a bend is a bit differently curved on its two sides: the gap between them is printed.
 A seam that closes a ring of pieces, or pieces joined to no other, are not moved onto it (printed / placed apart).
@@ -15,11 +17,15 @@ import math
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import (AreaMassProperties, BoundingBox, Plane, Point3d, Squisher, SquishParameters, TextDot,
-                            Transform, Vector3d)
+from Rhino.Geometry import (AreaMassProperties, BoundingBox, Plane, Point3d, SquishDeformation,
+                            SquishFlatteningAlgorithm, Squisher, SquishParameters, TextDot, Transform, Vector3d)
 
 SIDE_MM = 1.0  # two sides this close all along are one common side
-STIFF = 100.0  # Squish stretch / compress constants of the edge (interior 1): the edge keeps its length
+DEFORMATIONS = ("Free", "StretchMostly", "StretchOnly", "CompressMostly", "CompressOnly", "Custom")
+CONSTANTS = ("BndStretch", "BndCompress", "IntStretch", "IntCompress")  # Custom: bigger — less of that deformation
+# options; default — a stiff edge (Custom 100 100 1 1: the edge keeps its length), Split Seams off as usually set
+DEFAULTS = {"SplitSeams": False, "PreserveBoundary": False, "Deformation": "Custom", "BndStretch": 100.0,
+            "BndCompress": 100.0, "IntStretch": 1.0, "IntCompress": 1.0, "Rigid": False, "Down": False, "Diff": False}
 SAMPLES = 40  # points along a side
 APART_MM = 300.0  # gap before a group of pieces joined to no other
 DOT_IN_MM = 60.0  # Diff dot: this far inside the piece from the middle of its side (a quarter of the way to the centre at most)
@@ -31,13 +37,20 @@ def mm(doc):
     return Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
 
 
-def squish(face):
+def params(o):
+    """SquishParameters of the options, the way the Squish dialog sets them"""
+    p = SquishParameters()
+    p.SetDeformation(getattr(SquishDeformation, o["Deformation"]), o["PreserveBoundary"],
+                     *[o[c] for c in CONSTANTS])
+    p.Algorithm = SquishFlatteningAlgorithm.PhysicalStress if o["Rigid"] else SquishFlatteningAlgorithm.Geometric
+    p.PreserveTopology = not o["SplitSeams"]
+    return p
+
+
+def squish(face, p):
     """(flat brep, 3D point -> 2D point) of one face, None — Squish failed. No Squish marks: with marks Squish
     crashed Rhino on faces of a polysurface; the 3D / 2D meshes of the Squisher share faces, so a point found on the
     3D mesh is put at the same spot of the 2D one."""
-    p = SquishParameters()
-    p.BoundaryStretchConstant = STIFF
-    p.BoundaryCompressConstant = STIFF
     sq = Squisher()
     flat = sq.SquishSurface(p, face)
     m3, m2 = sq.Get3dMesh(), sq.Get2dMesh()
@@ -189,8 +202,12 @@ def dot_attrs(doc, group):
     return a
 
 
-def run(doc, ids, centre, diff=False):
-    """Lays the pieces out, centre of the layout at centre; (piece ids, report lines) or a message"""
+def run(doc, ids, centre, diff=False, opts=None):
+    """Lays the pieces out, centre of the layout at centre, options opts (DEFAULTS for the missing ones);
+    (piece ids, report lines) or a message"""
+    o = dict(DEFAULTS)
+    o.update(opts or {})
+    diff = diff or o["Diff"]
     k = mm(doc)
     tol = doc.ModelAbsoluteTolerance
     faces, attrs = [], []
@@ -203,9 +220,9 @@ def run(doc, ids, centre, diff=False):
         return u"No surfaces selected"
     flats, maps = [], []
     for n, f in enumerate(faces):
-        r = squish(f.Faces[0])
+        r = squish(f.Faces[0], params(o))
         if r is None:
-            return u"Squish failed on piece %d" % (n + 1)
+            return u"Squish failed on piece %d%s" % (n + 1, u"" if o["SplitSeams"] else u" (a closed surface: SplitSeams=Yes)")
         flats.append(r[0])
         maps.append(r[1])
     sides = [[e.DuplicateCurve() for e in f.Edges if e.GetLength() > 10 * tol] for f in faces]
@@ -214,6 +231,8 @@ def run(doc, ids, centre, diff=False):
     xf, gaps = layout(flats, maps, areas, seams)
     big = max(range(len(faces)), key=lambda n: areas[n])  # the steep ones (seen from Top as a line) would skew it
     turn, mirrored = like_3d([(p, xf[big] * maps[big](p)) for c in sides[big] for p in along(c)])
+    if o["Down"]:
+        turn = Transform.Mirror(Plane.WorldYZ) * turn
     xf = [turn * t for t in xf]
     bb = BoundingBox.Empty
     for f, t in zip(flats, xf):
@@ -254,30 +273,56 @@ def run(doc, ids, centre, diff=False):
         lines.append(u"  %d common sides close a ring — not joined, off up to %.1f mm" % (len(ring), max(ring) / k))
     if alone:
         lines.append(u"  %d pieces have no common side — placed apart" % alone)
-    if mirrored:
+    if mirrored and not o["Down"]:
         lines.append(u"  mirrored: Squish laid it out as seen from below — now it looks like the model from Top")
+    custom = u"(%s)" % u" ".join(u"%g" % o[c] for c in CONSTANTS) if o["Deformation"] == "Custom" else u""
+    lines.append(u"  Squish: SplitSeams=%s PreserveBoundary=%s Deformation=%s%s Material=%s Outside=%s" % (
+        u"Yes" if o["SplitSeams"] else u"No", u"Yes" if o["PreserveBoundary"] else u"No", o["Deformation"], custom,
+        u"Rigid" if o["Rigid"] else u"Floppy", u"Down" if o["Down"] else u"Up"))
     return out, lines
 
 
-def get_centre():
-    """(centre of the layout, Diff) or None; Diff remembered in sc.sticky"""
-    diff = sc.sticky.get(STICKY + "_diff", False)
+def get_options():
+    """(centre of the layout, options) or None; the options remembered in sc.sticky"""
+    o = dict(DEFAULTS)
+    o.update(sc.sticky.get(STICKY, {}))
     while True:
         gp = Rhino.Input.Custom.GetPoint()
         gp.SetCommandPrompt(u"Centre of the layout")
-        opt = Rhino.Input.Custom.OptionToggle(diff, "No", "Yes")
-        gp.AddOptionToggle("Diff", opt)
+        toggles, nums = {}, {}
+        for key in ("SplitSeams", "PreserveBoundary"):
+            toggles[key] = Rhino.Input.Custom.OptionToggle(o[key], "No", "Yes")
+            gp.AddOptionToggle(key, toggles[key])
+        i_def = gp.AddOptionList("Deformation", DEFORMATIONS, DEFORMATIONS.index(o["Deformation"]))
+        if o["Deformation"] == "Custom":
+            for key in CONSTANTS:
+                nums[key] = Rhino.Input.Custom.OptionDouble(o[key], 0.001, 1e6)
+                gp.AddOptionDouble(key, nums[key])
+        for key, name, off, on in (("Rigid", "Material", "Floppy", "Rigid"), ("Down", "Outside", "Up", "Down"),
+                                   ("Diff", "Diff", "No", "Yes")):
+            toggles[key] = Rhino.Input.Custom.OptionToggle(o[key], off, on)
+            gp.AddOptionToggle(name, toggles[key])
         r = gp.Get()
         if r == Rhino.Input.GetResult.Option:
-            diff = opt.CurrentValue
-            sc.sticky[STICKY + "_diff"] = diff
+            if gp.OptionIndex() == i_def:
+                o["Deformation"] = DEFORMATIONS[gp.Option().CurrentListOptionIndex]
+            for key, t in toggles.items():
+                o[key] = t.CurrentValue
+            for key, n in nums.items():
+                o[key] = n.CurrentValue
+            sc.sticky[STICKY] = dict(o)
             continue
         if r != Rhino.Input.GetResult.Point:
             return None
-        return gp.Point(), diff
+        return gp.Point(), o
 
 
-HELP = u"Squish Joined — D: Diff = Yes — a TextDot inside each side of the layout: its length 2D − 3D, mm (layer Labels::SquishJoined)"
+HELP = (u"Squish Joined (options as in the Squish dialog) — SplitSeams: Yes — the surface may come apart along its seam "
+        u"(a closed one needs it); PreserveBoundary: keep the side lengths; Deformation: Free / StretchMostly / "
+        u"StretchOnly / CompressMostly / CompressOnly / Custom — BndStretch, BndCompress, IntStretch, IntCompress "
+        u"(bigger — less of that deformation; 100 100 1 1 — stiff edge, the default); Material: Floppy / Rigid; "
+        u"Outside: Up — like the model from Top, Down — mirrored; Diff: Yes — a TextDot inside each side of the layout, "
+        u"its length 2D − 3D in mm (layer Labels::SquishJoined)")
 
 
 def main():
@@ -286,10 +331,10 @@ def main():
                         rs.filter.surface | rs.filter.polysurface, preselect=True)
     if not ids:
         return
-    got = get_centre()
+    got = get_options()
     if got is None:
         return
-    r = run(sc.doc, ids, got[0], got[1])
+    r = run(sc.doc, ids, got[0], opts=got[1])
     if not isinstance(r, tuple):
         print(r)
         return

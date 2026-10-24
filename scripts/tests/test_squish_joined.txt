@@ -1,5 +1,7 @@
 Squish Joined: 5 pieces, 3 joined along a common side; sides 2D − 3D up to 0.1 mm
   joined sides: gap along them up to 600.0 mm (a seam over a bend is curved a bit differently on its two sides)
   1 pieces have no common side — placed apart
-Diff dots: +0.0 +0.0 +0.0 +0.0 +0.0 +0.0 +0.0 +0.0 -0.1 +0.0 -0.1 +0.0 -0.0 +0.0 +0.0
+  Squish: SplitSeams=No PreserveBoundary=No Deformation=Custom(100 100 1 1) Material=Floppy Outside=Up
+Diff dots: -0.0 +0.1 -0.0 +0.1 +0.1 -0.0 +0.1 -0.0 -0.1 -0.0 -0.1 -0.0 -0.0 +0.0 -0.0
+end0 area: default 707022, Rigid 707024, StretchOnly 706980
 OK
