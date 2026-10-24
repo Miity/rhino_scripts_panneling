@@ -156,7 +156,7 @@ Deliberately left off the toolbar: `build_scripts_rui.py` (builder).
 
 Tabs **Sizes / Curves / Parts / Pattern / Markup / Cut / Analysis** (Misure / Curve / Pezzi / Modello / Segni / Taglio / Analisi) — in the top toolbar panel, tabs and buttons in the order of work on a cover. Buttons have no icons, only names. Tooltips read "Name: explanation" and are one short sentence; Tooltips are one short sentence; the details are in this README and in the `HELP` each script prints first.
 
-**A tab disappeared** — in Rhino: menu **Window → Toolbars** (or the `Toolbar` command), find the **Scripts** library, enable the toolbar you need. It appears as a floating window — drag it by its tab into the top panel.
+**A tab disappeared** — in Rhino: menu **Window → Toolbars** (or the `Toolbar` command), find the **Scripts** library and enable its group **Scripts** — all 7 tabs come together in one panel (or enable one toolbar of the library — it appears as a floating window; drag it by its tab into the top panel).
 
 **Rhino does not know the toolbar at all** (new computer, reset settings) — `Scripts.rui` is not in git, build it first (`python3 scripts/build_scripts_rui.py`), then open it once. The most reliable way is via `_ScriptEditor` → new Python script → Run:
 

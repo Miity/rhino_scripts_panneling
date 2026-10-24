@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Builds Scripts.rui (project root): 7 separate toolbars (Sizes / Curves / Parts / Pattern / Markup / Cut / Analysis)
-shown as tabs in one Rhino panel.
+"""Builds Scripts.rui (project root): 7 toolbars (Sizes / Curves / Parts / Pattern / Markup / Cut / Analysis) and one
+toolbar group "Scripts" holding all 7 as tabs (one tick in Window → Toolbars shows them all).
 Run with plain python3 outside Rhino: python3 scripts/build_scripts_rui.py
 Build with Rhino closed; Rhino picks up the changes after a restart. How to connect it the first time — README.md.
 To add a script — add a line to GROUPS (English) and to IT (Italian), and rerun this file.
@@ -207,8 +207,19 @@ def toolbar(key, name, items):
     return u'    <tool_bar guid="%s">\n%s%s    </tool_bar>\n' % (gid("toolbar", key), loc("text", name, "      "), u"".join(items))
 
 
+def bar_group(names):
+    """the toolbar group "Scripts": every toolbar of GROUPS as a tab, the first one active"""
+    items = [u'      <tool_bar_group_item guid="%s" major_version="1" minor_version="1">\n%s'
+             u'        <tool_bar_id>%s</tool_bar_id>\n      </tool_bar_group_item>\n' % (
+                 gid("group_item", key), loc("text", name, "        "), gid("toolbar", key)) for key, name in names]
+    return (u'    <tool_bar_group guid="%s" active_tool_bar_group="%s" single_file="False" hide_single_tab="False">\n'
+            u'%s%s      <dock_bar_info dpi_scale="100" docking="True" visible="True" floating="True" '
+            u'dock_location="top" />\n    </tool_bar_group>\n') % (
+        gid("group"), gid("group_item", names[0][0]), loc("text", u"Scripts", "      "), u"".join(items))
+
+
 def build(groups):
-    """RUI text with one toolbar per group."""
+    """RUI text with one toolbar per group + the group of them all."""
     del macros[:]
     bars = []
     for group, group_tip, buttons in groups:
@@ -219,11 +230,13 @@ def build(groups):
             r = macro(right[0], *tr(right[0], right[1]) + (right[2],)) if right else None
             items.append(item(group + "/" + text, name, l, r))
         bars.append(toolbar(group, tr(group, group_tip)[0], items))
+    names = [(group, tr(group, group_tip)[0]) for group, group_tip, _ in groups]
     return u'''<?xml version="1.0" encoding="utf-8"?>
 <RhinoUI major_ver="3" minor_ver="0" guid="%s" localize="False" default_language_id="1033" dpi_scale="100">
   <extend_rhino_menus />
   <menus />
-  <tool_bar_groups />
+  <tool_bar_groups>
+%s  </tool_bar_groups>
   <tool_bars>
 %s  </tool_bars>
   <macros>
@@ -235,7 +248,7 @@ def build(groups):
   </bitmaps>
   <scripts />
 </RhinoUI>
-''' % (gid("file"), u"".join(bars), u"".join(macros))
+''' % (gid("file"), bar_group(names), u"".join(bars), u"".join(macros))
 
 
 if __name__ == "__main__":
