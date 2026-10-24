@@ -42,7 +42,10 @@ try:
         lone = Brep.CreatePlanarBreps(Curve.JoinCurves([LineCurve(Point3d(5000, 0, 0), Point3d(5500, 0, 0)),
                                                         LineCurve(Point3d(5500, 0, 0), Point3d(5500, 300, 0)),
                                                         LineCurve(Point3d(5500, 300, 0), Point3d(5000, 0, 0))])[0], 0.01)[0]
-        ids = [doc.Objects.AddBrep(b, att) for b in (poly, end0, end2, lone)]
+        ids = []
+        for name, b in (("poly", poly), ("end0", end0), ("end2", end2), ("lone", lone)):
+            att.Name = name
+            ids.append(doc.Objects.AddBrep(b, att))
         r = S.run(doc, ids, Point3d(0, -5000, 0))
         assert isinstance(r, tuple), r
         new, lines = r
@@ -69,6 +72,15 @@ try:
         d = min(outl[h[0]].PointAt(t).DistanceTo(outl[h[1]].PointAt(outl[h[1]].ClosestPoint(outl[h[0]].PointAt(t))[1]))
                 for t in outl[h[0]].DivideByCount(200, True))
         assert d < 0.01, "halves apart %.3f" % d
+        # turned like the model from Top: the tube runs along X (2000 long), end0 on the left, end2 on the right
+        cx = lambda o: AreaMassProperties.Compute(o.Geometry).Centroid.X
+        halves = [o for o in objs if o.Attributes.Name == "poly"]
+        bb = halves[0].Geometry.GetBoundingBox(True)
+        bb.Union(halves[1].Geometry.GetBoundingBox(True))
+        assert abs(bb.Max.X - bb.Min.X - 2000) < 5, "not along X: %.0f" % (bb.Max.X - bb.Min.X)
+        e0 = [o for o in objs if o.Attributes.Name == "end0"][0]
+        e2 = [o for o in objs if o.Attributes.Name == "end2"][0]
+        assert cx(e0) < bb.Min.X + 1 and cx(e2) > bb.Max.X - 1, "ends swapped / turned"
         out.write(u"OK\n")
     finally:
         sc.doc = old

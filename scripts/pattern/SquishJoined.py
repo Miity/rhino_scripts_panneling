@@ -7,6 +7,7 @@ pieces together stretches them by centimetres where they meet at an angle. The b
 it, the others are turned and moved (mirrored if they came on the same side of the seam) so that the ends of each
 common side meet. A seam over a bend is a bit differently curved on its two sides: the gap between them is printed.
 A seam that closes a ring of pieces, or pieces joined to no other, are not moved onto it (printed / placed apart).
+The whole layout is turned (mirrored if needed) so that the biggest piece looks like the 3D model seen from Top.
 The pieces keep the layer of their 3D surface and the Squish link (SquishBack, SquishTo work on them), one group.
 """
 import math
@@ -135,6 +136,28 @@ def layout(flats, maps, areas, seams):
     return xf, out
 
 
+def like_3d(pairs):
+    """Turn (+ mirror if that fits better) of the layout that makes it look like the 3D seen from Top: least squares
+    over (3D point, its layout point) pairs of the biggest piece, the 3D flattened onto world XY; (Transform, mirrored)"""
+    best = None
+    for flip in (False, True):
+        q = [Point3d(b.X, -b.Y, 0) if flip else Point3d(b.X, b.Y, 0) for _, b in pairs]
+        p = [Point3d(a.X, a.Y, 0) for a, _ in pairs]
+        cq = Point3d(sum(v.X for v in q) / len(q), sum(v.Y for v in q) / len(q), 0)
+        cp = Point3d(sum(v.X for v in p) / len(p), sum(v.Y for v in p) / len(p), 0)
+        sn = sum((a.X - cq.X) * (b.Y - cp.Y) - (a.Y - cq.Y) * (b.X - cp.X) for a, b in zip(q, p))
+        cs = sum((a.X - cq.X) * (b.X - cp.X) + (a.Y - cq.Y) * (b.Y - cp.Y) for a, b in zip(q, p))
+        t = Transform.Rotation(math.atan2(sn, cs), Vector3d.ZAxis, cq)
+        if flip:
+            t = t * Transform.Mirror(Plane.WorldZX)
+        moved = [t * Point3d(b.X, b.Y, 0) for _, b in pairs]
+        off = Vector3d(cp - Point3d(sum(v.X for v in moved) / len(moved), sum(v.Y for v in moved) / len(moved), 0))
+        err = sum((m + off).DistanceTo(a) ** 2 for m, a in zip(moved, p))
+        if best is None or err < best[0]:
+            best = (err, t, flip)
+    return best[1], best[2]
+
+
 def edge_error(sides, to2d):
     """largest |2D − 3D| length of the sides of a piece"""
     worst = 0.0
@@ -170,6 +193,9 @@ def run(doc, ids, centre):
     areas = [AreaMassProperties.Compute(f).Area for f in faces]
     seams = common_sides(sides, SIDE_MM * k)
     xf, gaps = layout(flats, maps, areas, seams)
+    big = max(range(len(faces)), key=lambda n: areas[n])  # the steep ones (seen from Top as a line) would skew it
+    turn, mirrored = like_3d([(p, xf[big] * maps[big](p)) for c in sides[big] for p in along(c)])
+    xf = [turn * t for t in xf]
     bb = BoundingBox.Empty
     for f, t in zip(flats, xf):
         f.Transform(t)
@@ -195,6 +221,8 @@ def run(doc, ids, centre):
         lines.append(u"  %d common sides close a ring — not joined, off up to %.1f mm" % (len(ring), max(ring) / k))
     if alone:
         lines.append(u"  %d pieces have no common side — placed apart" % alone)
+    if mirrored:
+        lines.append(u"  mirrored: Squish laid it out as seen from below — now it looks like the model from Top")
     return out, lines
 
 
