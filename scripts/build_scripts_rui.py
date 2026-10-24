@@ -65,6 +65,8 @@ GROUPS = [
         (u"PackStrips", u"Pack straight strips into a block within the roll width", py("parts/PackStrips.py"), None),
     ]),
     (u"Pattern", u"Pattern tools after PatternSmith: seam allowance, notches", [
+        (u"SquishJoined", u"Squish every surface, pieces joined along common sides", py("pattern/SquishJoined.py"),
+         None),
         (u"SquishTo", u"3D marks onto the squished 2D surface", py("pattern/SquishTo.py"),
          (u"MarksTo2D", u"3D marks onto a 2D panel already worked on", py("pattern/MarksTo2D.py"))),
         (u"Break", u"Break point on a panel contour; Type=Ripresa", py("pattern/Break.py"), None),
@@ -139,6 +141,7 @@ IT = {
     u"LayoutStack": (u"PiazzaInPila", u"Strisce rinforzo / bordino in pila lungo X"),
     u"PackStrips": (u"CompattaStrisce", u"Compatta le strisce dritte in un blocco entro la larghezza del rotolo"),
     u"Pattern": (u"Modello", u"Strumenti del cartamodello: margini di cucitura, tacche"),
+    u"SquishJoined": (u"SquishUniti", u"Squish di ogni superficie, pezzi uniti lungo i lati in comune"),
     u"SquishTo": (u"SquishTo", u"Segni 3D sulla superficie 2D fatta con Squish"),
     u"MarksTo2D": (u"SegniIn2D", u"Segni 3D su un pannello 2D già lavorato"),
     u"Break": (u"Spezza", u"Punto di interruzione sul contorno; Type=Ripresa"),
