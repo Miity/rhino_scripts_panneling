@@ -8,19 +8,23 @@ it, the others are turned and moved (mirrored if they came on the same side of t
 common side meet. A seam over a bend is a bit differently curved on its two sides: the gap between them is printed.
 A seam that closes a ring of pieces, or pieces joined to no other, are not moved onto it (printed / placed apart).
 The whole layout is turned (mirrored if needed) so that the biggest piece looks like the 3D model seen from Top.
+Diff = Yes: a TextDot inside each side of the layout with its length 2D − 3D (mm), layer Labels::SquishJoined.
 The pieces keep the layer of their 3D surface and the Squish link (SquishBack, SquishTo work on them), one group.
 """
 import math
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import (AreaMassProperties, BoundingBox, Plane, Point3d, Squisher, SquishParameters, Transform,
-                            Vector3d)
+from Rhino.Geometry import (AreaMassProperties, BoundingBox, Plane, Point3d, Squisher, SquishParameters, TextDot,
+                            Transform, Vector3d)
 
 SIDE_MM = 1.0  # two sides this close all along are one common side
 STIFF = 100.0  # Squish stretch / compress constants of the edge (interior 1): the edge keeps its length
 SAMPLES = 40  # points along a side
 APART_MM = 300.0  # gap before a group of pieces joined to no other
+DOT_IN_MM = 60.0  # Diff dot: this far inside the piece from the middle of its side (a quarter of the way to the centre at most)
+DOT_LAYER = u"Labels::SquishJoined"
+STICKY = "SquishJoined"
 
 
 def mm(doc):
@@ -158,19 +162,34 @@ def like_3d(pairs):
     return best[1], best[2]
 
 
-def edge_error(sides, to2d):
-    """largest |2D − 3D| length of the sides of a piece"""
-    worst = 0.0
+def side_diffs(sides, to2d):
+    """[(2D − 3D length, 2D middle)] of the sides of a piece (Squish coordinates)"""
+    out = []
     for c in sides:
         p3 = along(c)
         p2 = [to2d(p) for p in p3]
         l3 = sum(p.DistanceTo(q) for p, q in zip(p3, p3[1:]))
         l2 = sum(p.DistanceTo(q) for p, q in zip(p2, p2[1:]))
-        worst = max(worst, abs(l2 - l3))
-    return worst
+        out.append((l2 - l3, to2d(c.PointAt(c.Domain.Mid))))
+    return out
 
 
-def run(doc, ids, centre):
+def dot_attrs(doc, group):
+    """attributes of the Diff TextDots: layer Labels::SquishJoined (hidden with all labels), the layout group"""
+    for path in (u"Labels", DOT_LAYER):
+        if doc.Layers.FindByFullPath(path, -1) < 0:
+            lay = Rhino.DocObjects.Layer()
+            lay.Name = path.split(u"::")[-1]
+            if u"::" in path:
+                lay.ParentLayerId = doc.Layers.FindIndex(doc.Layers.FindByFullPath(u"Labels", -1)).Id
+            doc.Layers.Add(lay)
+    a = Rhino.DocObjects.ObjectAttributes()
+    a.LayerIndex = doc.Layers.FindByFullPath(DOT_LAYER, -1)
+    a.AddToGroup(group)
+    return a
+
+
+def run(doc, ids, centre, diff=False):
     """Lays the pieces out, centre of the layout at centre; (piece ids, report lines) or a message"""
     k = mm(doc)
     tol = doc.ModelAbsoluteTolerance
@@ -209,11 +228,25 @@ def run(doc, ids, centre):
         at.RemoveFromAllGroups()
         at.AddToGroup(group)
         out.append(doc.Objects.AddBrep(f, at))
+    diffs = [side_diffs(sides[n], maps[n]) for n in range(len(faces))]
+    if diff:
+        da = dot_attrs(doc, group)
+        for n, ds in enumerate(diffs):
+            t = move * xf[n]
+            c = AreaMassProperties.Compute(flats[n]).Centroid  # flats are already moved
+            for d, mid in ds:
+                m = t * mid
+                v = c - m
+                step = min(DOT_IN_MM * k, v.Length / 4)  # inside the piece: a seam's two dots apart; a narrow
+                if step > 0:                               # strip keeps each dot by its own side
+                    v.Unitize()
+                    m = m + v * step
+                out.append(doc.Objects.AddTextDot(TextDot(u"%+.1f" % (d / k), m), da))
     joined = [g for g, j in gaps if j]
     ring = [g for g, j in gaps if not j]
     alone = len(set(range(len(faces))) - set(s[0] for s in seams) - set(s[1] for s in seams))
     lines = [u"Squish Joined: %d pieces, %d joined along a common side; sides 2D − 3D up to %.1f mm" % (
-        len(faces), len(joined), max(edge_error(sides[n], maps[n]) for n in range(len(faces))) / k)]
+        len(faces), len(joined), max(abs(d) for ds in diffs for d, _ in ds) / k)]
     if joined:
         lines.append(u"  joined sides: gap along them up to %.1f mm (a seam over a bend is curved a bit differently "
                      u"on its two sides)" % (max(joined) / k))
@@ -226,15 +259,37 @@ def run(doc, ids, centre):
     return out, lines
 
 
+def get_centre():
+    """(centre of the layout, Diff) or None; Diff remembered in sc.sticky"""
+    diff = sc.sticky.get(STICKY + "_diff", False)
+    while True:
+        gp = Rhino.Input.Custom.GetPoint()
+        gp.SetCommandPrompt(u"Centre of the layout")
+        opt = Rhino.Input.Custom.OptionToggle(diff, "No", "Yes")
+        gp.AddOptionToggle("Diff", opt)
+        r = gp.Get()
+        if r == Rhino.Input.GetResult.Option:
+            diff = opt.CurrentValue
+            sc.sticky[STICKY + "_diff"] = diff
+            continue
+        if r != Rhino.Input.GetResult.Point:
+            return None
+        return gp.Point(), diff
+
+
+HELP = u"Squish Joined — D: Diff = Yes — a TextDot inside each side of the layout: its length 2D − 3D, mm (layer Labels::SquishJoined)"
+
+
 def main():
+    print(HELP)
     ids = rs.GetObjects(u"Select the surfaces / polysurfaces to squish (pieces with common sides are joined)",
                         rs.filter.surface | rs.filter.polysurface, preselect=True)
     if not ids:
         return
-    centre = rs.GetPoint(u"Centre of the layout")
-    if centre is None:
+    got = get_centre()
+    if got is None:
         return
-    r = run(sc.doc, ids, centre)
+    r = run(sc.doc, ids, got[0], got[1])
     if not isinstance(r, tuple):
         print(r)
         return

@@ -81,6 +81,14 @@ try:
         e0 = [o for o in objs if o.Attributes.Name == "end0"][0]
         e2 = [o for o in objs if o.Attributes.Name == "end2"][0]
         assert cx(e0) < bb.Min.X + 1 and cx(e2) > bb.Max.X - 1, "ends swapped / turned"
+        # Diff: one dot per side, inside its piece, 2D − 3D in mm, on Labels::SquishJoined
+        new2, _ = S.run(doc, ids, Point3d(0, -12000, 0), True)
+        dots = [doc.Objects.FindId(i) for i in new2]
+        dots = [o for o in dots if isinstance(o.Geometry, Rhino.Geometry.TextDot)]
+        assert len(dots) == 4 + 4 + 2 + 2 + 3, len(dots)
+        assert all(doc.Layers[o.Attributes.LayerIndex].FullPath == u"Labels::SquishJoined" for o in dots), "dot layer"
+        assert all(abs(float(o.Geometry.Text)) < 1.0 for o in dots), [o.Geometry.Text for o in dots]
+        out.write(u"Diff dots: %s\n" % u" ".join(o.Geometry.Text for o in dots))
         out.write(u"OK\n")
     finally:
         sc.doc = old
