@@ -19,6 +19,10 @@ import JoinCorner as JC
 
 STICKY = "ConnectAll"
 
+# Defaults of the command options (the last values typed in Rhino are remembered until it is closed)
+GAP = 5.0     # ends closer than this are connected, document units (mm)
+ANGLE = 30.0  # a break larger than this (degrees) is a corner
+
 
 def connect(curves, gap, angle, tol):
     """curves — open Curves. Returns (items, free): items — [curve, [indices into curves]] per result (closed or
@@ -67,8 +71,8 @@ def main():
     go.SetCommandPrompt(u"Select open curves to connect")
     go.GeometryFilter = Rhino.DocObjects.ObjectType.Curve
     go.EnablePreSelect(True, True)
-    gap = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_gap", 2.0), 0.0, 1e9)
-    angle = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
+    gap = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_gap", GAP), 0.0, 1e9)
+    angle = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", ANGLE), 1.0, 179.0)
     go.AddOptionDouble("Gap", gap)
     go.AddOptionDouble("Angle", angle)
     while True:
@@ -108,10 +112,11 @@ def main():
     doc.Views.Redraw()
     closed = sum(1 for c, _ in items if c.IsClosed)
     print(u"Connect All: %d curves -> %d (%d closed)" % (len(ids), len(items), closed))
-    for k, e in free:
-        c = items[k][0]
-        p = c.PointAtEnd if e else c.PointAtStart
-        print(u"  free end at %.3f, %.3f (no partner within Gap)" % (p.X, p.Y))
+    ends = [(items[k][0].PointAtEnd if e else items[k][0].PointAtStart) for k, e in free]
+    for n, p in enumerate(ends):
+        near = min([p.DistanceTo(q) for m, q in enumerate(ends) if m != n] or [None])
+        print(u"  free end at %.3f, %.3f%s" % (p.X, p.Y, u" (nearest other free end %.3f away — raise Gap?)" % near
+                                              if near is not None else u""))
 
 
 if __name__ == "__main__":
