@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Squish To — the opposite of SquishBack: new marks drawn on the 3D model (points, curves, TextDots: a button, a zip…)
 onto the flat surface that Squish made from it, wherever that surface is now (moved, turned, mirrored).
-Select the 3D marks together with the 3D surface they are on (a window over both is fine: of several surfaces the one
+Select the 3D marks together with the 3D surface (or polysurface — as a whole or one face of it) they are on (a window over both is fine: of several surfaces the one
 that was squished is used), then the squished 2D surface (the Squish result itself — a DupBorder curve does not know
 the 3D).
 The squished surface keeps the 3D ↔ 2D link (SquishBack uses it); Rhino only goes 2D → 3D, so the way back is built
@@ -87,7 +87,12 @@ class Link(object):
         pts = back(self.flat, [c.PointAt(t) for c in out for t in c.DivideByCount(200, True)])
         if not breps:
             return None
-        (self.shift, med), self.brep = min(((shift_onto(pts, b, tol), b) for b in breps), key=lambda f: f[0][1])
+        cands = []  # a polysurface: as a whole (squished in one piece) or any one face of it (squished alone)
+        for b in breps:
+            cands.append(b)
+            if b.Faces.Count > 1:
+                cands.extend(f.DuplicateFace(False) for f in b.Faces)  # ponytail: every face tried — slow on 100+ faces
+        (self.shift, med), self.brep = min(((shift_onto(pts, b, tol), b) for b in cands), key=lambda f: f[0][1])
         self.m3.Translate(self.shift)
         return med
 
@@ -205,14 +210,15 @@ def transfer(doc, mark_ids, flat_id, tol, srf_ids):
 def main():
     doc = sc.doc
     ids = rs.GetObjects(u"Select the new marks on the 3D model (points, curves, TextDots) and the 3D surface they are on "
-                        u"(only the surface — every mark on it)",
-                        rs.filter.point | rs.filter.curve | rs.filter.textdot | rs.filter.surface, preselect=True)
+                        u"(only the surface or polysurface — every mark on it)",
+                        rs.filter.point | rs.filter.curve | rs.filter.textdot | rs.filter.surface | rs.filter.polysurface,
+                        preselect=True)
     if not ids:
         return
     flat = rs.GetObject(u"Select the squished 2D surface (Squish result)", rs.filter.surface | rs.filter.polysurface)
     if not flat or flat in ids:
         return
-    srfs = [i for i in ids if rs.IsSurface(i)]
+    srfs = [i for i in ids if rs.coercebrep(i)]  # a surface or a polysurface
     r = transfer(doc, [i for i in ids if i not in srfs], flat, doc.ModelAbsoluteTolerance, srfs)
     if not isinstance(r, tuple):
         print(r)
