@@ -79,7 +79,7 @@ before it) without leaving the command; a number given in that click is reused. 
 | SplitByAngle | split curves at corners sharper than the threshold | SmoothCorners — round such corners |
 | CrvToPolyline | curves → polylines (layer kept) | — |
 | ConnectAll | connect all corners of the selected open curves at once (like `Connect`, one corner after another): ends closer than `Gap` (2) are paired, closest first, edges extended / trimmed to their intersection like JoinCorner (`Angle`); a curve that closes is done, ends with no partner are printed; the first curve of a chain keeps layer / groups, the rest are deleted; one Undo | — |
-| ReducePoints | fewer points on selected polylines: a vertex turning more than `Angle` (5°) is a corner and stays exactly; runs between corners thinned within `Tol` (0.1) (no old point farther than Tol); `Smooth=Yes` — runs become smooth fitted curves instead; open curves keep ends; layer / groups kept; one Undo | — |
+| ReducePoints | fewer points on selected polylines: a vertex turning more than `Angle` (10°) is a corner and stays exactly; runs between corners thinned within `Tol` (20) (no old point farther than Tol); `Smooth` (default Yes) — runs become smooth fitted curves, No — polylines with fewer vertices; open curves keep ends; layer / groups kept; one Undo | — |
 | TrimEnds | trim curve ends by a given distance | KeepEnds — cut out the middle, keep ends of a given length |
 | TrimOutside | trim everything outside the panel contour | — |
 | ExactConnection | contact point on a curve at a given length | — |

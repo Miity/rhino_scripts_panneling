@@ -15,9 +15,9 @@ from Rhino.Geometry import Curve, Polyline, PolylineCurve, Vector3d
 STICKY = "ReducePoints"
 
 # Defaults of the command options (the last values typed in Rhino are remembered until it is closed)
-TOL = 0.1       # largest distance between the old and the new curve, document units (mm)
-ANGLE = 5.0     # a vertex turning more than this (degrees) is a corner and stays exactly
-SMOOTH = False  # True: runs between corners become smooth fitted curves, False: polylines
+TOL = 20.0      # largest distance between the old and the new curve, document units (mm)
+ANGLE = 10.0    # a vertex turning more than this (degrees) is a corner and stays exactly
+SMOOTH = True   # True: runs between corners become smooth fitted curves, False: polylines
 
 
 def reduce(crv, tol, angle, smooth, join_tol=0.001):
