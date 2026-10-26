@@ -7,6 +7,9 @@ a break point there — the point of the contour nearest the click; a click on a
 Layer Pattern::Breaks, UserText Break, in the panel's groups (moves with it); the scripts find the points on the
 panel by geometry — no ids. A panel that already has a seam: its widths are read off the cut line again
 (the edges are numbered anew), the corner styles go back to Extend — set them again in Seams if needed.
+A 3D surface / polysurface can be selected instead (or with them): the click snaps to the nearest edge of the
+surface (an edge shared by two faces too), the break point goes on it (no groups) — Squish To carries it onto the flat
+panel, where it is an ordinary break point. Ripresa works on a flat panel curve only.
 Type=Ripresa: a click near a contour segment marks it as a ripresa — the straight segment inside an edge that a seam
 takes in when sewn (a dart): a mark point at its middle (UserText Break = Ripresa, same layer) + a notch point at
 each end (Pattern::Notches), one group with the panel's groups; a click on a marked segment — removes all three.
@@ -40,22 +43,41 @@ def near_mm(doc, tol):
     return max(MATCH_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem), 10 * tol)
 
 
+def contours(oid):
+    """The contour curves of a selected object: the closed panel curve itself, or every edge of a 3D surface."""
+    crv = rs.coercecurve(oid)
+    if crv:
+        return [crv]
+    brep = rs.coercebrep(oid)
+    return [e.EdgeCurve for e in brep.Edges] if brep else []
+
+
+def nearest(crvs, p):
+    """The point of the curves nearest p."""
+    return min((c.PointAt(c.ClosestPoint(p)[1]) for c in crvs), key=p.DistanceTo)
+
+
 def toggle(doc, panel, click, pick, steps, tol):
-    """Click on the contour of panel (object): removes the break point within pick of the click, else adds one at
-    the contour point nearest the click. "added" / "removed" or why skipped."""
-    lp = close_panel(panel.Geometry)
-    if lp is None:
-        return u"panel is not closed"
+    """Click on the contour of panel (object; a 3D surface — its edges): removes the break point within pick of the
+    click, else adds one at the contour point nearest the click. "added" / "removed" or why skipped."""
+    flat = rs.coercecurve(panel.Id) is not None
+    if flat:
+        lp = close_panel(panel.Geometry)
+        if lp is None:
+            return u"panel is not closed"
+        crvs = [lp]
+    else:
+        crvs = contours(panel.Id)
     near = near_mm(doc, tol)
-    q = lp.PointAt(lp.ClosestPoint(click)[1])
-    on = [o for o in break_objects(doc) if o.Attributes.GetUserString(BREAK) != RIPRESA and lp.PointAt(lp.ClosestPoint(o.Geometry.Location)[1]).DistanceTo(
+    q = nearest(crvs, click)
+    on = [o for o in break_objects(doc) if o.Attributes.GetUserString(BREAK) != RIPRESA and nearest(crvs, o.Geometry.Location).DistanceTo(
         o.Geometry.Location) <= near and o.Geometry.Location.DistanceTo(click) <= pick]
     if on:
         steps.delete(min(on, key=lambda o: o.Geometry.Location.DistanceTo(click)).Id)
         return u"removed"
     attrs = layer_attrs(doc, BREAKS, PARENT)
     attrs.SetUserString(BREAK, "1")
-    for g in panel.Attributes.GetGroupList() or []:  # moves / selects together with the panel
+    for g in (panel.Attributes.GetGroupList() or []) if flat else []:  # moves / selects together with the panel
         attrs.AddToGroup(g)
     doc.Objects.Add(Point(q), attrs)
     return u"added"
@@ -105,7 +127,7 @@ def ask(gp, doc):
     while True:
         kind = sc.sticky.get(STICKY + "_type", 0)
         gp.ClearCommandOptions()
-        gp.SetCommandPrompt(u"Click on a panel contour — a break point there; on a break point — remove it (Enter — done)"
+        gp.SetCommandPrompt(u"Click on a panel contour or a 3D surface edge — a break point there; on a break point — remove it (Enter — done)"
                             if TYPES[kind] == "Break" else
                             u"Click near the ripresa segment — mark it; on a marked one — remove it (Enter — done)")
         i_undo = gp.AddOption("Undo")
@@ -124,7 +146,7 @@ def ask(gp, doc):
 
 
 HELP = u"""Options:
-  Type — Break: break points; Ripresa: a click near a segment marks it as a ripresa (taken in when sewn) —
+  Type — Break: break points (on a panel curve or on the edges of a 3D surface — Squish To carries them to the flat panel); Ripresa (flat panel curve only): a click near a segment marks it as a ripresa (taken in when sewn) —
     notch points at its ends, Notches / Match Notches measure the edge without it; a click on a marked one removes it
   Pick — a click this close to a break point removes it (default 3 mm; Point snap — exactly on it)
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
@@ -133,7 +155,8 @@ HELP = u"""Options:
 def main():
     print(HELP)
     doc = sc.doc
-    ids = rs.GetObjects(u"Select panels (closed curves = sew lines)", rs.filter.curve, preselect=True)
+    ids = rs.GetObjects(u"Select panels (closed curves = sew lines) or 3D surfaces", rs.filter.curve | rs.filter.surface | rs.filter.polysurface,
+                        preselect=True)
     ids = [i for i in ids or [] if not rs.GetUserText(i, KEY) and not rs.GetUserText(i, NOTCH)]  # cut lines, notches
     if not ids:
         return
@@ -149,11 +172,14 @@ def main():
             steps.undo()
             continue
         steps.start()
-        crvs = [(i, rs.coercecurve(i)) for i in ids]
-        oid = min((ic for ic in crvs if ic[1]), key=lambda ic: ic[1].PointAt(ic[1].ClosestPoint(click)[1]).DistanceTo(click))[0]
+        cs = [(i, contours(i)) for i in ids]
+        oid = min((ic for ic in cs if ic[1]), key=lambda ic: nearest(ic[1], click).DistanceTo(click))[0]
         panel = doc.Objects.FindId(oid)
         if TYPES[sc.sticky.get(STICKY + "_type", 0)] == "Ripresa":
-            res, what = ripresa(doc, panel, click, steps, tol), u"Ripresa"
+            if rs.coercecurve(oid) is None:
+                res, what = u"ripresa works on a flat panel curve, not on a 3D surface", u"Ripresa"
+            else:
+                res, what = ripresa(doc, panel, click, steps, tol), u"Ripresa"
         else:
             res, what = toggle(doc, panel, click, sc.sticky[STICKY + "_pick"], steps, tol), u"Break point"
         print(u"%s %s" % (what, res) if res in (u"added", u"removed") else u"Skipped: %s" % res)

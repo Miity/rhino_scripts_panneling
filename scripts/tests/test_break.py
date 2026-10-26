@@ -69,6 +69,22 @@ try:
         assert N.place(doc, pid, Point3d(75, 61, 0), tol) == 1
         n = [o for o in doc.Objects if o.Attributes.GetUserString(N.NOTCH)][0].Geometry.Location
         assert (round(n.X, 6), round(n.Y, 6)) == (75, 60), n
+
+        # 3D: a click near an edge of a box puts a break point on that edge (no groups); the same click removes it
+        box = Rhino.Geometry.Brep.CreateFromBox(Rhino.Geometry.BoundingBox(0, 0, 0, 100, 60, 40))
+        bid = doc.Objects.AddBrep(box)
+        before = len(S.break_objects(doc))
+        clicks = [Point3d(50, 1, 40.5), Point3d(50.5, 0.5, 40.2), None]
+        B.ask = lambda gp, d: clicks.pop(0)
+        rs.GetObjects = lambda *a, **k: [bid]
+        B.main()
+        assert len(S.break_objects(doc)) == before  # added, then removed by the second click
+        clicks = [Point3d(50, 1, 40.5), None]
+        B.main()
+        new = [o for o in S.break_objects(doc) if o.Geometry.Location.Z > 39]
+        assert len(new) == 1 and not list(new[0].Attributes.GetGroupList() or [])
+        p3 = new[0].Geometry.Location
+        assert (round(p3.X, 6), round(p3.Y, 6), round(p3.Z, 6)) == (50, 0, 40), p3
         doc.Dispose()
     finally:
         sc.doc, rs.GetObjects, B.ask = old
