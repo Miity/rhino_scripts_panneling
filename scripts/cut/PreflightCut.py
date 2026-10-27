@@ -10,6 +10,8 @@ Checks (add new ones to CHECKS: a function (sc.doc, selected ids) -> (message, [
                real cut of a leg (the line + the blade's Overcut past both ends) has to start on a selected CUT line
                and end inside that same line; a V needs both legs. A part moved / mirrored without its notches
                leaves them in the middle of another part — the knife would cut into it.
+  Zigzags    - knife curves (cut + int) with segments under 0.5 mm or a spike (a turn over 120° next to one):
+               the knife spins / turns back there (JoinCorner.clean finds them; FindZigzags fixes them).
 """
 import os
 import sys
@@ -21,6 +23,9 @@ from Rhino.Geometry import Plane, PointContainment
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sel_curve_overlap as overlap
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "parts"))
+sys.modules.pop("JoinCorner", None)  # live Rhino keeps old module versions
+from JoinCorner import clean, micro
 
 # layers by tool (names ignore case)
 TOOLS = (("knife", ("cut", "int")), ("pen", ("ink",)))
@@ -88,7 +93,15 @@ def notches(doc, ids):
     return "Knife notches off their CUT line or half a V ({} of {} legs)".format(len(bad), len(legs)), bad
 
 
-CHECKS = [duplicates, notches]
+def zigzags(doc, ids):
+    """Knife curves (cut + int) with micro zigzags / spikes: JoinCorner.clean would change them."""
+    size = micro(doc)
+    crvs = [(i, rs.coercecurve(i)) for i in curves_on(ids, ("cut", "int"))]
+    bad = [i for i, c in crvs if clean(c, size) is not c]
+    return "Micro zigzags / spikes on the knife (cut + int; FindZigzags fixes them): {}".format(len(bad)), bad
+
+
+CHECKS = [duplicates, notches, zigzags]
 
 HELP = u"Select the parts to check (window over the canvas); runs every pre-flight check on them and selects what fails, changes nothing. Fix the selection, run again until all PASS."
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Check of PreflightCut.duplicates / notches in Rhino 8 (needs RhinoCommon):
+"""Check of PreflightCut.duplicates / notches / zigzags in Rhino 8 (needs RhinoCommon):
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_preflight_cut.txt next to it. Works in its own headless document, your open drawing is not touched."""
 import os
@@ -83,6 +83,18 @@ try:
         # no CUT line selected: every leg fails
         msg, bad = M.notches(doc, legs)
         assert len(bad) == 2, (msg, bad)
+        out.write("OK %s\n" % msg)
+
+        # zigzags: the square is clean; a spike on a knife line fails, the same on ink does not
+        msg, bad = M.zigzags(doc, [sq] + legs)
+        assert not bad, (msg, bad)
+        spike = rs.AddPolyline([(10, 10, 0), (50, 10, 0), (50.8, 10.3, 0), (50.82, 10.2, 0), (50.05, 10.05, 0), (50, 50, 0)])
+        rs.ObjectLayer(spike, "int")
+        msg, bad = M.zigzags(doc, [sq, spike])
+        assert bad == [spike], (msg, bad)
+        rs.ObjectLayer(spike, "ink")
+        msg, bad = M.zigzags(doc, [sq, spike])
+        assert not bad, (msg, bad)
         out.write("OK %s\n" % msg)
     finally:
         sc.doc = live

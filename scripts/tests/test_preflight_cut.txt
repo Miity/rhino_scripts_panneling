@@ -1,2 +1,3 @@
 OK Duplicate / overlapping curves (knife 2)
 OK Knife notches off their CUT line or half a V (2 of 2 legs)
+OK Micro zigzags / spikes on the knife (cut + int; FindZigzags fixes them): 0
