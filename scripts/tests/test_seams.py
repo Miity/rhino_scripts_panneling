@@ -155,6 +155,13 @@ try:
         assert M.find_cut(doc, lp, es, n, tol).Id == cid
         ws, cs = M.seam_data(M.find_cut(doc, lp, es, n, tol), es, n, tol)
         assert [round(w, 3) for w in ws] == [10, 0, 12, 8] and cs == ["Extend"] * 4, (ws, cs)
+        # same edge count, numbering shifted (made with another Angle / break points; p1.3dm): read off the cut line,
+        # not by number — Convert Notches put notches 40 mm outside the cut line
+        a.SetUserString(M.KEY, "0;12;8;10")
+        a.SetUserString(M.CORNERS, "Slant;Slant;Slant;Slant")
+        doc.Objects.ModifyAttributes(cid, a, True)
+        ws, cs = M.seam_data(M.find_cut(doc, lp, es, n, tol), es, n, tol)
+        assert [round(w, 3) for w in ws] == [10, 0, 12, 8] and cs == ["Extend"] * 4, (ws, cs)
         doc.Dispose()
     finally:
         sc.doc, rs.GetObjects, M.ask = old

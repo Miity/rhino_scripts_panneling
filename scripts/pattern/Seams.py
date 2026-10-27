@@ -278,8 +278,9 @@ def measured(e, line, normal, tol):
 
 def seam_data(cut, es, normal, tol):
     """(widths, corner styles) of the edges es (loop order; corner k = start of edge k) from the cut line object
-    (None — no seam yet). Stored by number; another edge count (panel edited) or an older drawing — widths read
-    off the cut line itself, corners Extend."""
+    (None — no seam yet). Stored by number, kept only where the width matches the one read off the cut line itself;
+    another edge count or numbering (other Angle / break points than when made, panel edited) or an older drawing —
+    widths read off the cut line, corners Extend."""
     n = len(es)
     if cut is None:
         return [0.0] * n, [STYLES[0]] * n
@@ -289,8 +290,10 @@ def seam_data(cut, es, normal, tol):
     except ValueError:  # older drawing: "x,y,z=width" items
         ws = []
     cs = (a.GetUserString(CORNERS) or "").split(";")
-    if len(ws) != n:
-        ws = [measured(e, cut.Geometry, normal, tol) for e in es]
+    ms = [measured(e, cut.Geometry, normal, tol) for e in es]
+    # ponytail: one edge mis-read at an odd corner also resets the corner styles to Extend
+    if len(ws) != n or any(abs(w - m) > 100 * tol for w, m in zip(ws, ms)):
+        ws, cs = ms, []
     if len(cs) != n or any(c not in STYLES for c in cs):
         cs = [STYLES[0]] * n
     return ws, cs
