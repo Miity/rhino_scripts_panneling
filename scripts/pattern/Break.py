@@ -12,9 +12,9 @@ surface (an edge shared by two faces too), the break point goes on it (no groups
 panel, where it is an ordinary break point. Ripresa works on a flat panel curve only.
 Type=Ripresa: a click near a contour segment marks it as a ripresa — the straight segment inside an edge that a seam
 takes in when sewn (a dart): a mark point at its middle (UserText Break = Ripresa, same layer, own group + the
-panel's groups), no notches; a click on a marked segment — removes the mark.
-The ripresa is not a break: Notches and Match Notches take the edge through it and measure it sewn (its length out),
-Seams does not see it.
+panel's groups) + a break point at each end (Break = 1, same group); a click on a marked segment — removes all three.
+Seams: the ripresa is an edge of its own (its end break points). Notches and Match Notches take the edge through it
+(the break points at its ends are not corners for them) and measure it sewn (its length out).
 """
 import os
 import sys
@@ -83,8 +83,8 @@ def toggle(doc, panel, click, pick, steps, tol):
 
 
 def ripresa(doc, panel, click, steps, tol):
-    """Click near a contour segment of panel (object): marks it as a ripresa (mark at its middle), or removes
-    the mark if it is marked already. "added" / "removed" or why skipped."""
+    """Click near a contour segment of panel (object): marks it as a ripresa (mark at its middle + a break
+    point at each end), or removes them if it is marked already. "added" / "removed" or why skipped."""
     lp = close_panel(panel.Geometry)
     if lp is None:
         return u"panel is not closed"
@@ -92,10 +92,13 @@ def ripresa(doc, panel, click, steps, tol):
     if seg is None:
         return u"no straight segment there (one smooth curve)"
     near, m = near_mm(doc, tol), mid(seg)
+    ends = (seg.PointAtStart, seg.PointAtEnd)
     marks = [o for o in break_objects(doc) if o.Attributes.GetUserString(BREAK) == RIPRESA
              and o.Geometry.Location.DistanceTo(m) <= near]
+    breaks = [o for o in break_objects(doc) if o.Attributes.GetUserString(BREAK) != RIPRESA
+              and any(o.Geometry.Location.DistanceTo(p) <= near for p in ends)]
     if marks:
-        for o in marks:
+        for o in marks + breaks:
             steps.delete(o.Id)
         return u"removed"
     groups = list(panel.Attributes.GetGroupList() or []) + [doc.Groups.Add()]  # moves with the panel, one per ripresa
@@ -104,6 +107,11 @@ def ripresa(doc, panel, click, steps, tol):
     for g in groups:
         attrs.AddToGroup(g)
     doc.Objects.Add(Point(m), attrs)
+    attrs = attrs.Duplicate()
+    attrs.SetUserString(BREAK, "1")
+    for p in ends:
+        if not any(o.Geometry.Location.DistanceTo(p) <= near for o in breaks):  # one already there is kept
+            doc.Objects.Add(Point(p), attrs)
     return u"added"
 
 
@@ -134,7 +142,7 @@ def ask(gp, doc):
 
 HELP = u"""Options:
   Type — Break: break points (on a panel curve or on the edges of a 3D surface — Squish To carries them to the flat panel); Ripresa (flat panel curve only): a click near a segment marks it as a ripresa (taken in when sewn) —
-    a mark at its middle, no notches; Notches / Match Notches measure the edge without it; a click on a marked one removes it
+    a mark at its middle + a break point at each end; Notches / Match Notches measure the edge without it; a click on a marked one removes all three
   Pick — a click this close to a break point removes it (default 3 mm; Point snap — exactly on it)
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
 

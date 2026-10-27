@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Check of the ripresa (Break Type=Ripresa: mark only, no notches; Notches / Match Notches measure the edge sewn,
+"""Check of the ripresa (Break Type=Ripresa: mark + break points at its ends, no notches; Notches / Match Notches measure the edge sewn,
 without it; Seams does not see it) in Rhino 8 (needs RhinoCommon):
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_ripresa.txt next to it."""
@@ -40,7 +40,7 @@ try:
             return sorted((round(o.Geometry.Location.X, 3), round(o.Geometry.Location.Y, 3)) for o in doc.Objects
                           if o.Attributes.GetUserString(S.NOTCH) == "Point")
 
-        # Break Type=Ripresa: a mark, no notches; Undo takes them off; again — kept
+        # Break Type=Ripresa: a mark + a break point at each end, no notches; Undo takes them off; again — kept
         clicks = [Point3d(252.5, 62.5, 0), B.UNDO, Point3d(252.5, 62.5, 0), None]
         B.ask = lambda gp, d: clicks.pop(0)
         sc.sticky["Break_type"] = 1
@@ -48,11 +48,16 @@ try:
         B.main()
         marks = [o for o in S.break_objects(doc) if o.Attributes.GetUserString(S.BREAK) == S.RIPRESA]
         assert len(marks) == 1 and notches() == [], notches()
+        ends = sorted((round(o.Geometry.Location.X, 3), round(o.Geometry.Location.Y, 3)) for o in S.break_objects(doc)
+                      if o.Attributes.GetUserString(S.BREAK) == "1")
+        assert ends == [(250, 60), (255, 64)], ends
         assert len(set(tuple(o.Attributes.GetGroupList() or []) for o in doc.Objects if o.Id != pa and o.Id != pb)) == 1
 
         lp = S.loop(doc.Objects.FindId(pb).Geometry, Rhino.Geometry.Vector3d.ZAxis)
         rips = S.riprese_on(doc, lp, 1.0)
-        assert len(rips) == 1 and not S.breaks_on(doc, lp, 1.0)  # Seams does not see it
+        brk = S.breaks_on(doc, lp, 1.0)
+        assert len(rips) == 1 and len(brk) == 2  # Seams: the ripresa is an edge of its own (6 edges)
+        assert len(S.edges(lp, 30, tol, brk)) == 6 and len(S.edges(lp, 30, tol, brk, rips)) == 4  # Notches: through it
         assert len(S.edges(lp, 30, tol)) == 6 and len(S.edges(lp, 30, tol, (), rips)) == 4  # top runs through it
         sk = [(50, 50 + 41 ** 0.5)]
         assert S.to_real(50, sk) == 50 and abs(S.to_real(70, sk) - (70 + 41 ** 0.5)) < 1e-9
@@ -68,7 +73,7 @@ try:
         a, b = M.pick(doc, ids, Point3d(50, 61, 0), tol), M.pick(doc, ids, Point3d(220, 61, 0), tol)
         assert (round(M.length(a), 6), round(M.length(b), 6)) == (100, 100), (M.length(a), M.length(b))
 
-        # click on the marked ripresa again: the mark goes, the Notches notch stays
+        # click on the marked ripresa again: the mark and its break points go, the Notches notch stays
         clicks = [Point3d(252.5, 62.5, 0), None]
         B.main()
         assert not S.break_objects(doc) and notches() == [(255, 64)], notches()
