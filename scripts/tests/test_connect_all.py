@@ -34,6 +34,15 @@ try:
     items, free = M.connect([pl(*p) for p in P], 2.0, 30.0, tol)
     assert len(items) == 1 and not free and items[0][0].IsClosed, (len(items), free)
 
+    # DXF stubs: sides ending with 0.05 mm hooks / overlaps at the corners — no micro zigzag in the result
+    def shortest(c):
+        return min(s.GetLength() for s in c.DuplicateSegments())
+    stubs = [pl((0.3, 0), (10, 0), (10.03, 0.04)), pl((10.0, 0.5), (10, 10), (9.96, 10.03)),
+             pl((10.02, 10.0), (0, 10), (-0.03, 9.96), (0.01, 9.95)), pl((0, 9.7), (0, 0.05), (0.04, 0.02))]
+    items, free = M.connect(stubs, 2.0, 30.0, tol)
+    assert len(items) == 1 and not free and items[0][0].IsClosed, (len(items), free)
+    assert shortest(items[0][0]) >= 0.1, [round(s.GetLength(), 4) for s in items[0][0].DuplicateSegments()]
+
     # a partner farther than Gap is left alone
     items, free = M.connect([pl((0, 0), (10, 0)), pl((15, 0), (20, 0))], 2.0, 30.0, tol)
     assert len(items) == 2 and len(free) == 4

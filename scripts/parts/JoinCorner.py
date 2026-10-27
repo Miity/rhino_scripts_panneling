@@ -32,7 +32,14 @@ STICKY = "JoinCorner"
 
 
 def segments(crv, tol):
-    return [s for s in crv.DuplicateSegments() or [crv.DuplicateCurve()] if s.GetLength() > tol]
+    """Segments of crv; micro ones (under 100 tol: DXF stubs, zigzags — none on fabric) dropped, the gap closed."""
+    segs = [s for s in crv.DuplicateSegments() or [crv.DuplicateCurve()] if s.GetLength() > tol]
+    keep = [s for s in segs if s.GetLength() >= 100 * tol] or segs
+    for i in range(0 if crv.IsClosed else 1, len(keep)):
+        if keep[i - 1].PointAtEnd.DistanceTo(keep[i].PointAtStart) > tol:
+            keep[i] = keep[i].DuplicateCurve()
+            keep[i].SetStartPoint(keep[i - 1].PointAtEnd)
+    return keep
 
 
 def tail(segs, at_end, angle):
