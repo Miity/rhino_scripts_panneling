@@ -4,7 +4,8 @@ Curve ends are paired with the nearest ends of other curves (or the other end of
 the closest pair first; each pair is joined like JoinCorner (edges extended / trimmed to their intersection,
 corner to corner). A curve that closes is done; ends with no partner within Gap stay and are printed.
 The first selected curve of a chain keeps its object (layer, groups, UserText), the others are deleted and their
-groups merge into it. One Undo takes the whole run back."""
+groups merge into it. Micro zigzags / spikes (under 0.5 mm — the plotter knife would spin) are cleaned off the
+results, inputs' own too. One Undo takes the whole run back."""
 import os
 import sys
 
@@ -90,6 +91,7 @@ def main():
     tol = doc.ModelAbsoluteTolerance
     curves = [rs.coercecurve(i).DuplicateCurve() for i in ids]
     items, free = connect(curves, gap.CurrentValue, angle.CurrentValue, tol)
+    items = [[JC.clean(c, JC.micro(doc)), idx] for c, idx in items]  # micro zigzags / spikes of the inputs too
 
     rec = doc.BeginUndoRecord(u"ConnectAll")
     try:

@@ -29,6 +29,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
 sys.modules.pop("ZipCover", None)  # Rhino keeps modules from the first run for the session
 from ZipCover import close_panel, layer_attrs  # "almost closed" DXF panels, <parent>::<name> layer
+sys.modules.pop("JoinCorner", None)
+from JoinCorner import clean, micro  # no micro zigzags / spikes on the cut line (plotter knife)
 sys.path.insert(0, os.path.dirname(HERE))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
@@ -452,6 +454,7 @@ def apply(doc, oid, click, steps, tol):
     new = build(es, widths, styles, normal, tol)
     if new is None:
         return u"cut line did not close (edge too short for its seam?)"
+    new = clean(new, micro(doc))
     if attrs is None:
         attrs = layer_attrs(doc, NAME, PARENT)
         for g in obj.Attributes.GetGroupList() or []:  # moves / selects together with the panel

@@ -29,6 +29,8 @@ sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
 
 STICKY = "JoinCorner"
+MICRO_MM = 0.5  # plotter knife: segments shorter than this are merged, spikes next to them (under 3x) cut off
+SPIKE = 120.0  # degrees: a turn sharper than this next to a micro segment is a spike (the knife turns back)
 
 
 def segments(crv, tol):
@@ -40,6 +42,38 @@ def segments(crv, tol):
             keep[i] = keep[i].DuplicateCurve()
             keep[i].SetStartPoint(keep[i - 1].PointAtEnd)
     return keep
+
+
+def micro(doc):
+    """MICRO_MM in document units."""
+    return MICRO_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
+
+
+def clean(crv, size):
+    """crv without micro features the plotter knife would spin on: segments under size merged, spikes (a turn over
+    SPIKE next to a segment under 3 size) cut off. Nothing to clean or not a polyline — crv itself."""
+    # ponytail: polylines only (DXF / joined lines — the cutting files); arcs / NURBS are left as they are
+    ok, pl = crv.TryGetPolyline()
+    if not ok:
+        return crv
+    closed = crv.IsClosed
+    pts = list(pl)[:-1] if closed else list(pl)
+    n0 = len(pts)
+    while len(pts) > (3 if closed else 2):
+        n = len(pts)
+        k = min(range(n if closed else n - 1), key=lambda i: pts[i].DistanceTo(pts[(i + 1) % n]))
+        if pts[k].DistanceTo(pts[(k + 1) % n]) < size:  # the curve ends stay
+            del pts[(k + 1) % n if closed or k + 1 < n - 1 else k]
+            continue
+        spikes = [i for i in (range(n) if closed else range(1, n - 1))
+                  if Vector3d.VectorAngle(pts[i] - pts[i - 1], pts[(i + 1) % n] - pts[i]) > math.radians(SPIKE)
+                  and min(pts[i - 1].DistanceTo(pts[i]), pts[i].DistanceTo(pts[(i + 1) % n])) < 3 * size]
+        if not spikes:
+            break
+        del pts[spikes[0]]
+    if len(pts) == n0:
+        return crv
+    return Rhino.Geometry.PolylineCurve(pts + pts[:1] if closed else pts)
 
 
 def tail(segs, at_end, angle):
@@ -262,6 +296,7 @@ def main():
         if not isinstance(res, Curve):
             print(u"Skipped: %s" % res)
             continue
+        res = clean(res, micro(doc))
         steps.change(ia)
         if ib != ia:
             for g in rs.ObjectGroups(ib) or []:  # their groups change in merge_groups

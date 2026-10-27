@@ -43,6 +43,16 @@ try:
     assert len(items) == 1 and not free and items[0][0].IsClosed, (len(items), free)
     assert shortest(items[0][0]) >= 0.1, [round(s.GetLength(), 4) for s in items[0][0].DuplicateSegments()]
 
+    # clean (JoinCorner, used by ConnectAll / Seams): a 0.8 mm spike curling back at a corner (Seams pieces of p1.3dm)
+    # → the corner alone; long segments, the curve ends and a real sharp corner stay
+    import JoinCorner as JC
+    spiky = pl((0, 0), (10, 0), (10.8, 0.3), (10.82, 0.2), (10.05, 0.05), (10, 10))
+    c = JC.clean(spiky, 0.5)
+    assert c.PointCount == 3 and c.PointAtStart.DistanceTo(Point3d(0, 0, 0)) < 1e-9, [c.Point(i) for i in range(c.PointCount)]
+    assert c.PointAtEnd.DistanceTo(Point3d(10, 10, 0)) < 1e-9 and c.Point(1).DistanceTo(Point3d(10, 0, 0)) < 0.1
+    sharp = pl((0, 0), (200, 0), (0, 20), (0, 0))
+    assert JC.clean(sharp, 0.5) is sharp  # nothing to clean — the same object
+
     # a partner farther than Gap is left alone
     items, free = M.connect([pl((0, 0), (10, 0)), pl((15, 0), (20, 0))], 2.0, 30.0, tol)
     assert len(items) == 2 and len(free) == 4
