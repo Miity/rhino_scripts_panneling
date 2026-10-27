@@ -1,0 +1,3 @@
+Micro zigzags / spikes cleaned off moved lines: 1.
+Done: panels (contours on cut): 1, inner panel lines on ink: 0, moved to int: 0, to ink: 1. Source shapes hidden; result selected for Export Selected.
+OK

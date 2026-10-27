@@ -9,7 +9,9 @@ group of touching areas becomes its own panel. Step 2: select what belongs on ``
 visible curve and text; objects already on ``int`` stay there, also when selected in step 1; their count is printed). Only curves lying inside the panels (texts by their
 centre) are used in steps 2 and 3;
 everything else is left untouched. Panels are hidden after success and can be restored with
-Rhino's _Show command. Each panel becomes one outside loop on ``cut``; every
+Rhino's _Show command. Everything on cut / ink / int (new and moved curves) is
+cleaned of micro zigzags / spikes (JoinCorner.clean, 0.5 mm) — the plotter knife
+would spin on them. Each panel becomes one outside loop on ``cut``; every
 other edge goes once, touching pieces joined into one curve, to ``int`` if
 any panel line is picked in step 2, otherwise to ``ink``. Steps 2 and 3 move
 the selected objects as they are (no copy). Each outside must be a simple loop
@@ -20,12 +22,17 @@ in which a plotter cuts layers must still be set in the plotter software.
 """
 
 import math
+import os
+import sys
 
 try:
     import Rhino
     import System
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "parts"))
+    sys.modules.pop("JoinCorner", None)  # live Rhino keeps old module versions
+    from JoinCorner import clean, micro  # no micro zigzags / spikes for the plotter knife
 except ImportError:
     Rhino = System = rs = sc = None
 
@@ -290,6 +297,7 @@ def unique_polylines(ids):
     curves = []
     for object_id in ids:
         curve = rs.coercecurve(object_id)
+        curve = clean(curve, micro(sc.doc)) if curve is not None else None  # a spike breaks the faces
         ok, polyline = curve.TryGetPolyline() if curve is not None else (False, None)
         if not ok or polyline is None:
             raise ValueError(u"The selection contains a curve that is not a polyline or a line.")
@@ -431,12 +439,13 @@ def main():
         x, y = nodes[index]
         return plane.PointAt(x, y)
 
+    size = micro(sc.doc)
     created = []
     try:
         # Each shared edge once; touching pieces are joined so arcs stay one curve.
         lines = [Rhino.Geometry.LineCurve(world(i), world(j)) for i, j in internal]
         for curve in Rhino.Geometry.Curve.JoinCurves(lines, tol) if lines else []:
-            object_id = sc.doc.Objects.AddCurve(curve)
+            object_id = sc.doc.Objects.AddCurve(clean(curve, size))
             if object_id == System.Guid.Empty:
                 raise RuntimeError(u"Could not add an inner line.")
             rs.ObjectLayer(object_id, edge_layer)
@@ -445,8 +454,8 @@ def main():
         for loop in loops:
             perimeter = [world(index) for index in loop]
             perimeter.append(perimeter[0])
-            object_id = rs.AddPolyline(perimeter)
-            if not object_id:
+            object_id = sc.doc.Objects.AddCurve(clean(Rhino.Geometry.PolylineCurve(perimeter), size))
+            if object_id == System.Guid.Empty:
                 raise RuntimeError(u"Could not add the outer polyline.")
             rs.ObjectLayer(object_id, "cut")
             created.append(object_id)
@@ -459,6 +468,15 @@ def main():
         rs.ObjectLayer(object_id, "int")
     for object_id in to_ink:
         rs.ObjectLayer(object_id, "ink")
+    cleaned = 0
+    for object_id in to_int + to_ink:
+        curve = rs.coercecurve(object_id)
+        new = clean(curve, size) if curve is not None else curve
+        if new is not curve:
+            sc.doc.Objects.Replace(object_id, new)
+            cleaned += 1
+    if cleaned:
+        print(u"Micro zigzags / spikes cleaned off moved lines: {0}.".format(cleaned))
     created.extend(to_int + to_ink)
     # Keep editable sources without leaving their duplicate edges visible.
     rs.HideObjects(ids)
