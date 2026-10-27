@@ -81,7 +81,11 @@ def main():
         if r == Rhino.Input.GetResult.Option:
             continue
         break
-    sc.sticky[STICKY + "_gap"], sc.sticky[STICKY + "_angle"] = gap.CurrentValue, angle.CurrentValue
+    for key, opt, default in (("_gap", gap, GAP), ("_angle", angle, ANGLE)):  # only typed values are remembered:
+        if opt.CurrentValue == default:  # a stored default would outlive a new default in the script
+            sc.sticky.pop(STICKY + key, None)
+        else:
+            sc.sticky[STICKY + key] = opt.CurrentValue
     if r != Rhino.Input.GetResult.Object:
         return
     ids = [o.ObjectId for o in go.Objects() if o.Curve() is not None and not o.Curve().IsClosed]
@@ -113,7 +117,7 @@ def main():
     rs.SelectObjects(out)
     doc.Views.Redraw()
     closed = sum(1 for c, _ in items if c.IsClosed)
-    print(u"Connect All: %d curves -> %d (%d closed)" % (len(ids), len(items), closed))
+    print(u"Connect All (Gap %g): %d curves -> %d (%d closed)" % (gap.CurrentValue, len(ids), len(items), closed))
     ends = [(items[k][0].PointAtEnd if e else items[k][0].PointAtStart) for k, e in free]
     for n, p in enumerate(ends):
         near = min([p.DistanceTo(q) for m, q in enumerate(ends) if m != n] or [None])
