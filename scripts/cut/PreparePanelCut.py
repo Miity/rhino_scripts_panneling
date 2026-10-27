@@ -269,7 +269,7 @@ def prepare(segments, tol):
 
 
 DUPLICATE_MM = 0.5  # copies closer than this are one cut line
-CLEAN_MM = 0.05  # linework noise below this (micro zigzags at a corner) is one point / one line; a plotter cuts far coarser
+CLEAN_MM = 0.05  # points closer than this are one node (lines meeting); longer noise is an error, FindZigzags fixes it
 
 
 def unique_polylines(ids):
@@ -309,20 +309,8 @@ def get_plane_and_segments(ids, tol):
             if abs(vector * plane.ZAxis) > tol:
                 raise ValueError(u"The selected shapes do not lie in one plane.")
             flat.append((vector * plane.XAxis, vector * plane.YAxis))
-        segments.extend(chain_segments(flat, tol))
+        segments.extend((a, b) for a, b in zip(flat, flat[1:]) if a != b)  # as they are: no merging here
     return plane, segments
-
-
-def chain_segments(flat, tol):
-    """Segments of a point chain with micro steps (offset / join noise, a few tolerances long) merged
-    into their neighbours: the side test needs a quarter of a segment to be more than the tolerance."""
-    kept = flat[:1]
-    for point in flat[1:]:
-        if dist(point, kept[-1]) > 4 * tol:
-            kept.append(point)
-    if len(kept) > 1:
-        kept[-1] = flat[-1]  # the real end, so the chain still meets its neighbours / closes
-    return [(a, b) for a, b in zip(kept, kept[1:]) if dist(a, b) > tol]
 
 
 def point_covered(p, polygons, tol):
@@ -527,14 +515,18 @@ def _self_check():
     assert point_covered((10, 15), frame, 1e-6)      # on a shared edge
     assert point_covered((15, 15), frame, 1e-6)      # enclosed gap counts as panel
     assert not point_covered((40, 5), frame, 1e-6)   # outside
-    # A micro step (1.5 tolerances) at a corner of the cut line is merged away.
+    # A micro step (1.5 tolerances) at a corner of the cut line is not merged away: an error (FindZigzags fixes it).
     chain = [(0, 0), (10, 0), (10, 10), (0, 10), (0, 1.5e-6), (0, 0)]
-    (loop,), _ = pick(chain_segments(chain, 1e-6), 1e-6)
-    assert corners(loop) == 4
-    # A back-and-forth zigzag (steps of 0.02) at a corner, open panel line on top of it: one loop at tol 0.05.
+    try:
+        pick(list(zip(chain, chain[1:])), 1e-6)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("a micro step was accepted")
+    # A back-and-forth zigzag inside the node tolerance (steps of 0.02 at tol 0.05) is one node: one loop.
     zig = [(10, 10), (10.02, 10.02), (10.01, 10.0), (10.03, 10.01), (10.02, 10.0), (10, 10)]
     chain = [(0, 0), (10, 0)] + zig + [(0, 10), (0, 0)]
-    segments = chain_segments(chain, 0.05) + chain_segments([(5, 0)] + chain[1:7], 0.05)
+    segments = list(zip(chain, chain[1:])) + list(zip([(5, 0)] + chain[1:7], chain[1:7]))
     (loop,), _ = pick(segments, 0.05)
     assert corners(loop) == 4
     # Separate panels: one loop each.
