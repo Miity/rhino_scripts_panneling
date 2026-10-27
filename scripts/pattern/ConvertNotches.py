@@ -12,7 +12,7 @@ the edge to the apex — nothing behind the edge, the triangle falls out. Legs a
 follows: 2·√((2·Overcut + Move)² − Depth²) (Overcut 1, Move 3, Depth 2 → ≈ 9.2 mm). Depth over 2·Overcut + Move —
 the legs meet straight: one slit. Standard (Tool=Cut) — the plotter's standard: Depth 2, Overcut 1, Move 3, Angle 30.
 A notch In that reaches the sew line (Depth ≥ seam width) — warning. UserText on each notch: Notch (style), NotchW,
-NotchD, NotchPlace, NotchTool; Seams moves them out to its new cut line. Enter — convert. Each notch / mark goes to the nearest panel edge within Reach
+NotchD, NotchPlace, NotchTool (+ NotchOver, NotchMove for Cut); Seams moves them out to its new cut line. Enter — convert. Each notch / mark goes to the nearest panel edge within Reach
 (perpendicular to the edge): one notch there, on the panel's cut line if it has one (Seams), else on the sew line;
 marks of one spot (old point + its tick, two legs of a knife V) — one notch. The new notch keeps the groups of what
 it replaces and joins the panel's groups. Notches are always replaced; older marks — Originals Delete / Keep.
@@ -136,6 +136,9 @@ def notch_attrs(doc, p, groups):
     for k, v in ((NOTCH, p["style"]), ("NotchW", "%.6g" % p["width"]), ("NotchD", "%.6g" % p["depth"]),
                  ("NotchPlace", p["place"]), ("NotchTool", p["tool"])):
         attrs.SetUserString(k, v)
+    if p["tool"] == "Cut":  # PreflightCut rebuilds the real cut of each leg from these
+        attrs.SetUserString("NotchOver", "%.6g" % p["over"])
+        attrs.SetUserString("NotchMove", "%.6g" % p["move"])
     return attrs
 
 
