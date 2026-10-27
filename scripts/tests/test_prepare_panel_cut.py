@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Check of cut/PreparePanelCut end to end in Rhino 8 (needs RhinoCommon): geometry goes 1:1 — a line with a spike
-moved to ink keeps every point, the cut contour is the panel itself; a panel whose spike breaks the contour stops it
+moved to ink keeps every point, the cut contour is the panel itself; a gentle arc (cut line) with a sew line inside and
+two lines between them — cut = the arc line, ink = the sew line and the lines, every point; a panel whose spike breaks the contour stops it
 with the FindZigzags hint and nothing is created.
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_prepare_panel_cut.txt next to it."""
@@ -46,6 +47,20 @@ try:
         cut, inked = run(doc, [[panel], [], [ink]])
         assert len(cut) == 1 and sorted(points(cut[0].Geometry)[:-1]) == sorted(points(doc.Objects.FindId(panel).Geometry)[:-1]), points(cut[0].Geometry)
         assert len(inked) == 1 and inked[0].Id == ink and points(inked[0].Geometry) == points(spike), points(inked[0].Geometry)
+        doc.Dispose()
+
+        # a gentle arc (a cut line of Seams) around a sew line, two lines between them (p1.3dm: the arc lost 4.6 mm)
+        doc = Rhino.RhinoDoc.CreateHeadless(None)
+        doc.ModelUnitSystem = Rhino.UnitSystem.Millimeters
+        sc.doc = doc
+        arc = [(x, 0.002 * (x - 500) ** 2 / 50) for x in range(0, 1001, 25)]
+        seam = pl(*(arc + [(1000, 300), (0, 300), arc[0]]))
+        sew = pl(*([(x, y + 10) for x, y in arc[1:-1]] + [(975, 290), (25, 290), (arc[1][0], arc[1][1] + 10)]))
+        ids = [doc.Objects.AddCurve(c) for c in (seam, sew, pl((0, 150), (25, 150)), pl((975, 150), (1000, 150)))]
+        cut, inked = run(doc, [list(ids), [], []])
+        assert len(cut) == 1 and points(cut[0].Geometry) == points(seam), (len(points(cut[0].Geometry)), len(points(seam)))
+        got = sorted(len(points(o.Geometry)) for o in inked)
+        assert got == [2, 2, len(points(sew))] and any(points(o.Geometry) == points(sew) for o in inked), got
         doc.Dispose()
 
         # a panel with a spike curling back at a corner: either stopped with the hint, or cut 1:1 with the spike

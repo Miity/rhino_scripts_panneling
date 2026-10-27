@@ -9,7 +9,8 @@ group of touching areas becomes its own panel. Step 2: select what belongs on ``
 visible curve and text; objects already on ``int`` stay there, also when selected in step 1; their count is printed). Only curves lying inside the panels (texts by their
 centre) are used in steps 2 and 3;
 everything else is left untouched. Panels are hidden after success and can be restored with
-Rhino's _Show command. Geometry goes 1:1 (nothing is cleaned or smoothed); a micro
+Rhino's _Show command. Geometry goes 1:1 (nothing is cleaned or smoothed): a contour or inner
+line that runs along one selected line is that line itself (arcs too); a micro
 zigzag / spike that breaks the contour stops the script (FindZigzags fixes it,
 Preflight shows them on the cutting file). Each panel becomes one outside loop on ``cut``; every
 other edge goes once, touching pieces joined into one curve, to ``int`` if
@@ -255,20 +256,6 @@ def trace_boundary_loops(nodes, edges):
     return loops
 
 
-def simplify_loop(nodes, loop, tol):
-    result = []
-    for k, index in enumerate(loop):
-        a = nodes[loop[k - 1]]
-        b = nodes[index]
-        c = nodes[loop[(k + 1) % len(loop)]]
-        ab, bc = sub(b, a), sub(c, b)
-        if abs(cross(ab, bc)) > tol * (dist(a, b) + dist(b, c)) or dot(ab, bc) <= 0:
-            result.append(index)
-    if len(result) < 3:
-        raise ValueError(u"The outer contour is degenerate.")
-    return result
-
-
 def prepare(segments, tol):
     """Return (nodes, one closed loop of node ids per panel, unique internal edges, faces)."""
     nodes, edges = canonical_edges(split_segments(segments, tol), tol)
@@ -277,7 +264,7 @@ def prepare(segments, tol):
         raise ValueError(u"The lines do not form any closed contour.")
     outside, internal = classify(nodes, edges, polygons, segments, tol, closed_nodes)
     # Every enclosed area is a face, so each outside loop is a separate panel.
-    loops = [simplify_loop(nodes, loop, tol) for loop in trace_boundary_loops(nodes, outside)]
+    loops = trace_boundary_loops(nodes, outside)  # every node kept: no simplifying here
     return nodes, loops, internal, polygons
 
 
@@ -434,12 +421,24 @@ def main():
         x, y = nodes[index]
         return plane.PointAt(x, y)
 
+    inputs = [c for c in (rs.coercecurve(i) for i in ids) if c is not None]
+
+    def original(curve):
+        """The selected line this rebuilt curve runs along (within the noise ignored), as it is: geometry 1:1."""
+        for c in inputs:
+            if c.IsClosed != curve.IsClosed or abs(c.GetLength() - curve.GetLength()) > 10 * tol:
+                continue
+            gap = Rhino.Geometry.Curve.GetDistancesBetweenCurves(c, curve, tol)  # (ok, max distance, ...)
+            if gap[0] and gap[1] <= 5 * tol:
+                return c.DuplicateCurve()
+        return curve
+
     created = []
     try:
         # Each shared edge once; touching pieces are joined so arcs stay one curve.
         lines = [Rhino.Geometry.LineCurve(world(i), world(j)) for i, j in internal]
         for curve in Rhino.Geometry.Curve.JoinCurves(lines, tol) if lines else []:
-            object_id = sc.doc.Objects.AddCurve(curve)
+            object_id = sc.doc.Objects.AddCurve(original(curve))
             if object_id == System.Guid.Empty:
                 raise RuntimeError(u"Could not add an inner line.")
             rs.ObjectLayer(object_id, edge_layer)
@@ -448,8 +447,8 @@ def main():
         for loop in loops:
             perimeter = [world(index) for index in loop]
             perimeter.append(perimeter[0])
-            object_id = rs.AddPolyline(perimeter)
-            if not object_id:
+            object_id = sc.doc.Objects.AddCurve(original(Rhino.Geometry.PolylineCurve(perimeter)))
+            if object_id == System.Guid.Empty:
                 raise RuntimeError(u"Could not add the outer polyline.")
             rs.ObjectLayer(object_id, "cut")
             created.append(object_id)
@@ -482,40 +481,45 @@ def _self_check():
         nodes, loops, internal, _ = prepare(segments, tol)
         return [[nodes[i] for i in loop] for loop in loops], internal
 
+    def corners(loop):
+        """Real corners of a loop (it keeps the nodes on its straight runs too)."""
+        return sum(1 for k in range(len(loop))
+                   if abs(cross(sub(loop[k], loop[k - 1]), sub(loop[(k + 1) % len(loop)], loop[k]))) > 1e-9)
+
     def closed(*polys):
         return [(poly[i], poly[(i + 1) % len(poly)]) for poly in polys
                 for i in range(len(poly))]
 
     (loop,), internal = pick(closed(rectangle(0, 0, 10, 10),
                              rectangle(10, 0, 20, 10)), 1e-6)
-    assert len(loop) == 4 and len(internal) == 1
+    assert corners(loop) == 4 and len(internal) == 1
     assert abs(signed_area(loop)) == 200
     (loop,), internal = pick(closed(rectangle(0, 0, 10, 10),
                              rectangle(10, 0, 20, 5),
                              rectangle(10, 5, 20, 10)), 1e-6)
-    assert len(loop) == 4 and len(internal) == 3
+    assert corners(loop) == 4 and len(internal) == 3
     (loop,), internal = pick(closed(rectangle(0, 0, 10, 10),
                              rectangle(0, 0, 10, 10)), 1e-6)
-    assert len(loop) == 4 and not internal
+    assert corners(loop) == 4 and not internal
     # Enclosed gap: its edges go to int with the shared edges.
     (loop,), internal = pick(closed(
         rectangle(0, 0, 30, 10), rectangle(0, 10, 10, 20),
         rectangle(20, 10, 30, 20), rectangle(0, 20, 30, 30)), 1e-6)
-    assert len(loop) == 4 and len(internal) == 8
+    assert corners(loop) == 4 and len(internal) == 8
     # Seam strips as loose lines, notched corners, duplicate panel edges.
     panel = closed(rectangle(0, 0, 10, 10))
     strips = [((0, 0), (0, -1)), ((0, -1), (10, -1)), ((10, -1), (10, 0)),
               ((10, 0), (11, 0)), ((11, 0), (11, 10)), ((11, 10), (10, 10))]
     (loop,), internal = pick(panel + panel + strips, 1e-6)
-    assert len(loop) == 6  # notch at (10, 0)
+    assert corners(loop) == 6  # notch at (10, 0)
     assert abs(signed_area(loop)) == 120
     assert len(internal) == 2  # panel edges under the two strips
     # A dangling line inside the panel is internal.
     (loop,), internal = pick(panel + [((2, 2), (5, 5))], 1e-6)
-    assert len(loop) == 4 and len(internal) == 1
+    assert corners(loop) == 4 and len(internal) == 1
     # A line crossing the edge by a hair leaves a tiny stub outside: still fine.
     (loop,), internal = pick(panel + [((5, 5), (10.000003, 5))], 1e-6)
-    assert len(loop) == 4 and abs(signed_area(loop)) == 100
+    assert corners(loop) == 4 and abs(signed_area(loop)) == 100
     frame, _ = faces(*(canonical_edges(split_segments(closed(
         rectangle(0, 0, 30, 10), rectangle(0, 10, 10, 20),
         rectangle(20, 10, 30, 20), rectangle(0, 20, 30, 30)), 1e-6), 1e-6) + (1e-6,)))
@@ -526,13 +530,13 @@ def _self_check():
     # A micro step (1.5 tolerances) at a corner of the cut line is merged away.
     chain = [(0, 0), (10, 0), (10, 10), (0, 10), (0, 1.5e-6), (0, 0)]
     (loop,), _ = pick(chain_segments(chain, 1e-6), 1e-6)
-    assert len(loop) == 4
+    assert corners(loop) == 4
     # A back-and-forth zigzag (steps of 0.02) at a corner, open panel line on top of it: one loop at tol 0.05.
     zig = [(10, 10), (10.02, 10.02), (10.01, 10.0), (10.03, 10.01), (10.02, 10.0), (10, 10)]
     chain = [(0, 0), (10, 0)] + zig + [(0, 10), (0, 0)]
     segments = chain_segments(chain, 0.05) + chain_segments([(5, 0)] + chain[1:7], 0.05)
     (loop,), _ = pick(segments, 0.05)
-    assert len(loop) == 4
+    assert corners(loop) == 4
     # Separate panels: one loop each.
     loops, internal = pick(closed(rectangle(0, 0, 10, 10), rectangle(20, 0, 30, 10)), 1e-6)
     assert len(loops) == 2 and not internal
