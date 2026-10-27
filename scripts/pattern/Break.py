@@ -11,8 +11,8 @@ A 3D surface / polysurface can be selected instead (or with them): the click sna
 surface (an edge shared by two faces too), the break point goes on it (no groups) — Squish To carries it onto the flat
 panel, where it is an ordinary break point. Ripresa works on a flat panel curve only.
 Type=Ripresa: a click near a contour segment marks it as a ripresa — the straight segment inside an edge that a seam
-takes in when sewn (a dart): a mark point at its middle (UserText Break = Ripresa, same layer) + a notch point at
-each end (Pattern::Notches), one group with the panel's groups; a click on a marked segment — removes all three.
+takes in when sewn (a dart): a mark point at its middle (UserText Break = Ripresa, same layer, own group + the
+panel's groups), no notches; a click on a marked segment — removes the mark.
 The ripresa is not a break: Notches and Match Notches take the edge through it and measure it sewn (its length out),
 Seams does not see it.
 """
@@ -36,7 +36,6 @@ from click_undo import UNDO, Steps  # option Undo: take back the last click
 STICKY = "Break"
 PICK_MM = 3.0  # a click this close to a break point removes it
 TYPES = ["Break", "Ripresa"]
-NOTCHES = "Notches"  # notch points at the ripresa ends: same layer as Notches.py, Pattern::Notches
 
 
 def near_mm(doc, tol):
@@ -84,8 +83,8 @@ def toggle(doc, panel, click, pick, steps, tol):
 
 
 def ripresa(doc, panel, click, steps, tol):
-    """Click near a contour segment of panel (object): marks it as a ripresa (mark at its middle + notch points at
-    its ends), or removes them if it is marked already. "added" / "removed" or why skipped."""
+    """Click near a contour segment of panel (object): marks it as a ripresa (mark at its middle), or removes
+    the mark if it is marked already. "added" / "removed" or why skipped."""
     lp = close_panel(panel.Geometry)
     if lp is None:
         return u"panel is not closed"
@@ -93,15 +92,10 @@ def ripresa(doc, panel, click, steps, tol):
     if seg is None:
         return u"no straight segment there (one smooth curve)"
     near, m = near_mm(doc, tol), mid(seg)
-    ends = (seg.PointAtStart, seg.PointAtEnd)
     marks = [o for o in break_objects(doc) if o.Attributes.GetUserString(BREAK) == RIPRESA
              and o.Geometry.Location.DistanceTo(m) <= near]
-    s = Rhino.DocObjects.ObjectEnumeratorSettings()
-    s.HiddenObjects = s.LockedObjects = True
-    notches = [o for o in doc.Objects.GetObjectList(s) if o.Attributes.GetUserString(NOTCH) == "Point"
-               and isinstance(o.Geometry, Point) and any(o.Geometry.Location.DistanceTo(p) <= near for p in ends)]
     if marks:
-        for o in marks + notches:
+        for o in marks:
             steps.delete(o.Id)
         return u"removed"
     groups = list(panel.Attributes.GetGroupList() or []) + [doc.Groups.Add()]  # moves with the panel, one per ripresa
@@ -110,13 +104,6 @@ def ripresa(doc, panel, click, steps, tol):
     for g in groups:
         attrs.AddToGroup(g)
     doc.Objects.Add(Point(m), attrs)
-    attrs = layer_attrs(doc, NOTCHES, PARENT)
-    attrs.SetUserString(NOTCH, "Point")
-    for g in groups:
-        attrs.AddToGroup(g)
-    for p in ends:
-        if not any(o.Geometry.Location.DistanceTo(p) <= near for o in notches):  # one already there is kept
-            doc.Objects.Add(Point(p), attrs)
     return u"added"
 
 
@@ -147,7 +134,7 @@ def ask(gp, doc):
 
 HELP = u"""Options:
   Type — Break: break points (on a panel curve or on the edges of a 3D surface — Squish To carries them to the flat panel); Ripresa (flat panel curve only): a click near a segment marks it as a ripresa (taken in when sewn) —
-    notch points at its ends, Notches / Match Notches measure the edge without it; a click on a marked one removes it
+    a mark at its middle, no notches; Notches / Match Notches measure the edge without it; a click on a marked one removes it
   Pick — a click this close to a break point removes it (default 3 mm; Point snap — exactly on it)
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
 
