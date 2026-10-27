@@ -57,6 +57,11 @@ try:
     assert area(cut(L, 10.0, "Return")) == 10300  # L 6400 + strips 4000 − overlap 100
     assert area(cut(L, 10.0, "Slant")) == 10550  # + 5 triangles of 50
 
+    # micro zigzag (DXF, p1.3dm) at a corner: its 0.01–0.04 mm edges join the next edge — 4 edges, the seam closes
+    zig = pl((0, 0), (100, 0), (100, 60), (99.99, 60.01), (100.02, 60.02), (99.98, 60), (0, 60), (0, 0))
+    assert len(M.edges(M.loop(zig, Z), 30, tol)) == 4
+    assert abs(area(cut(zig, 10.0, "Extend")) - 9600) < 2, area(cut(zig, 10.0, "Extend"))
+
     # sharp corner (≈ 5.7°): Extend goes at most one seam width per seam, not the long miter (≈ 200)
     sharp = pl((0, 0), (200, 0), (0, 20), (0, 0))
     assert cut(sharp, 10.0, "Extend").GetBoundingBox(True).Max.X < 225

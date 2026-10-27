@@ -147,6 +147,14 @@ def edges(lp, angle, tol, breaks=(), riprese=()):
             ts = cuts(s)
         b = [s.Domain.T0] + ts + [s.Domain.T1]
         segs += [p for p in (s.Trim(x, y) for x, y in zip(b, b[1:]) if y - x > 1e-9) if p] if ts else [s]
+    # ponytail: micro zigzags (DXF, FindZigzags) — segments under 100 tol dropped, the next one starts where the last ended
+    short = [s for s in segs if s.GetLength() < 100 * tol]
+    if len(short) < len(segs) - 1:
+        segs = [s for s in segs if s.GetLength() >= 100 * tol]
+        for i in range(len(segs)):
+            if segs[i - 1].PointAtEnd.DistanceTo(segs[i].PointAtStart) > tol:
+                segs[i] = segs[i].DuplicateCurve()
+                segs[i].SetStartPoint(segs[i - 1].PointAtEnd)
     n = len(segs)
     rad = math.radians(angle)
     ends = [p for r in riprese for p in (r.PointAtStart, r.PointAtEnd)]
