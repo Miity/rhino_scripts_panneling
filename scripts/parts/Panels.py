@@ -8,6 +8,8 @@ skips curves already in Parts::Panels with a number. A new panel gets the smalle
 so the number of a deleted panel is reused.
 A curve lying inside another selected one is a hole of that panel: it is copied together with it
 under the same number and does not take its own number. Copy, holes and text are one group.
+Option LabelOnly = Yes: only the text P<n> inside the panel (Labels::Panels) — the curves stay untouched
+(layer, groups, UserText), nothing is copied or deleted; for panels that are already finished.
 """
 import os
 import re
@@ -32,6 +34,7 @@ from click_undo import UNDO, Steps  # option Undo: take back the last click
 PREFIX = "P"
 KEY = "Part"  # UserText key with the panel number
 STYLE = "Panels"  # sticky key of the label style (PatternTextStyles.label_style)
+ONLY = "PanelsLabelOnly"  # sticky key of the LabelOnly option
 
 
 def bbox(crv, plane):
@@ -113,6 +116,7 @@ def get_corner(doc, crv, name):
 
 
 HELP = u"""Options:
+  LabelOnly — Yes: only the text P<n>, panel curves stay as they are (no copy, no layer change)
   Style — text style of the number P<n> (default PAT 14 mm)
   Undo — take back the previous panel (its number is freed, the input curve is back) and label it again"""  # printed at start — visible under the option fields
 
@@ -124,6 +128,10 @@ def main():
     if not ids:
         return
     picked = list(ids)
+    only = rs.GetBoolean(u"Panels", [(u"LabelOnly", u"No", u"Yes")], [sc.sticky.get(ONLY, False)])
+    if only is None:
+        return
+    only = sc.sticky[ONLY] = only[0]
     tol = doc.ModelAbsoluteTolerance
     plane = rs.ViewCPlane()
 
@@ -168,16 +176,19 @@ def main():
         done_n.append(n)
         steps.start()
         ds = D.pts.label_style(doc, STYLE)
-        tagged = attrs.Duplicate()
-        tagged.SetUserString(KEY, name)
-        new = [doc.Objects.AddCurve(curves[k], tagged) for k in [i] + hole_idx]
-        for k in [i] + hole_idx:  # input curves are deleted (Undo restores them)
-            steps.delete(ids[k])
+        new = []
+        if not only:
+            tagged = attrs.Duplicate()
+            tagged.SetUserString(KEY, name)
+            new = [doc.Objects.AddCurve(curves[k], tagged) for k in [i] + hole_idx]
+            for k in [i] + hole_idx:  # input curves are deleted (Undo restores them)
+                steps.delete(ids[k])
         tid = D.place_text(doc, name, crv, click, ds, text_attrs, tol)
         if not tid:
             print(u"%s: text does not fit in the panel (smaller style — option Style), no label" % name)
         new += [tid] if tid else []
-        rs.AddObjectsToGroup(new, rs.AddGroup())
+        if not only:
+            rs.AddObjectsToGroup(new, rs.AddGroup())
         doc.Views.Redraw()
         print(u"%s%s" % (name, u"  (holes: %d)" % len(hole_idx) if hole_idx else u""))
         made += 1
