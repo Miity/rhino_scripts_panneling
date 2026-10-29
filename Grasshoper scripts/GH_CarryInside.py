@@ -9,6 +9,10 @@ An object belongs to a Cut when its start, middle or end (point / text:
 its centre) is inside the Cut or on its line; inside several Cuts — the
 smallest one. Objects inside no Cut stay where they are.
 
+A Cut that doesn't fit OpenNest puts on an extra copy of the sheet (IDS ≥
+number of sheets): it is left out with a warning, the message counts the
+placed ones ("11/12 placed").
+
 Inputs:
     Cut  : the Cut curves referenced from Rhino — the same list OpenNest
            nests (Tree access)
@@ -23,6 +27,19 @@ Outputs (one per layer, to bake each into its layer; branch {i} = Cut i):
     Other : moved copies from any other layer
     N     : "<cut>: <objects inside>" per Cut
 """
+
+
+def find_nest(param):
+    """OpenNest that feeds param, through relays."""
+    for s in param.Sources:
+        o = s.Attributes.GetTopLevel.DocObject
+        if o.GetType().FullName.endswith("component_nest1"):
+            return o
+        if hasattr(o, "Sources"):
+            o = find_nest(o)
+            if o:
+                return o
+    return None
 
 
 def owner(hits, areas):
@@ -44,6 +61,13 @@ if "ghenv" in globals():
     cuts = [rdoc.Objects.FindId(g.ReferenceID) for g in comp.Params.Input[0].VolatileData.AllData(True)]
     xdata = comp.Params.Input[1].VolatileData
     xforms = [list(xdata.Branches[i]) if i < xdata.PathCount else [] for i in range(len(cuts))]
+    nest = find_nest(comp.Params.Input[1])
+    off = set()
+    if nest:
+        sheet_of = nest.Params.Output[4].VolatileData
+        sheets = nest.Params.Input[0].VolatileDataCount
+        off = set(i for i in range(min(len(cuts), sheet_of.PathCount))
+                  if sheet_of.Branches[i].Count and sheet_of.Branches[i][0].Value >= sheets)
 
     if not cuts or None in cuts:
         comp.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "Cut must be curves referenced from Rhino")
@@ -82,8 +106,9 @@ if "ghenv" in globals():
         if Bake:
             rec = rdoc.BeginUndoRecord("CarryInside bake")
         for i, part in enumerate(parts):
-            if len(xforms[i]) != 1:
-                comp.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Cut %d not placed — left out" % i)
+            if len(xforms[i]) != 1 or i in off:
+                comp.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning,
+                                       "Cut %d didn't fit the sheet — left out" % i)
                 continue
             placed += 1
             inside += len(part) - 1
@@ -102,11 +127,27 @@ if "ghenv" in globals():
             rdoc.EndUndoRecord(rec)
             rdoc.Views.Redraw()
         CUT, INK, INT, Other = [out[k] for k in LAYERS]
-        comp.Message = "%d parts, %d inside" % (placed, inside)
+        comp.Message = "%d/%d placed, %d inside" % (placed, len(cuts), inside)
 
 
 if __name__ == "__main__" and "ghenv" not in globals():
     assert owner(set(), [1.0]) is None
     assert owner({0, 2}, [5.0, 1.0, 2.0]) == 2      # nested: the smaller Cut wins
     assert owner({1}, [5.0, 1.0]) == 1
+
+    class P(object):                         # find_nest through a relay
+        def __init__(self, name, sources=()):
+            self.Sources = list(sources)
+            self.Attributes = self
+            self.GetTopLevel = self
+            self.DocObject = self
+            self.name = name
+        def GetType(self):
+            return self
+        @property
+        def FullName(self):
+            return self.name
+    nest = P("opennest_2.component_nest1")
+    assert find_nest(P("x", [P("Relay", [nest])])) is nest
+    assert find_nest(P("x", [P("Relay")])) is None
     print("ok")
