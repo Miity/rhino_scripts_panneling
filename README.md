@@ -240,3 +240,7 @@ The script file itself stays in `scripts/`. If you delete the file from disk —
 | New buttons disappeared after quitting Rhino | It was built with Rhino open. Close Rhino and rebuild. |
 | Old tabs (Розміри / Криві / …) still show next to the new ones | They come from the previous build: Window → Toolbars, turn them off (or close and reopen `Scripts.rui`). |
 | Need the old `_Scripts` toolbar | With Rhino closed copy the contents of `_backup_toolbar_20260930_2058/Scheme__Default/` to `~/Library/Application Support/McNeel/Rhinoceros/8.0/settings/Scheme__Default/`. Note: the old buttons point to old file names (`SplitCrvByAngle copy.py`, `sel_curve_overlap.py` in the root). |
+
+### Grasshopper — autonest_v2 (seed search)
+
+`Grasshoper scripts/autonest_v2.gh` — `autonest.gh` + the GhPython component **SeedSearch** (code: `Grasshoper scripts/GH_SeedSearch.py`). OpenNest2 runs its generations over many solutions, so Galapagos can't score it; SeedSearch sets the Seed slider to From, From+1, … (Count seeds, or until Minutes), waits for each finished layout (`fit …`), measures it along X (cm, from the sheet's left edge) and keeps the shortest — among lengths within Tol (1 cm) the smallest bounding box area. At the end the best seed is on the slider; the panel lists `seed  L cm  A m2`, best first. Run = True starts a new search, False stops it (the best seed so far goes on the slider).

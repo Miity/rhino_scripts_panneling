@@ -50,7 +50,7 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
   - Imports between folders — via `sys.path` from `__file__` (e.g. `cut/SplitPanelsToMaterial.py` uses `markup/PatternTextStyles.py`).
 
 - **`Grasshoper scripts/`** — Grasshopper definitions (`.gh`) + `GH_SplitCurveByAngle.py` (code for a GHPython component): `bounding_dimensions.gh`, `Len_dimentions.gh`,
-  `polyline.gh`, `drag.gh`, `sew points.gh`, `divanno_v1.gh`, `autonest.gh`.
+  `polyline.gh`, `drag.gh`, `sew points.gh`, `divanno_v1.gh`, `autonest.gh`, `autonest_v2.gh` (autonest + GhPython SeedSearch = `GH_SeedSearch.py`: OpenNest2 seeds tried one by one — it is asynchronous, Galapagos can't score it — shortest along X, then least bbox area within Tol 1 cm; best seed left on the slider).
 
 - **`Patterns/`** — source patterns and cutting material (`.3dm`, `.dxf`, `.pdf`): wallets, tote, origami templates.
 
