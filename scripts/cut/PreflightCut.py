@@ -12,6 +12,8 @@ Checks (add new ones to CHECKS: a function (sc.doc, selected ids) -> (message, [
                leaves them in the middle of another part — the knife would cut into it.
   Zigzags    - knife curves (cut + int) with segments under 0.5 mm or a spike (a turn over 120° next to one):
                the knife spins / turns back there (JoinCorner.clean finds them; FindZigzags fixes them).
+  Texts      - texts / annotations still in the selection (the cutter needs curves: TextToCurves), and text
+               curves (UserText TextCurve from TextToCurves) not on INK (PreparePanelCut step 3 moves them).
 """
 import os
 import sys
@@ -30,6 +32,8 @@ from JoinCorner import clean, micro
 # layers by tool (names ignore case)
 TOOLS = (("knife", ("cut", "int")), ("pen", ("ink",)))
 CURVE = 4
+ANNOTATION = 512  # texts, dimensions, leaders
+TEXT_CURVE = "TextCurve"  # UserText set by markup/TextToCurves.py on every letter curve
 ON_LINE_MM = 0.3  # a leg's real cut may start this far from the CUT line
 OVER_MM = 1.0  # blade overcut of notches made before NotchOver was stored (ConvertNotches Standard)
 
@@ -101,7 +105,15 @@ def zigzags(doc, ids):
     return "Micro zigzags / spikes on the knife (cut + int; FindZigzags fixes them): {}".format(len(bad)), bad
 
 
-CHECKS = [duplicates, notches, zigzags]
+def texts(doc, ids):
+    """Texts not turned into curves (TextToCurves) and text curves that are not on the pen (ink)."""
+    raw = [i for i in ids if rs.ObjectType(i) == ANNOTATION]
+    off = [i for i in ids if rs.IsCurve(i) and rs.GetUserText(i, TEXT_CURVE) is not None
+           and rs.ObjectLayer(i).lower() != "ink"]
+    return "Texts not as curves (TextToCurves): {}, text curves not on INK: {}".format(len(raw), len(off)), raw + off
+
+
+CHECKS = [duplicates, notches, zigzags, texts]
 
 HELP = u"Select the parts to check (window over the canvas); runs every pre-flight check on them and selects what fails, changes nothing. Fix the selection, run again until all PASS."
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Check of PreflightCut.duplicates / notches / zigzags in Rhino 8 (needs RhinoCommon):
+"""Check of PreflightCut.duplicates / notches / zigzags / texts in Rhino 8 (needs RhinoCommon):
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_preflight_cut.txt next to it. Works in its own headless document, your open drawing is not touched."""
 import os
@@ -13,6 +13,7 @@ try:
     import scriptcontext as sc
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "cut"))
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "pattern"))
+    sys.modules.pop("PreflightCut", None)
     import PreflightCut as M
     import ConvertNotches as CN
     from Rhino.Geometry import Point3d, Transform, Vector3d
@@ -94,6 +95,25 @@ try:
         assert bad == [spike], (msg, bad)
         rs.ObjectLayer(spike, "ink")
         msg, bad = M.zigzags(doc, [sq, spike])
+        assert not bad, (msg, bad)
+        out.write("OK %s\n" % msg)
+
+        # texts: a raw text fails; TextToCurves curves fail off INK, pass on INK
+        sys.path.insert(0, os.path.join(os.path.dirname(HERE), "markup"))
+        sys.modules.pop("TextToCurves", None)  # live Rhino keeps old module versions
+        import TextToCurves as TC
+        from Rhino.Geometry import Plane
+        txt = doc.Objects.AddText("P4", Plane(Point3d(20, 20, 0), Vector3d.ZAxis), 10, "Arial", False, False)
+        msg, bad = M.texts(doc, [sq, txt])
+        assert bad == [txt], (msg, bad)
+        letters = TC.convert(txt)
+        assert letters and not rs.IsObject(txt), letters
+        assert all(rs.GetUserText(i, TC.TAG) == "P4" for i in letters), letters
+        msg, bad = M.texts(doc, [sq] + letters)
+        assert len(bad) == len(letters), (msg, bad)
+        for i in letters:
+            rs.ObjectLayer(i, "ink")
+        msg, bad = M.texts(doc, [sq] + letters)
         assert not bad, (msg, bad)
         out.write("OK %s\n" % msg)
     finally:
