@@ -46,29 +46,21 @@ if "ghenv" in globals():
 
     comp = ghenv.Component
     gd = comp.OnPingDocument()
-    key = "SeedSearch_%s" % comp.InstanceGuid
-    st = sc.sticky.get(key)
-
-    From = int(From) if From is not None else 1
-    Count = int(Count) if Count else 50
-    Minutes = float(Minutes) if Minutes else 0.0
-    Tol = float(Tol) if Tol is not None else 1.0
+    st = sc.sticky.setdefault("SeedSearch.%s" % comp.InstanceGuid, {"on": False, "run": False, "seeds": [], "results": []})
+    From = 1 if From is None else int(From)
+    Count = int(Count or 50)
+    Minutes = float(Minutes or 0)
+    Tol = 1.0 if Tol is None else float(Tol)
     cm = Rhino.RhinoMath.UnitScale(Rhino.RhinoDoc.ActiveDoc.ModelUnitSystem, Rhino.UnitSystem.Centimeters)
 
-    nest = None
-    for s in comp.Params.Input[0].Sources:
-        o = s.Attributes.GetTopLevel.DocObject
-        if o.GetType().FullName.endswith("component_nest1"):
-            nest = o
-    if nest is None:
-        comp.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "Geo must come from OpenNest")
+    nest = next((o for o in (s.Attributes.GetTopLevel.DocObject for s in comp.Params.Input[0].Sources)
+                 if o.GetType().FullName.endswith("component_nest1")), None)
+    inp = dict((p.Name, p) for p in nest.Params.Input) if nest else {}
+    slider = inp["Seed"].Sources[0] if nest and inp["Seed"].Sources else None
+    if not isinstance(slider, Grasshopper.Kernel.Special.GH_NumberSlider):
+        comp.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error,
+                               "Geo must come from OpenNest, its Seed from a Number Slider")
     else:
-        inp = dict((p.Name, p) for p in nest.Params.Input)
-        slider = inp["Seed"].Sources[0] if inp["Seed"].Sources else None
-        if not isinstance(slider, Grasshopper.Kernel.Special.GH_NumberSlider):
-            comp.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "OpenNest Seed needs a Number Slider")
-            slider = None
-
         def measure():
             """(length, area) of the finished layout in cm / m², None while OpenNest is busy."""
             if not (nest.Message or "").startswith("fit"):
@@ -83,56 +75,49 @@ if "ghenv" in globals():
             return length, length * (box.Max.Y - box.Min.Y) * cm / 1e4
 
         def set_seed(value):
-            st["asked"] = value
+            """Seed on the slider at the next solution; the result on screen is not its own until OpenNest restarts."""
+            st["fresh"] = False
             def cb(doc):
                 v = System.Decimal(value)
-                if v > slider.Slider.Maximum:
-                    slider.Slider.Maximum = v
-                if v < slider.Slider.Minimum:
-                    slider.Slider.Minimum = v
+                slider.Slider.Maximum = max(slider.Slider.Maximum, v)
+                slider.Slider.Minimum = min(slider.Slider.Minimum, v)
                 slider.SetSliderValue(v)
                 slider.ExpireSolution(False)
             gd.ScheduleSolution(5, Grasshopper.Kernel.GH_Document.GH_ScheduleDelegate(cb))
 
-        was_on = sc.sticky.get(key + "_run", False)
-        sc.sticky[key + "_run"] = bool(Run)
-        if Run and slider and not was_on:
-            st = sc.sticky[key] = {"run": True, "seeds": list(range(From, From + Count)),
-                                   "results": [], "t0": time.time(), "busy": False, "asked": None}
-        elif not Run and was_on and st and st["run"]:
+        def stop():
             st["run"] = False
             if st["results"]:
                 set_seed(pick(st["results"], Tol)[0])
 
-        if st and st["run"]:
-            seed = st["seeds"][0]
+        if Run and not st["on"]:
+            st.update(run=True, seeds=list(range(From, From + Count)), results=[], t0=time.time())
+            if int(slider.CurrentValue) == From:
+                st["fresh"] = True
+            else:
+                set_seed(From)
+        elif not Run and st["on"] and st["run"]:
+            stop()
+        st["on"] = bool(Run)
+
+        # ponytail: no per-seed timeout — if OpenNest never prints "fit" the search waits; Run off stops it
+        if st["run"] and int(slider.CurrentValue) == st["seeds"][0]:
             done = measure()
-            if int(slider.CurrentValue) != seed:
-                st["busy"] = False
-                if st.get("asked") != seed:
-                    set_seed(seed)
-            elif done is None:
-                st["busy"] = True
-            elif st["busy"] or not st["results"]:
-                # ponytail: no per-seed timeout — if OpenNest never prints "fit" the search waits; Run off stops it
-                st["results"].append((seed, done[0], done[1]))
-                st["seeds"].pop(0)
-                st["busy"] = False
-                late = Minutes and time.time() - st["t0"] > Minutes * 60
-                if st["seeds"] and not late:
+            if done is None:
+                st["fresh"] = True
+            elif st["fresh"]:
+                st["results"].append((st["seeds"].pop(0),) + done)
+                if st["seeds"] and not (Minutes and time.time() - st["t0"] > Minutes * 60):
                     set_seed(st["seeds"][0])
                 else:
-                    st["run"] = False
-                    set_seed(pick(st["results"], Tol)[0])
+                    stop()
 
-        if st and st["results"]:
-            best = pick(st["results"], Tol)
-            Seed, L, A = best
+        n = len(st["results"])
+        if n:
+            Seed, L, A = pick(st["results"], Tol)
             Table = table(st["results"], Tol)
-            comp.Message = "%s %d/%d  best %d" % ("seed" if st["run"] else "done", len(st["results"]),
-                                                  len(st["results"]) + len(st["seeds"]), best[0])
-        else:
-            comp.Message = "seed %d…" % st["seeds"][0] if st and st["run"] else "Run = True"
+        comp.Message = ("%s %d/%d" % ("seed" if st["run"] else "done", n, n + len(st["seeds"])) if st["seeds"] or n
+                        else "Run = True") + ("  best %d" % Seed if n else "")
 
 
 if __name__ == "__main__" and "ghenv" not in globals():

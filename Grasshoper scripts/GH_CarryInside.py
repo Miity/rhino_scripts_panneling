@@ -37,83 +37,72 @@ if "ghenv" in globals():
     from Grasshopper import DataTree
     from Grasshopper.Kernel.Data import GH_Path
 
-    LAYERS = ["CUT", "INK", "INT"]
+    LAYERS = ["CUT", "INK", "INT", "Other"]
     comp = ghenv.Component
     rdoc = Rhino.RhinoDoc.ActiveDoc
     tol = rdoc.ModelAbsoluteTolerance
-    ids = [g.ReferenceID for g in comp.Params.Input[0].VolatileData.AllData(True)]
-    cuts = [rdoc.Objects.FindId(i) for i in ids]
+    cuts = [rdoc.Objects.FindId(g.ReferenceID) for g in comp.Params.Input[0].VolatileData.AllData(True)]
     xdata = comp.Params.Input[1].VolatileData
-    xforms = [[g.Value for g in xdata.Branches[i]] if i < xdata.PathCount else [] for i in range(len(ids))]
+    xforms = [list(xdata.Branches[i]) if i < xdata.PathCount else [] for i in range(len(cuts))]
 
-    if not ids or None in cuts:
+    if not cuts or None in cuts:
         comp.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "Cut must be curves referenced from Rhino")
     elif any(xforms):
         curves = [c.Geometry for c in cuts]
         boxes = [c.GetBoundingBox(True) for c in curves]
         for b in boxes:
             b.Inflate(tol)
-        areas = []
-        for c, b in zip(curves, boxes):
-            mp = rg.AreaMassProperties.Compute(c) if c.IsClosed else None
-            areas.append(mp.Area if mp else b.Area)
+        areas = [b.Area for b in boxes]
 
         def samples(geo):
             if isinstance(geo, rg.Curve):
-                t = geo.NormalizedLengthParameter(0.5)[1]
-                return [geo.PointAtStart, geo.PointAt(t), geo.PointAtEnd]
+                return [geo.PointAtStart, geo.PointAt(geo.NormalizedLengthParameter(0.5)[1]), geo.PointAtEnd]
             if isinstance(geo, rg.Point):
                 return [geo.Location]
             return [geo.GetBoundingBox(True).Center]
 
-        inside = [[] for _ in ids]
-        skip = set(ids)
+        def holds(i, p):
+            return boxes[i].Contains(p) and curves[i].Contains(p, rg.Plane.WorldXY, tol) != rg.PointContainment.Outside
+
+        parts = [[c] for c in cuts]
+        skip = set(c.Id for c in cuts)
         settings = Rhino.DocObjects.ObjectEnumeratorSettings()
         settings.HiddenObjects = False
         settings.LockedObjects = True
         settings.VisibleFilter = True
         for obj in rdoc.Objects.GetObjectList(settings):
-            if obj.Id in skip or obj.Attributes.Space != Rhino.DocObjects.ActiveSpace.ModelSpace:
-                continue
-            hits = set()
-            for p in samples(obj.Geometry):
-                for i, (c, b) in enumerate(zip(curves, boxes)):
-                    if b.Contains(p) and c.Contains(p, rg.Plane.WorldXY, tol) != rg.PointContainment.Outside:
-                        hits.add(i)
-            i = owner(hits, areas)
-            if i is not None:
-                inside[i].append(obj)
+            if obj.Id not in skip and obj.Attributes.Space == Rhino.DocObjects.ActiveSpace.ModelSpace:
+                i = owner(set(i for p in samples(obj.Geometry) for i in range(len(cuts)) if holds(i, p)), areas)
+                if i is not None:
+                    parts[i].append(obj)
 
-        out = dict((k, DataTree[object]()) for k in LAYERS + ["Other"])
-        N = []
-        parts = []
-        for i, cut in enumerate(cuts):
-            N.append("%d: %d" % (i, len(inside[i])))
+        out = dict((k, DataTree[object]()) for k in LAYERS)
+        N = ["%d: %d" % (i, len(part) - 1) for i, part in enumerate(parts)]
+        placed = inside = 0
+        if Bake:
+            rec = rdoc.BeginUndoRecord("CarryInside bake")
+        for i, part in enumerate(parts):
             if len(xforms[i]) != 1:
                 comp.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Warning, "Cut %d not placed — left out" % i)
                 continue
-            part = []
-            for obj in [cut] + inside[i]:
+            placed += 1
+            inside += len(part) - 1
+            group = rdoc.Groups.Add() if Bake else None
+            for obj in part:
                 g = obj.Geometry.Duplicate()
-                g.Transform(xforms[i][0])
+                g.Transform(xforms[i][0].Value)
                 top = rdoc.Layers[obj.Attributes.LayerIndex].FullPath.split("::")[0].upper()
                 out[top if top in LAYERS else "Other"].Add(g, GH_Path(i))
-                part.append((g, obj.Attributes))
-            parts.append(part)
-
-        if Bake:
-            rec = rdoc.BeginUndoRecord("CarryInside bake")
-            for part in parts:
-                group = rdoc.Groups.Add()
-                for g, attrs in part:
-                    a = attrs.Duplicate()
+                if Bake:
+                    a = obj.Attributes.Duplicate()
                     a.RemoveFromAllGroups()
                     a.AddToGroup(group)
                     rdoc.Objects.Add(g, a)
+        if Bake:
             rdoc.EndUndoRecord(rec)
             rdoc.Views.Redraw()
-        CUT, INK, INT, Other = [out[k] for k in LAYERS + ["Other"]]
-        comp.Message = "%d parts, %d inside" % (len(parts), sum(len(p) - 1 for p in parts))
+        CUT, INK, INT, Other = [out[k] for k in LAYERS]
+        comp.Message = "%d parts, %d inside" % (placed, inside)
 
 
 if __name__ == "__main__" and "ghenv" not in globals():
