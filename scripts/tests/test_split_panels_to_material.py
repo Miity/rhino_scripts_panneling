@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Check of SplitPanelsToMaterial in Rhino 8 (needs RhinoCommon). outer_panels: a panel with its sew line and a hole
 inside (a click on a GroupPanels group selects them all) → only the panel, a panel touching it along an edge stays,
-an identical copy on top → copies (p1.3dm: the sew line was cut as a second panel, letters A and B on one seam).
+an identical copy on top → copies; each piece — its own group (p1.3dm: the sew line was cut as a second panel, letters A and B on one seam).
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_split_panels_to_material.txt next to it."""
 import os
@@ -30,6 +30,7 @@ try:
     pid = doc.Objects.AddCurve(panel)
     ink = doc.Objects.AddPoint(Point3d(50, 1050, 0))  # must move together with the piece
     stay = doc.Objects.AddPoint(Point3d(50, 985, 0))   # between the seam and the line — stays
+    doc.Groups.AddToGroup(doc.Groups.Add(), [pid, ink, stay])  # as GroupPanels does
     assert M.run(doc, [pid], M.material_frames([top, bottom]), 50.0, 10.0) == (1, 1)
 
     curves = [o.Geometry for o in doc.Objects if isinstance(o.Geometry, Rhino.Geometry.Curve)]
@@ -47,6 +48,10 @@ try:
     assert [t for t, y in labels] == ["A", "A"], labels
     assert 900 < labels[0][1] < 990 and 1040 < labels[1][1] < 1150, labels  # panel below the seam, piece above
     assert doc.Strings.GetValue("SplitPanelsToMaterial", "next_label") == "1"
+    groups = lambda oid: set(doc.Objects.FindId(oid).Attributes.GetGroupList() or [])  # each piece its own group
+    main_id, off_id = [o.Id for o in sorted((o for o in doc.Objects if isinstance(o.Geometry, Rhino.Geometry.Curve)
+                       and o.Geometry.IsClosed), key=lambda o: o.Geometry.GetBoundingBox(True).Min.Y)]
+    assert groups(main_id) == groups(stay) and groups(off_id) == groups(ink) and not groups(main_id) & groups(off_id)
     assert [M.letters(i) for i in (0, 1, 25, 26, 27)] == ["A", "B", "Z", "AA", "AB"]
 
     import scriptcontext as sc

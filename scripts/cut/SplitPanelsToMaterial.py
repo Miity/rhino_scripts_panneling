@@ -12,6 +12,7 @@ For each panel that crosses a material line:
   (2 × seam overlap in total) and is moved by `gap` — above the top or below the bottom line;
 - the seam line (at `seam` from the material line) is drawn on INK on both the panel and the cut-off piece;
 - inner objects of the cut-off piece (INK/INT: lines, points, text) are cut at the seam and move with it;
+- each piece is its own group with everything inside it (the panel's old group — GroupPanels — is split);
 - each pair of pieces is labelled near the seam with the same letter: A and A, B and B, … Z, AA, AB …
   The counter is stored in the file, so the next run continues with the next letter.
 Compatibility: IronPython 2.7 / CPython 3 (Rhino 8).
@@ -255,6 +256,38 @@ def seam_attributes(doc):
     return attrs
 
 
+def group_pieces(doc, piece_ids, cands, old_groups, tol):
+    """Each piece of a cut panel — its own group with what lies inside it (else the nearest piece):
+    seam lines, letters, inner lines; the panel's old groups are dropped, nested ones (notches) kept per piece."""
+    curves = [doc.Objects.FindId(i).Geometry for i in piece_ids]
+    groups = [[i] for i in piece_ids]
+
+    def dist(c, p):
+        if c.Contains(p, Plane.WorldXY, tol) != PointContainment.Outside:
+            return 0.0
+        return p.DistanceTo(c.PointAt(c.ClosestPoint(p)[1]))
+
+    for oid in cands:
+        obj = doc.Objects.FindId(oid)
+        if obj is None or obj.IsDeleted or oid in piece_ids:
+            continue
+        g = obj.Geometry
+        p = g.PointAtNormalizedLength(0.5) if isinstance(g, Curve) else g.GetBoundingBox(True).Center
+        groups[min(range(len(curves)), key=lambda k: dist(curves[k], p))].append(oid)
+    nested = {}  # (old nested group, piece) → new group: a notch group across the seam splits per piece
+    for k, ids in enumerate(groups):
+        top = doc.Groups.Add()
+        for oid in ids:
+            obj = doc.Objects.FindId(oid)
+            a = obj.Attributes.Duplicate()
+            for gi in list(a.GetGroupList() or []):
+                a.RemoveFromGroup(gi)
+                if gi not in old_groups:
+                    a.AddToGroup(nested.setdefault((gi, k), doc.Groups.Add()))
+            a.AddToGroup(top)
+            doc.Objects.ModifyAttributes(obj, a, True)
+
+
 def run(doc, panel_ids, frames, gap, seam):
     """Cuts panels; returns (number of cut panels, number of moved pieces)."""
     tol = doc.ModelAbsoluteTolerance
@@ -265,6 +298,7 @@ def run(doc, panel_ids, frames, gap, seam):
     for pid in panel_ids:
         obj = doc.Objects.FindId(pid)
         pieces, moved = [obj.Geometry], []
+        start = set(skip)
         for plane, to_local in frames:
             move = -plane.YAxis * gap
             nxt = []
@@ -290,9 +324,12 @@ def run(doc, panel_ids, frames, gap, seam):
             pieces = nxt
         if not moved:
             continue
-        for c in pieces + moved:
-            skip.add(doc.Objects.AddCurve(c, obj.Attributes))
+        piece_ids = [doc.Objects.AddCurve(c, obj.Attributes) for c in pieces + moved]
+        skip.update(piece_ids)
         doc.Objects.Delete(pid, True)
+        olds = list(obj.Attributes.GetGroupList() or [])
+        cands = set(skip - start) | set(o.Id for g in olds for o in doc.Groups.GroupMembers(g) or [])
+        group_pieces(doc, piece_ids, cands - set(panel_ids), olds, tol)
         n_panels += 1
         n_offs += len(moved)
     doc.Strings.SetString(LABEL_KEY[0], LABEL_KEY[1], str(label_i))
