@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Split panels to the material roll width.
 
-1. Select panels (closed curves, usually CUT).
+1. Select panels (closed curves, usually CUT); closed curves inside a panel (sew line, holes) are its contents,
+   not panels — a click on a panel grouped with GroupPanels is fine. Identical copies on top stop the script.
 2. Select the material: a closed rectangle (Origin) or two of its lines — top and bottom.
 3. Enter at the prompts = gap 50 and seam 10 (document units, mm); option Style — letter text style (PAT 14 mm).
 
@@ -229,6 +230,22 @@ def carry_objects(doc, region, chords, plane, seam, move, skip, tol):
             skip.add(obj.Id)
 
 
+def outer_panels(ids, tol):
+    """Selected closed curves not inside another one: a click on a grouped panel (GroupPanels) selects
+    its sew line and holes too — they are contents, cut and moved with the piece, not panels.
+    Returns (panels, identical copies)."""
+    cs = [rs.coercecurve(i) for i in ids]
+
+    def within(a, b):  # 4 points, not 1: a panel touching another along an edge stays a panel
+        return all(b.Contains(a.PointAtNormalizedLength(t), Plane.WorldXY, tol) != PointContainment.Outside
+                   for t in (0.125, 0.375, 0.625, 0.875))
+
+    pairs = [(k, j) for k in range(len(ids)) for j in range(len(ids)) if j != k and within(cs[k], cs[j])]
+    inner = set(k for k, j in pairs)
+    copies = set(k for k, j in pairs if (j, k) in pairs)
+    return [ids[k] for k in range(len(ids)) if k not in inner], [ids[k] for k in copies]
+
+
 def seam_attributes(doc):
     idx = doc.Layers.FindByFullPath(SEAM_LAYER, -1)
     if idx < 0:
@@ -306,7 +323,16 @@ def main():
     seam = PatternTextStyles.get_number(u"Seam / allowance from the material line", 10.0, STICKY)
     if seam is None:
         return
-    panel_ids = [i for i in panel_ids if i not in mat_ids]
+    tol = sc.doc.ModelAbsoluteTolerance
+    panel_ids, copies = outer_panels([i for i in panel_ids if i not in mat_ids], tol)
+    boxes = [rs.coercecurve(i).GetBoundingBox(True) for i in panel_ids]
+    twins = [o.Id for o in sc.doc.Objects if o.Id not in panel_ids and isinstance(o.Geometry, Curve)
+             and any(o.Geometry.GetBoundingBox(True).Min.DistanceTo(b.Min) < 10 * tol
+                     and o.Geometry.GetBoundingBox(True).Max.DistanceTo(b.Max) < 10 * tol for b in boxes)]
+    copies += outer_panels(panel_ids + twins, tol)[1]  # an unselected copy would be cut as an inner line
+    if copies:
+        print("Identical curves on top of each other: {} — remove the copies (SelDup) and run again".format(len(copies)))
+        return
 
     rs.EnableRedraw(False)
     try:

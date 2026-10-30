@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Check of SplitPanelsToMaterial in Rhino 8 (needs RhinoCommon):
+"""Check of SplitPanelsToMaterial in Rhino 8 (needs RhinoCommon). outer_panels: a panel with its sew line and a hole
+inside (a click on a GroupPanels group selects them all) → only the panel, a panel touching it along an edge stays,
+an identical copy on top → copies (p1.3dm: the sew line was cut as a second panel, letters A and B on one seam).
 DOTNET_ROLL_FORWARD=Major "/Applications/Rhino 8.app/Contents/Resources/bin/rhinocode" script <this file>
 The result is written to test_split_panels_to_material.txt next to it."""
 import os
@@ -46,6 +48,22 @@ try:
     assert 900 < labels[0][1] < 990 and 1040 < labels[1][1] < 1150, labels  # panel below the seam, piece above
     assert doc.Strings.GetValue("SplitPanelsToMaterial", "next_label") == "1"
     assert [M.letters(i) for i in (0, 1, 25, 26, 27)] == ["A", "B", "Z", "AA", "AB"]
+
+    import scriptcontext as sc
+    old, sc.doc = sc.doc, doc  # outer_panels reads ids through rs
+
+    def box(x0, y0, x1, y1):
+        return Polyline([Point3d(x, y, 0) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0))]).ToPolylineCurve()
+    try:
+        add = doc.Objects.AddCurve
+        panel, sew, hole, side = add(box(0, 0, 100, 60)), add(box(10, 10, 90, 50)), add(box(40, 20, 60, 40)), add(box(100, 0, 150, 60))
+        panels, copies = M.outer_panels([sew, panel, hole, side], 0.001)
+        assert sorted(panels) == sorted([panel, side]) and not copies, (panels, copies)
+        twin = add(box(0, 0, 100, 60))
+        panels, copies = M.outer_panels([panel, sew, twin], 0.001)
+        assert sorted(copies) == sorted([panel, twin]), copies
+    finally:
+        sc.doc = old
     out.write("OK\n")
 except Exception:
     out.write(traceback.format_exc())
