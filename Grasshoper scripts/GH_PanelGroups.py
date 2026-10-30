@@ -7,7 +7,8 @@ its CUT after nesting (CarryInside).
 
 Inputs:
     Parts : the grouped panels referenced from Rhino (Set Multiple — a window
-            over the groups is enough: a CUT brings its whole group), Tree access
+            over the groups is enough: a CUT brings its whole group), Tree access,
+            No Type Hint (the default ghdoc hint fails on texts)
 Outputs:
     Cut   : the CUT of each panel, one per branch {i} — to OpenNest Geo
     Ids   : branch {i}: the CUT's id, then every other member of its group(s)
