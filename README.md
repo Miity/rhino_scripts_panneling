@@ -98,6 +98,7 @@ before it) without leaving the command; a number given in that click is reused. 
 **Cut** — `scripts/cut/`
 | Button | Left click |
 |---|---|
+| GroupPanels | select closed curves on layer CUT (panels) together with their contents (window) → one group per panel with everything lying inside it (curve midpoint / point / bbox centre inside); a closed CUT curve inside another is a hole, goes into the outer group; existing groups / layers kept; objects outside every panel untouched |
 | PreparePanelCut | any panel lines (closed, separate, seam strips, duplicates) → the outer contour of each panel on CUT, the rest on INT/INK (texts too); objects already on INT stay there, also when selected in step 1 (count printed); points closer than 0.05 mm are one node (lines meeting), longer noise is not merged; geometry goes 1:1 — nothing is cleaned, smoothed or simplified: a contour / inner line that runs along one selected line is that line itself (every point, arcs too); a micro zigzag / spike that breaks the contour stops it with a hint (fix it with Zigzags / `FindZigzags`), Preflight shows the rest |
 | SplitToMaterial | split panels at the material lines: 1 cm seam, cut-off pieces moved by 50 mm, pairs labelled A–A, B–B… |
 | CurveOverlap | delete exact duplicates (SelDup), select the shorter curve of overlapping pairs (among selected, or all if nothing is selected) |

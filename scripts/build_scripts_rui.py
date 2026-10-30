@@ -90,6 +90,7 @@ GROUPS = [
     (u"Cut", u"Cut preparation", [
         (u"CurveOverlap", u"Delete duplicates, select the shorter of overlapping curves", py("cut/sel_curve_overlap.py"), None),
         (u"SplitToMaterial", u"Split panels to the fabric width: 1 cm seam, A–A pairs", py("cut/SplitPanelsToMaterial.py"), None),
+        (u"GroupPanels", u"Groups each closed CUT panel with everything inside it", py("cut/GroupPanels.py"), None),
         (u"PreparePanelCut", u"Panels → outer contour on CUT, inner lines on INT / INK", py("cut/PreparePanelCut.py"), None),
         (u"Preflight", u"Checks the selected parts before the cutter: duplicates, notches off their line, texts; changes nothing", py("cut/PreflightCut.py"), None),
     ]),
@@ -165,6 +166,7 @@ IT = {
     u"Cut": (u"Taglio", u"Preparazione al taglio"),
     u"CurveOverlap": (u"Sovrapposizioni", u"Elimina i doppioni, seleziona la più corta delle sovrapposte"),
     u"SplitToMaterial": (u"DividiPerTessuto", u"Divide i pannelli alla larghezza del tessuto: cucitura 1 cm, coppie A–A"),
+    u"GroupPanels": (u"RaggruppaPannelli", u"Raggruppa ogni pannello chiuso su CUT con tutto ciò che contiene"),
     u"PreparePanelCut": (u"PreparaTaglio", u"Pannelli → contorno su CUT, linee interne su INT / INK"),
     u"Preflight": (u"ControlloTaglio", u"Controlla i pezzi selezionati prima del taglio: doppioni, tacche fuori linea, testi; non cambia nulla"),
     u"Analysis": (u"Analisi", u"Analisi di pannelli e taglio"),
