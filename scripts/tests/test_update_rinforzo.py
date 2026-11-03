@@ -31,14 +31,14 @@ try:
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(M.layer(), -1)
     sc.sticky[M.UP_KEY] = 1000.0
-    full, label = M.make(doc, pid, panel, Point3d(510, 150, 0), 60, 100, 30, True, Z, tol, attrs, Steps(doc))
+    full, label = M.make(doc, pid, panel, Point3d(510, 150, 0), 60, 30, True, Z, tol, attrs, Steps(doc))
     contour = full[0]
     assert label == u"R6", label
-    for k, v in (("W", "60"), ("Plus", "100"), ("Layout", "1"), ("Panel", str(pid))):
+    for k, v in (("W", "60"), ("Layout", "1"), ("Panel", str(pid))):
         assert rs.GetUserText(contour, "RF_" + k) == v, (k, rs.GetUserText(contour, "RF_" + k))
     g = rs.ObjectGroups(contour)
     area = lambda i: AreaMassProperties.Compute(rs.coercecurve(i)).Area
-    assert abs(area(contour) - 24000) < 1e-2 and len(g) == 1, area(contour)
+    assert abs(area(contour) - 18000) < 1e-2 and len(g) == 1, area(contour)
     before = len(rs.ObjectsByGroup(g[0]))
 
     class Opts(object):  # the option prompt: W 60 → 80, Seam No, Enter
@@ -65,9 +65,9 @@ try:
     assert len(news) == 1, news  # the contour keeps its id (attributes are copied)
     c = news[0]
     assert sum(1 for i in rs.AllObjects() if rs.GetUserText(i, 'PartLink')) == before, 'stale/missing PartLink'
-    assert rs.GetUserText(c, "RF_W") == "80.0" and rs.GetUserText(c, "RF_Plus") == "100.0", rs.GetUserText(c, "RF_W")
-    assert abs(area(c) - 80 * 400) < 1e-2, area(c)  # 80 wide, 300 + Plus 100 long
-    assert abs(rs.coercecurve(c).GetBoundingBox(True).Min.Y - (1000 - 50)) < 1e-3  # still 1000 up
+    assert rs.GetUserText(c, "RF_W") == "80.0" , rs.GetUserText(c, "RF_W")
+    assert abs(area(c) - 80 * 300) < 1e-2, area(c)  # 80 wide, 300 long
+    assert abs(rs.coercecurve(c).GetBoundingBox(True).Min.Y - 1000) < 1e-3  # still 1000 up
     g2 = rs.ObjectGroups(c)
     assert len(g2) == 1 and len(rs.ObjectsByGroup(g2[0])) == before, (g2, before)
     out.write("OK\n")

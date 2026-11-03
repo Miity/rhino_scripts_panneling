@@ -4,19 +4,17 @@ Select a panel (closed curve) and click near an edge (several in a row, Enter �
 Like ZipCover (ZipCover.flap, inward), but inward: edge corner to corner (corner — tangent break
 larger than Angle) + offset by W (default 6 cm) into the panel, ends — along the neighbouring edges
 (neighbour sharper than 30° — perpendicular end). Two strips at a corner: JoinCorner on the markup lines.
-Option Plus — the strip is cut longer than the edge by Plus (default 10 cm: Plus / 2 past each end, straight on),
-trimmed after sewing.
 The panel is not changed. Part in place, layer Parts::Reinforcements, label "R<w>" (cm;
 ≈ W/10, at a quarter of the edge, along the inner line) in a group. No number, no length in the label.
 If the strip holds a zip — a ZipStops number whose edge midpoint is on the strip: the panel edge itself or a zip line
 inside it (the old edge after ZipCover) — the label stands right after the number ("Z20  R6": two texts, each in its
 own group); a zip made later on the strip pulls the label to its number, flipping the number moves the label with it.
 The full part on the canvas then also carries the zip: its stops (copies), the line stop to stop and the label "Z20 R6".
-Option Layout (default Yes): on the panel — markup (only the inner line W, without panel edges and without Plus),
+Option Layout (default Yes): on the panel — markup (only the inner line W, without panel edges),
 full part — 10000 up (ReinfCircle.add_part); No — full part in place.
 Option Seam (default Yes) — seam allowance on the full part: after the last click the view zooms to the new parts and
 pattern/Seams.py runs on them (the strip contour is the sew line; click near the edges that need a seam, Width is asked there).
-The contour carries UserText RF_W / RF_Plus / RF_Angle / RF_Layout / RF_Panel: UpdateRinforzo rebuilds the strip from them.
+The contour carries UserText RF_W / RF_Angle / RF_Layout / RF_Panel: UpdateRinforzo rebuilds the strip from them.
 B (bordino, folded over the edge) — Bordino.py; its label B<w> goes after R<w> (also without a zip).
 """
 import os
@@ -60,13 +58,11 @@ def label_place(edge, off, normal, gap):
     return plane, (Rhino.DocObjects.TextVerticalAlignment.Bottom if up else Rhino.DocObjects.TextVerticalAlignment.Top)
 
 
-def make(doc, oid, panel, click, w, plus, angle, layout, normal, tol, attrs, steps):
+def make(doc, oid, panel, click, w, angle, layout, normal, tol, attrs, steps):
     """One strip at the edge nearest to click: markup on the panel + full part. (full part ids, label) or None."""
     res = flap(panel, click, w, angle, normal, tol, inward=True)  # on the panel: markup
-    full = flap(panel, click, w, angle, normal, tol, inward=True, plus=plus)  # for cutting: longer by Plus
-    bad = next((r for r in (res, full) if not isinstance(r, tuple)), None)
-    if bad:
-        print(u"Skipped: %s" % bad)
+    if not isinstance(res, tuple):
+        print(u"Skipped: %s" % res)
         return None
     cut, edge, off, square = res
     label = u"%s%s" % (CODE, cm(w))
@@ -83,7 +79,7 @@ def make(doc, oid, panel, click, w, plus, angle, layout, normal, tol, attrs, ste
         zedge = edge_of(zid, tol)[0]
         if zedge is not None:
             zip_marks.append(zip_span(zedge, read_trims(zid)))  # stop to stop
-    full_ids, markup = add_part(doc, [full[0]] + zip_marks, te, off_panel(cut, [panel], tol), attrs, layout)
+    full_ids, markup = add_part(doc, [cut] + zip_marks, te, off_panel(cut, [panel], tol), attrs, layout)
     if layout:  # a zip made later on this strip puts the label after its number (ZipStops.finish_zip)
         rs.SetUserText(markup[-1], RINF_LINE, str(oid))
     if zid:
@@ -92,24 +88,22 @@ def make(doc, oid, panel, click, w, plus, angle, layout, normal, tol, attrs, ste
     elif layout:
         labels_after(doc, None, mid_point(edge), tol, steps, oid)  # no zip: B<w> / Pt<w> of this edge after R<w>
     doc.Views.Redraw()
-    print(u"%s  l=%s" % (label, cm(edge.GetLength() + plus)))  # length only in the command history
+    print(u"%s  l=%s" % (label, cm(edge.GetLength())))  # length only in the command history
     if square:
         print(u"Warning: %d end(s) with a neighbour sharper than 30° — end is perpendicular" % square)
     contour = full_ids[0]  # data for UpdateRinforzo: the strip is rebuilt from the panel and this click
-    for key, value in (("W", w), ("Plus", plus), ("Angle", angle), ("Layout", int(layout)), ("Panel", oid)):
+    for key, value in (("W", w), ("Angle", angle), ("Layout", int(layout)), ("Panel", oid)):
         rs.SetUserText(contour, "RF_" + key, str(value))
     return full_ids, label
 
 
 def ask(gp):
-    """Click near an edge with options W / Plus / Angle / Layout / Seam / Style / Undo. A point, UNDO or None (Enter / Esc)."""
+    """Click near an edge with options W / Angle / Layout / Seam / Style / Undo. A point, UNDO or None (Enter / Esc)."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0 * unit), 0.001, 1e6)
-    plus = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_plus", 100.0 * unit), 0.0, 1e6)
     a = Rhino.Input.Custom.OptionDouble(sc.sticky.get("ZipCover_angle", 30.0), 1.0, 179.0)  # shared with ZipCover
     i_undo = gp.AddOption("Undo")
     gp.AddOptionDouble("W", w)
-    gp.AddOptionDouble("Plus", plus)
     gp.AddOptionDouble("Angle", a)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
@@ -123,7 +117,6 @@ def ask(gp):
         sc.sticky[STICKY + "_seam"] = seam.CurrentValue
         sc.sticky[UP_KEY] = up.CurrentValue
         sc.sticky[STICKY] = w.CurrentValue
-        sc.sticky[STICKY + "_plus"] = plus.CurrentValue
         sc.sticky["ZipCover_angle"] = a.CurrentValue
         if r == Rhino.Input.GetResult.Option:
             if gp.OptionIndex() == i_undo:
@@ -136,7 +129,6 @@ def ask(gp):
 
 HELP = u"""Options:
   W — strip width from the edge into the panel (R<w> in the label, cm)
-  Plus — the strip is longer than the edge by this much (half past each end), trimmed after sewing
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
   Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
   Seam — Yes: after the last click the seam allowance step (Seams.py) runs on the new full parts
@@ -171,7 +163,7 @@ def main():
                 made -= 1
             continue
         steps.start()
-        got = make(doc, oid, panel, click, sc.sticky[STICKY], sc.sticky[STICKY + "_plus"], sc.sticky["ZipCover_angle"],
+        got = make(doc, oid, panel, click, sc.sticky[STICKY], sc.sticky["ZipCover_angle"],
                    sc.sticky[STICKY + "_layout"], normal, tol, attrs, steps)
         if got is None:
             continue

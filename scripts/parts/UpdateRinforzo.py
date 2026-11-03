@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Update existing Rinforzo strips with new parameters (W / Plus).
+"""Update existing Rinforzo strips with new parameters (W).
 Select any part of a strip (or several with a window) — the strip is rebuilt in place from its panel and the edge
 it sits on, with the same layer. Only the parameters you changed in the options change; the rest stay each strip's own.
 Parameters are read from UserText RF_* on the strip contour (RF_Panel — the panel it was made on). The edge is found
@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.modules.pop("click_undo", None)
 from click_undo import Steps
 
-KEYS = ("W", "Plus")
+KEYS = ("W",)
 
 
 def read_strip(ids, tol):
@@ -56,7 +56,6 @@ def read_strip(ids, tol):
 
 HELP = u"""Options:
   W — strip width from the edge into the panel
-  Plus — the strip is longer than the edge by this much, trimmed after sewing
   Seam — Yes: run the seam allowance step (Seams.py) on the strips afterwards; rebuilt strips lose the old cut line"""  # printed at start — visible under the option fields
 
 
@@ -81,7 +80,7 @@ def main():
     if not strips:
         return
     first = strips[0]
-    print(u"Rinforzo now: W=%g Plus=%g" % tuple(first[k] for k in KEYS))
+    print(u"Rinforzo now: W=%g" % tuple(first[k] for k in KEYS))
     go = Rhino.Input.Custom.GetOption()
     go.SetCommandPrompt(u"New parameters (Enter — apply to %d strips)" % len(strips))
     go.AcceptNothing(True)
@@ -114,7 +113,7 @@ def main():
         sc.sticky[RF.UP_KEY] = s["up"].Length  # the full part goes up as far as before (add_part uses CPlane Y)
         rs.DeleteObjects(s["ids"])
         steps.start()
-        got = RF.make(doc, s["panel_id"], s["panel"], s["click"], s["W"], s["Plus"], s["Angle"], s["layout"],
+        got = RF.make(doc, s["panel_id"], s["panel"], s["click"], s["W"], s["Angle"], s["layout"],
                       s["normal"], tol, s["attrs"], steps)
         if got is None:
             continue
