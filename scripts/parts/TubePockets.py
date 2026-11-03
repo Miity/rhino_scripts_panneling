@@ -15,8 +15,10 @@ of the pocket are extended to it straight; the old end stays in the group as a f
 Only markup stays on the panel (in place): ends + pocket top as one open curve (without the edge and Hem)
 + label (UserText TP_Markup). The full part for cutting — UP (10000) up along CPlane Y
 (UserText TP_Up), that is what Layout lays out. Markup and full part — one group, also linked by number (UserText TP_N).
+Option Seam — seam allowance on the full part (cut line = sew contour offset outward by Seam on all sides; Seam=0 — none).
+The sew contour stays inside the part, in sublayer <layer>::Sew (it travels with the part to Layout). Not on the markup.
 Option Layout (default Yes): No — full part in place, no markup (like old pockets).
-Options W / H / Trim / Hem / Notch / Rigid / Layout / Up / Angle / Style — in the click prompt, remembered between runs.
+Options W / H / Trim / Hem / Seam / Notch / Rigid / Layout / Up / Angle / Style — in the click prompt, remembered between runs.
 """
 import os
 import re
@@ -118,8 +120,9 @@ def reversed_copy(c):
     return c
 
 
-def pocket(crv, click, w, h, trim, notch, normal, tol, rigid=False, hem=0.0):
-    """(contour, edge, centre mark or None, fold lines, markup: ends + top, without the edge);
+def pocket(crv, click, w, h, trim, notch, normal, tol, rigid=False, hem=0.0, seam=0.0):
+    """(contour — with the seam allowance, edge, centre mark or None, fold lines, markup: ends + top, without the edge,
+    sew contour or None if seam=0);
     string — the reason it failed."""
     length = crv.GetLength()
     seg = crv.DuplicateCurve() if w <= 0 or w >= length else trim_len(crv, (length - w) / 2.0, (length + w) / 2.0)
@@ -161,14 +164,23 @@ def pocket(crv, click, w, h, trim, notch, normal, tol, rigid=False, hem=0.0):
         d.Unitize()
         # ponytail: goes H/10 into the pocket from the edge; for a fixed depth — a separate option.
         mark = LineCurve(m, m + d * (h / 10.0))
-    return joined[0], seg, mark, folds, simple[0]
+    sew, cut = None, joined[0]
+    if seam > 0:
+        bb = cut.GetBoundingBox(True)
+        far = bb.Min - Vector3d(1, 1, 0) * (bb.Diagonal.Length + 1e3)  # outside the closed contour: offset goes away from it
+        offs = cut.Offset(far, normal, seam, tol, CurveOffsetCornerStyle.Sharp)
+        offs = Curve.JoinCurves(offs, tol) if offs else None
+        if not offs or len(offs) != 1 or not offs[0].IsClosed:
+            return u"seam allowance Seam failed"
+        sew, cut = cut, offs[0]
+    return cut, seg, mark, folds, simple[0], sew
 
 
-def add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid=False, hem=0.0, up=None):
+def add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid=False, hem=0.0, up=None, seam=0.0):
     """Adds a pocket: res (contour, edge, mark, fold lines, markup, toward) — in place.
     up=None — full part in place (old pockets); otherwise the full part is moved by up,
     and the markup stays in place (ends + top without the edge + label). Parameters — UserText for UpdateTubePockets."""
-    outline, seg, mark, folds, simple, toward = res
+    outline, seg, mark, folds, simple, sew, toward = res
     xf = Transform.Translation(up if up is not None else Vector3d.Zero)
     te = Rhino.Geometry.TextEntity.Create(label(n, h),
                                           label_frame(seg, pocket_side(seg, toward, h, normal, tol, rigid), normal),
@@ -184,6 +196,10 @@ def add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid=False, hem
     fa = attrs.Duplicate()
     fa.LayerIndex = fold_layer(doc, attrs.LayerIndex) if folds else attrs.LayerIndex
     full = [add(outline, attrs)] + [add(f, fa) for f in folds]
+    if sew:
+        sa = attrs.Duplicate()
+        sa.LayerIndex = fold_layer(doc, attrs.LayerIndex, "Sew")
+        full.append(add(sew, sa))
     seam = seg.DuplicateCurve()  # the edge is not drawn — stored on the contour for UpdateTubePockets
     seam.Transform(xf)
     rs.SetUserText(full[0], "TP_Seg", seam.ToJSON(None))
@@ -197,7 +213,7 @@ def add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid=False, hem
     for i, ids in enumerate(groups):
         for o in ids:
             for k, v in (("H", h), ("Trim", trim), ("Notch", int(notch)), ("Rigid", int(rigid)),
-                         ("Hem", hem), ("N", n)):
+                         ("Hem", hem), ("Seam", seam), ("N", n)):
                 rs.SetUserText(o, "TP_" + k, "%g" % v)
             if up is not None:
                 rs.SetUserText(o, "TP_Up", "%r,%r,%r" % (up.X, up.Y, up.Z))
@@ -213,12 +229,12 @@ def label(n, h):
     return u"%s%d" % (PREFIX, n)
 
 
-def fold_layer(doc, index):
-    """Sublayer Fold (fold lines) under the pocket layer, same colour."""
+def fold_layer(doc, index, name="Fold"):
+    """Sublayer Fold (fold lines) or Sew (sew contour) under the pocket layer, same colour."""
     lay = doc.Layers[index]
-    full = lay.FullPath + "::Fold"
+    full = lay.FullPath + "::" + name
     if not rs.IsLayer(full):
-        rs.AddLayer("Fold", lay.Color, parent=lay.FullPath)
+        rs.AddLayer(name, lay.Color, parent=lay.FullPath)
     return doc.Layers.FindByFullPath(full, -1)
 
 
@@ -257,6 +273,7 @@ def ask(gp):
     h = Rhino.Input.Custom.OptionDouble(get(STICKY + "_h", 130.0), 0.001, 1e6)
     trim = Rhino.Input.Custom.OptionDouble(get(STICKY + "_trim", 50.0), 0.0, 1e6)
     hem = Rhino.Input.Custom.OptionDouble(get(STICKY + "_hem", 20.0), 0.0, 1e6)
+    seam = Rhino.Input.Custom.OptionDouble(get(STICKY + "_seam", 10.0), 0.0, 1e6)
     notch = Rhino.Input.Custom.OptionToggle(get(STICKY + "_notch", True), "No", "Yes")
     rigid = Rhino.Input.Custom.OptionToggle(get(STICKY + "_rigid", False), "No", "Yes")
     angle = Rhino.Input.Custom.OptionDouble(get("ZipCover_angle", 30.0), 1.0, 179.0)  # shared with ZipCover
@@ -265,6 +282,7 @@ def ask(gp):
     gp.AddOptionDouble("H", h)
     gp.AddOptionDouble("Trim", trim)
     gp.AddOptionDouble("Hem", hem)
+    gp.AddOptionDouble("Seam", seam)
     gp.AddOptionToggle("Notch", notch)
     gp.AddOptionToggle("Rigid", rigid)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
@@ -275,8 +293,8 @@ def ask(gp):
     while True:
         r = gp.Get()
         vals = (w.CurrentValue, h.CurrentValue, trim.CurrentValue, notch.CurrentValue, rigid.CurrentValue,
-                hem.CurrentValue)
-        for k, v in zip(("_w", "_h", "_trim", "_notch", "_rigid", "_hem"), vals):
+                hem.CurrentValue, seam.CurrentValue)
+        for k, v in zip(("_w", "_h", "_trim", "_notch", "_rigid", "_hem", "_seam"), vals):
             sc.sticky[STICKY + k] = v
         sc.sticky["ZipCover_angle"] = angle.CurrentValue
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
@@ -295,6 +313,7 @@ HELP = u"""Options:
   H — pocket height from the edge into the panel
   Trim — how much shorter the pocket top is at each end
   Hem — hem allowance at the ends, on each side (0 — none)
+  Seam — seam allowance around the full part (cut line outside, sew contour inside in sublayer Sew; 0 — none)
   Notch — pocket centre mark (a tick from the edge into the pocket)
   Rigid — Yes: top is a copy of the edge without changing its shape; No: regular offset
   Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
@@ -331,7 +350,7 @@ def main():
                 n, made = n - 1, made - 1
             continue
         steps.start()
-        click, (w, h, trim, notch, rigid, hem, angle) = got
+        click, (w, h, trim, notch, rigid, hem, seam, angle) = got
         res = pick_edge(panel, click, angle, tol)
         if not isinstance(res, tuple):
             print(u"Skipped: " + res)
@@ -340,13 +359,13 @@ def main():
         if 0 < edge.GetLength() <= w:
             print(u"W %g ≥ edge length %.1f — pocket over the whole edge" % (w, edge.GetLength()))
         toward = inward(panel, edge, normal)
-        res = pocket(edge, toward, w, h, trim, notch, normal, tol, rigid, hem)
+        res = pocket(edge, toward, w, h, trim, notch, normal, tol, rigid, hem, seam)
         if not isinstance(res, tuple):
             print(u"Skipped: " + res)
             continue
         res = res + (toward,)
         label = add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid, hem,
-                           rs.ViewCPlane().YAxis * sc.sticky.get(UP_KEY, UP) if sc.sticky[STICKY + "_layout"] else None)
+                           rs.ViewCPlane().YAxis * sc.sticky.get(UP_KEY, UP) if sc.sticky[STICKY + "_layout"] else None, seam)
         print(label)
         n += 1
         made += 1
