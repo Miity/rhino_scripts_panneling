@@ -484,10 +484,11 @@ HELP = u"""Options:
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
 
 
-def main():
+def main(ids=None):
+    """ids — panels given by the calling script (TubePockets): no selection prompt."""
     print(HELP)
     doc = sc.doc
-    ids = rs.GetObjects(u"Select panels (closed curves = sew lines)", rs.filter.curve, preselect=True)
+    ids = ids or rs.GetObjects(u"Select panels (closed curves = sew lines)", rs.filter.curve, preselect=True)
     ids = [i for i in ids or [] if not rs.GetUserText(i, KEY) and not rs.GetUserText(i, NOTCH)]  # cut lines, notches
     if not ids:
         return

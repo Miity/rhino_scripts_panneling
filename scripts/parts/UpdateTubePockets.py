@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Update existing TubePockets pockets with new parameters (H / Trim / Hem / Seam / Notch / Rigid).
+"""Update existing TubePockets pockets with new parameters (H / Trim / Hem / Notch / Rigid).
 Select any part of a pocket (or several with a window) — the pocket is rebuilt from its edge
 in place, with the same number T<n>, layer and side. Only the parameters you changed in the options
 change; the rest stay each pocket's own. Parameters are read from UserText (TP_H…, edge — TP_Seg on the contour).
@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("TubePockets", None)
 import TubePockets as TP
 
-KEYS = ("H", "Trim", "Hem", "Seam", "Notch", "Rigid")
+KEYS = ("H", "Trim", "Hem", "Notch", "Rigid")
 TOGGLES = ("Notch", "Rigid")
 
 
@@ -49,7 +49,6 @@ HELP = u"""Options:
   H — pocket height from the edge into the panel
   Trim — how much shorter the pocket top is at each end
   Hem — hem allowance at the ends, on each side (0 — none)
-  Seam — seam allowance around the full part (0 — none)
   Notch — pocket centre mark (a tick from the edge into the pocket)
   Rigid — Yes: top is a copy of the edge without changing its shape; No: regular offset"""  # printed at start — visible under the option fields
 
@@ -76,11 +75,11 @@ def main():
     if not pockets:
         return
     first = pockets[0]
-    print(u"TP%d now: H=%g Trim=%g Hem=%g Seam=%g Notch=%d Rigid=%d" % ((first["n"],) + tuple(first[k] for k in KEYS)))
+    print(u"TP%d now: H=%g Trim=%g Hem=%g Notch=%d Rigid=%d" % ((first["n"],) + tuple(first[k] for k in KEYS)))
     go = Rhino.Input.Custom.GetOption()
     go.SetCommandPrompt(u"New parameters (Enter — apply to %d pockets)" % len(pockets))
     go.AcceptNothing(True)
-    opts = dict((k, Rhino.Input.Custom.OptionDouble(first[k], 0.0, 1e6)) for k in ("H", "Trim", "Hem", "Seam"))
+    opts = dict((k, Rhino.Input.Custom.OptionDouble(first[k], 0.0, 1e6)) for k in ("H", "Trim", "Hem"))
     for k in TOGGLES:
         opts[k] = Rhino.Input.Custom.OptionToggle(bool(first[k]), "No", "Yes")
     for k in KEYS:
@@ -99,20 +98,20 @@ def main():
     for p in pockets:
         p.update(changed)
         h, trim, notch, rigid = p["H"], p["Trim"], bool(p["Notch"]), bool(p["Rigid"])
-        hem, seam = p["Hem"], p["Seam"]
+        hem = p["Hem"]
         seg, toward, up = p["seg"], p["toward"], p["up"]
         if up is not None:  # build in place of the markup, the full part goes to up again
             seg = seg.DuplicateCurve()
             seg.Translate(-up)
             toward = toward - up
-        res = TP.pocket(seg, toward, 0, h, trim, notch, p["normal"], tol, rigid, hem, seam)
+        res = TP.pocket(seg, toward, 0, h, trim, notch, p["normal"], tol, rigid, hem)
         if not isinstance(res, tuple):
             print(u"TP%d skipped: %s" % (p["n"], res))
             continue
         p["attrs"].RemoveFromAllGroups()
         rs.DeleteObjects(list(p["ids"]) + p["markup"])
         print(u"Updated: " + TP.add_pocket(doc, res + (toward,), h, trim, notch, p["n"], p["attrs"], p["normal"],
-                                           tol, rigid, hem, up, seam))
+                                           tol, rigid, hem, up)[0])
     print(u"Changed: " + ", ".join(u"%s=%g" % kv for kv in sorted(changed.items())))
 
 
