@@ -33,7 +33,7 @@ try:
         return doc, doc.Objects.AddCurve(pl), doc.Objects.AddCurve(line)
 
     sc.sticky[Z.ANGLE] = 30.0
-    sc.sticky.update({R.STICKY: 60.0, R.STICKY + "_plus": 100.0, R.STICKY + "_layout": True, R.UP_KEY: 10000.0,
+    sc.sticky.update({R.STICKY: 60.0, R.STICKY + "_plus": 100.0, R.STICKY + "_layout": True, R.STICKY + "_seam": False, R.UP_KEY: 10000.0,
                       "ZipCover_angle": 30.0})
     rs.ViewCPlane = lambda *a, **k: Plane.WorldXY
     def run_zip(doc, pid, click):

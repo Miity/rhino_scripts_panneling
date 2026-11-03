@@ -14,6 +14,9 @@ own group); a zip made later on the strip pulls the label to its number, flippin
 The full part on the canvas then also carries the zip: its stops (copies), the line stop to stop and the label "Z20 R6".
 Option Layout (default Yes): on the panel — markup (only the inner line W, without panel edges and without Plus),
 full part — 10000 up (ReinfCircle.add_part); No — full part in place.
+Option Seam (default Yes) — seam allowance on the full part: after the last click the view zooms to the new parts and
+pattern/Seams.py runs on them (the strip contour is the sew line; click near the edges that need a seam, Width is asked there).
+The contour carries UserText RF_W / RF_Plus / RF_Angle / RF_Layout / RF_Panel: UpdateRinforzo rebuilds the strip from them.
 B (bordino, folded over the edge) — Bordino.py; its label B<w> goes after R<w> (also without a zip).
 """
 import os
@@ -31,6 +34,9 @@ from ZipStops import (EDGE, RINF_LINE, edge_of, holds, labels_after, mid_point, 
 from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, off_panel, label_style, pick_style  # layer, style
 from ZipCover import cm, flap, label_frame  # edge corner to corner + offset, ends along the neighbours; label along the edge
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pattern"))
+sys.modules.pop("Seams", None)
+import Seams  # seam allowance of the full part: second step
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
@@ -54,8 +60,49 @@ def label_place(edge, off, normal, gap):
     return plane, (Rhino.DocObjects.TextVerticalAlignment.Bottom if up else Rhino.DocObjects.TextVerticalAlignment.Top)
 
 
+def make(doc, oid, panel, click, w, plus, angle, layout, normal, tol, attrs, steps):
+    """One strip at the edge nearest to click: markup on the panel + full part. (full part ids, label) or None."""
+    res = flap(panel, click, w, angle, normal, tol, inward=True)  # on the panel: markup
+    full = flap(panel, click, w, angle, normal, tol, inward=True, plus=plus)  # for cutting: longer by Plus
+    bad = next((r for r in (res, full) if not isinstance(r, tuple)), None)
+    if bad:
+        print(u"Skipped: %s" % bad)
+        return None
+    cut, edge, off, square = res
+    label = u"%s%s" % (CODE, cm(w))
+    style = label_style(doc, STICKY)
+    plane, valign = label_place(edge, off, normal, style.TextHeight * 0.5)
+    zid = zip_text(lambda p, o: holds(cut, p, tol)) if layout else None  # zip number on the strip (edge or zip line): R goes right after it
+    te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
+    te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
+    te.TextVerticalAlignment = valign
+    zip_marks = []  # the zip goes to the part on the canvas too: its stops (copies of the number's group) + the line
+    if zid:
+        zip_marks = [rs.coercecurve(m) for g in rs.ObjectGroups(zid) or [] for m in rs.ObjectsByGroup(g) or []
+                     if rs.IsCurve(m)]
+        zedge = edge_of(zid, tol)[0]
+        if zedge is not None:
+            zip_marks.append(zip_span(zedge, read_trims(zid)))  # stop to stop
+    full_ids, markup = add_part(doc, [full[0]] + zip_marks, te, off_panel(cut, [panel], tol), attrs, layout)
+    if layout:  # a zip made later on this strip puts the label after its number (ZipStops.finish_zip)
+        rs.SetUserText(markup[-1], RINF_LINE, str(oid))
+    if zid:
+        labels_after(doc, zid, stored_point(zid, EDGE), tol, steps)  # Z<n> R<w> (B<w> after it, if any)
+        rs.TextObjectText(full_ids[-1], rs.GetUserText(zid, "Zip") + u" " + label)  # canvas part: "Z20 R6"
+    elif layout:
+        labels_after(doc, None, mid_point(edge), tol, steps, oid)  # no zip: B<w> / Pt<w> of this edge after R<w>
+    doc.Views.Redraw()
+    print(u"%s  l=%s" % (label, cm(edge.GetLength() + plus)))  # length only in the command history
+    if square:
+        print(u"Warning: %d end(s) with a neighbour sharper than 30° — end is perpendicular" % square)
+    contour = full_ids[0]  # data for UpdateRinforzo: the strip is rebuilt from the panel and this click
+    for key, value in (("W", w), ("Plus", plus), ("Angle", angle), ("Layout", int(layout)), ("Panel", oid)):
+        rs.SetUserText(contour, "RF_" + key, str(value))
+    return full_ids, label
+
+
 def ask(gp):
-    """Click near an edge with options W / Plus / Angle / Layout / Style / Undo. A point, UNDO or None (Enter / Esc)."""
+    """Click near an edge with options W / Plus / Angle / Layout / Seam / Style / Undo. A point, UNDO or None (Enter / Esc)."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
     w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0 * unit), 0.001, 1e6)
     plus = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_plus", 100.0 * unit), 0.0, 1e6)
@@ -66,11 +113,14 @@ def ask(gp):
     gp.AddOptionDouble("Angle", a)
     lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
     gp.AddOptionToggle("Layout", lay)
+    seam = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_seam", True), "No", "Yes")
+    gp.AddOptionToggle("Seam", seam)
     up = up_option(gp)
     i_style = gp.AddOption("Style")
     while True:
         r = gp.Get()
         sc.sticky[STICKY + "_layout"] = lay.CurrentValue
+        sc.sticky[STICKY + "_seam"] = seam.CurrentValue
         sc.sticky[UP_KEY] = up.CurrentValue
         sc.sticky[STICKY] = w.CurrentValue
         sc.sticky[STICKY + "_plus"] = plus.CurrentValue
@@ -89,6 +139,7 @@ HELP = u"""Options:
   Plus — the strip is longer than the edge by this much (half past each end), trimmed after sewing
   Angle — a break larger than this angle = panel corner (the edge is taken corner to corner)
   Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
+  Seam — Yes: after the last click the seam allowance step (Seams.py) runs on the new full parts
   Up — how far up (along CPlane Y) the full part goes with Layout=Yes; shared by all part scripts
   Style — label text style (default PAT 14 mm)
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
@@ -106,7 +157,7 @@ def main():
     normal = plane.ZAxis if ok else rs.ViewCPlane().ZAxis
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
-    made = 0
+    made, parts = 0, []
     steps = Steps(doc)
     while True:
         gp = Rhino.Input.Custom.GetPoint()
@@ -120,42 +171,15 @@ def main():
                 made -= 1
             continue
         steps.start()
-        w, plus, angle = sc.sticky[STICKY], sc.sticky[STICKY + "_plus"], sc.sticky["ZipCover_angle"]
-        res = flap(panel, click, w, angle, normal, tol, inward=True)  # on the panel: markup
-        full = flap(panel, click, w, angle, normal, tol, inward=True, plus=plus)  # for cutting: longer by Plus
-        bad = next((r for r in (res, full) if not isinstance(r, tuple)), None)
-        if bad:
-            print(u"Skipped: %s" % bad)
+        got = make(doc, oid, panel, click, sc.sticky[STICKY], sc.sticky[STICKY + "_plus"], sc.sticky["ZipCover_angle"],
+                   sc.sticky[STICKY + "_layout"], normal, tol, attrs, steps)
+        if got is None:
             continue
-        cut, edge, off, square = res
-        label = u"%s%s" % (CODE, cm(w))
-        style = label_style(doc, STICKY)
-        plane, valign = label_place(edge, off, normal, style.TextHeight * 0.5)
-        layout = sc.sticky[STICKY + "_layout"]
-        zid = zip_text(lambda p, o: holds(cut, p, tol)) if layout else None  # zip number on the strip (edge or zip line): R goes right after it
-        te = Rhino.Geometry.TextEntity.Create(label, plane, style, False, 0, 0)
-        te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
-        te.TextVerticalAlignment = valign
-        zip_marks = []  # the zip goes to the part on the canvas too: its stops (copies of the number's group) + the line
-        if zid:
-            zip_marks = [rs.coercecurve(m) for g in rs.ObjectGroups(zid) or [] for m in rs.ObjectsByGroup(g) or []
-                         if rs.IsCurve(m)]
-            zedge = edge_of(zid, tol)[0]
-            if zedge is not None:
-                zip_marks.append(zip_span(zedge, read_trims(zid)))  # stop to stop
-        full_ids, markup = add_part(doc, [full[0]] + zip_marks, te, off_panel(cut, [panel], tol), attrs, layout)
-        if layout:  # a zip made later on this strip puts the label after its number (ZipStops.finish_zip)
-            rs.SetUserText(markup[-1], RINF_LINE, str(oid))
-        if zid:
-            labels_after(doc, zid, stored_point(zid, EDGE), tol, steps)  # Z<n> R<w> (B<w> after it, if any)
-            rs.TextObjectText(full_ids[-1], rs.GetUserText(zid, "Zip") + u" " + label)  # canvas part: "Z20 R6"
-        elif layout:
-            labels_after(doc, None, mid_point(edge), tol, steps, oid)  # no zip: B<w> / Pt<w> of this edge after R<w>
-        doc.Views.Redraw()
-        print(u"%s  l=%s" % (label, cm(edge.GetLength() + plus)))  # length only in the command history
-        if square:
-            print(u"Warning: %d end(s) with a neighbour sharper than 30° — end is perpendicular" % square)
+        parts.append(got[0][0])  # the contour of the full part
         made += 1
+    if parts and sc.sticky.get(STICKY + "_seam", True):  # second step: seam allowance — the view goes to the new parts, Seams.py asks where
+        rs.ZoomBoundingBox(rs.BoundingBox(parts))
+        Seams.main(parts)
     print(u"Rinforzo: %d → %s" % (made, LAYER))
 
 
