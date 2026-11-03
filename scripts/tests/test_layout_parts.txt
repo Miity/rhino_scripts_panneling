@@ -1,3 +1,1 @@
-Traceback (most recent call last):
-  File "file:///Users/dmytro/Documents/Projects/Rhino/scripts/tests/test_layout_parts.py", line 60, in <module>
-AssertionError: []
+OK

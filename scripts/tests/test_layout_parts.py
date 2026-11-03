@@ -52,6 +52,9 @@ try:
     rs.SetUserText(mlbl, "PartMarkup", "1")
     rs.AddObjectsToGroup([det, seam, dlbl, mlbl], rs.AddGroup())
 
+    # a headless doc puts new objects on the last added layer, not the current one
+    rs.ObjectLayer([panel, hole, lbl, dot, circ, det, seam, dlbl, mlbl] + pts + cross, "Parts::Panels")
+    rs.ObjectLayer([zipl, inner, stop, ztxt, long_txt], "Parts::Zip")
     sel = [panel, dot, circ, zipl, inner, stop, ztxt, long_txt, det] + pts + cross
     new, skipped = M.layout(doc, sel, 10.0, Plane.WorldXY, Point3d(0, 2000, 0), 20.0)
     assert skipped == 0, skipped

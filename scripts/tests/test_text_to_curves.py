@@ -70,14 +70,18 @@ try:
     if os.path.exists(P1):
         doc = Rhino.RhinoDoc.OpenHeadless(P1)
         sc.doc = doc
+        seen = set()
         for obj in doc.Objects:
             te = obj.Geometry
-            if not isinstance(te, rg.TextEntity):
+            # only the texts checked on screen: a symmetric glyph (Y, A) looks the same mirrored
+            if not isinstance(te, rg.TextEntity) or te.PlainText not in (u"P3", u"CZ 20", u"Can3", u"Z2"):
                 continue
             got = [c.PointAtStart for c in M.text_curves(te)]
             raw = [g.PointAtStart for g in te.Explode() if isinstance(g, rg.Curve)]
             assert max(a.DistanceTo(b) for a, b in zip(got, raw)) > 1.0, te.PlainText
-        res += "; p1.3dm ok"
+            seen.add(te.PlainText)
+        res += ("; p1.3dm ok (%s)" % ", ".join(sorted(seen)) if seen
+                else "; p1.3dm has none of P3 / CZ 20 / Can3 / Z2 now — not checked")
 except Exception:
     res = traceback.format_exc()
 

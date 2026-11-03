@@ -29,7 +29,7 @@ try:
     sc.doc = doc
     tol = doc.ModelAbsoluteTolerance
     rs.ViewCPlane = lambda *a, **k: Plane.WorldXY
-    sc.sticky.update({R.STICKY: 60.0, R.STICKY + "_plus": 100.0, R.STICKY + "_layout": True, R.UP_KEY: 10000.0,
+    sc.sticky.update({R.STICKY: 60.0, R.STICKY + "_plus": 100.0, R.STICKY + "_layout": True, R.STICKY + "_seam": False, R.UP_KEY: 10000.0,
                       "ZipCover_angle": 30.0, "Bordino": 35.0, "Bordino_plus": 60.0, "Pettola": 100.0,
                       "Pettola_plus": 60.0})
 
@@ -64,7 +64,7 @@ try:
     edge = LineCurve(Point3d(0, -300, 0), Point3d(500, -300, 0))
     toward = Point3d(250, -260, 0)
     res = T.pocket(edge, toward, 300, 100, 20, True, Vector3d.ZAxis, tol)
-    T.add_pocket(doc, res + (toward,), 100, 20, True, 9, layer("Pockets"), Vector3d.ZAxis, tol, False, 0,
+    T.add_pocket(doc, res + (toward,), 100, 20, True, 9, layer("Pockets"), Vector3d.ZAxis, tol, False,
                  Vector3d(0, 10000, 0))
     # a fascia strip lying over P4 — no place on a panel, skipped
     sa = layer("Strips")

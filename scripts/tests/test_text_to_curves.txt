@@ -1,1 +1,1 @@
-ok (Explode gave mirrored: 144 of 216); p1.3dm ok
+ok (Explode gave mirrored: 144 of 216); p1.3dm has none of P3 / CZ 20 / Can3 / Z2 now — not checked

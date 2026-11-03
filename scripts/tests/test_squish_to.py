@@ -98,8 +98,8 @@ try:
         # main
         assert not isinstance(M.transfer(doc, marks, fid, tol, []), tuple)  # no 3D surface
         assert not isinstance(M.transfer(doc, marks, fid, tol, [other]), tuple)  # not the squished one
-        rs.GetObjects = lambda *a, **k: marks + [sid]
-        rs.GetObject = lambda *a, **k: fid
+        picks = [marks + [sid], [fid]]  # 3D marks + surface, then the squished pieces
+        rs.GetObjects = lambda *a, **k: picks.pop(0)
         before = set(o.Id for o in doc.Objects)
         M.main()
         new = [o.Id for o in doc.Objects if o.Id not in before]
@@ -113,7 +113,8 @@ try:
         h = doc.Objects.AddPoint(moved[0].Location + Vector3d(0, 0, 0))
         doc.Objects.Hide(h, True)
         doc.Objects.AddPoint(mv * Point3d(450, 450, 0))  # on the other surface
-        rs.GetObjects = lambda *a, **k: [sid]
+        picks = [[sid], [fid]]
+        rs.GetObjects = lambda *a, **k: picks.pop(0)
         before = set(o.Id for o in doc.Objects)
         M.main()
         new = [o.Id for o in doc.Objects if o.Id not in before]

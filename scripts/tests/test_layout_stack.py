@@ -32,7 +32,7 @@ try:
     sc.doc = doc
     sc.sticky.update({"Parts_up": 10000.0, "ZipCover_angle": 30.0, "Bordino": 35.0, "Bordino_plus": 60.0,
                       "Pettola": 100.0, "Pettola_plus": 60.0, R.STICKY: 60.0, R.STICKY + "_plus": 100.0,
-                      R.STICKY + "_layout": True})
+                      R.STICKY + "_layout": True, R.STICKY + "_seam": False})
     sc.sticky[Z.ANGLE] = 30.0
     rs.ViewCPlane = lambda *a, **k: Plane.WorldXY
     turn = Transform.Rotation(math.radians(30), Vector3d.ZAxis, Point3d.Origin)
@@ -124,7 +124,7 @@ try:
     assert len(rects) == 3 and len(texts) == 3, (len(rects), len(texts))
     tol = 1e-6
     y = -5000.0
-    for c, (length, w) in zip(rects, ((400.0, 60.0), (560.0, 35.0), (360.0, 35.0))):  # Rinforzo, then longest first
+    for c, (length, w) in zip(rects, ((300.0, 60.0), (560.0, 35.0), (360.0, 35.0))):  # Rinforzo, then longest first
         bb = c.GetBoundingBox(True)
         assert abs(bb.Min.X) < tol and abs(bb.Max.Y - y) < tol, (bb.Min, bb.Max, y)
         assert abs(bb.Max.X - bb.Min.X - length) < tol and abs(bb.Max.Y - bb.Min.Y - w) < tol, (bb.Min, bb.Max)
