@@ -200,9 +200,9 @@ def add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid=False, hem
         sa = attrs.Duplicate()
         sa.LayerIndex = fold_layer(doc, attrs.LayerIndex, "Sew")
         full.append(add(sew, sa))
-    seam = seg.DuplicateCurve()  # the edge is not drawn — stored on the contour for UpdateTubePockets
-    seam.Transform(xf)
-    rs.SetUserText(full[0], "TP_Seg", seam.ToJSON(None))
+    edge = seg.DuplicateCurve()  # the edge is not drawn — stored on the contour for UpdateTubePockets
+    edge.Transform(xf)
+    rs.SetUserText(full[0], "TP_Seg", edge.ToJSON(None))
     if mark:
         full.append(add(mark, attrs))
     text = label_attrs(doc, attrs)  # labels — Labels::Pockets
