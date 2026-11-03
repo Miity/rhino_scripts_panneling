@@ -354,6 +354,41 @@ def only_inside(ids, plane, polygons, tol):
     return keep
 
 
+def off_contour(object_id, contours, tol):
+    """Replace a curve by its parts that do not run along a cut contour (same layer, groups, attributes).
+
+    A line lying under the contour would be a second line there. Returns the new ids,
+    or [object_id] when nothing overlaps.
+    """
+    curve = rs.coercecurve(object_id)
+    if curve is None:
+        return [object_id]
+    params = []
+    for contour in contours:
+        for event in Rhino.Geometry.Intersect.Intersection.CurveCurve(curve, contour, tol, tol) or []:
+            params.append(event.ParameterA)
+            if event.IsOverlap:
+                params.append(event.OverlapA[1])
+    lo, hi = curve.Domain.T0, curve.Domain.T1
+    params = sorted(set(round(t, 9) for t in params if lo + 1e-9 < t < hi - 1e-9))
+    if params and curve.IsClosed:
+        params.insert(0, lo)  # a closed curve cut at one parameter stays one piece
+    pieces = curve.Split(params) if params else None
+    if not pieces:
+        return [object_id]
+    keep = []
+    for piece in pieces:
+        mid = piece.PointAtNormalizedLength(0.5)
+        if all(contour.PointAt(contour.ClosestPoint(mid)[1]).DistanceTo(mid) > tol for contour in contours):
+            keep.append(piece)
+    if len(keep) == len(pieces):
+        return [object_id]
+    attributes = rs.coercerhinoobject(object_id).Attributes.Duplicate()
+    new_ids = [sc.doc.Objects.AddCurve(c, attributes) for c in Rhino.Geometry.Curve.JoinCurves(keep, tol)] if keep else []
+    sc.doc.Objects.Delete(object_id, True)
+    return new_ids
+
+
 MARKS = 4 | 512  # rs.filter.curve | rs.filter.annotation: lines and texts
 NOTCH = "Notch"  # UserText of a notch (pattern/Notches.py): stays on its layer, never a panel line
 
@@ -445,6 +480,9 @@ def main():
             rs.DeleteObject(object_id)
         print(u"Cut layout not created: {0}".format(error))
         return
+    contours = [rs.coercecurve(i) for i in created[edge_count:]]
+    to_int = [new for i in to_int for new in off_contour(i, contours, tol)]
+    to_ink = [new for i in to_ink for new in off_contour(i, contours, tol)]
     for object_id in to_int:
         rs.ObjectLayer(object_id, "int")
     for object_id in to_ink:
