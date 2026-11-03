@@ -127,7 +127,6 @@ def main():
     if changed:
         print(u"Changed: " + ", ".join(u"%s=%g" % kv for kv in sorted(changed.items())))
     if parts:  # second step: seam allowance
-        rs.ZoomBoundingBox(rs.BoundingBox(parts))
         Seams.main(parts)
 
 

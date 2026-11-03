@@ -484,10 +484,23 @@ HELP = u"""Options:
   Undo — take back the last click (again — the click before it)"""  # printed at start — visible under the option fields
 
 
+def zoom_to(ids):
+    """The view goes to the given objects (rs.BoundingBox takes a one-item list for a point)."""
+    box = Rhino.Geometry.BoundingBox.Unset
+    for i in ids:
+        box.Union(rs.coercegeometry(i).GetBoundingBox(True))
+    view = sc.doc.Views.ActiveView
+    if box.IsValid and view is not None:
+        view.ActiveViewport.ZoomBoundingBox(box)
+        sc.doc.Views.Redraw()
+
+
 def main(ids=None):
-    """ids — panels given by the calling script (TubePockets): no selection prompt."""
+    """ids — panels given by the calling script (TubePockets, Rinforzo): no selection prompt, the view goes to them."""
     print(HELP)
     doc = sc.doc
+    if ids:
+        zoom_to(ids)
     ids = ids or rs.GetObjects(u"Select panels (closed curves = sew lines)", rs.filter.curve, preselect=True)
     ids = [i for i in ids or [] if not rs.GetUserText(i, KEY) and not rs.GetUserText(i, NOTCH)]  # cut lines, notches
     if not ids:

@@ -170,7 +170,6 @@ def main():
         parts.append(got[0][0])  # the contour of the full part
         made += 1
     if parts and sc.sticky.get(STICKY + "_seam", True):  # second step: seam allowance — the view goes to the new parts, Seams.py asks where
-        rs.ZoomBoundingBox(rs.BoundingBox(parts))
         Seams.main(parts)
     print(u"Rinforzo: %d → %s" % (made, LAYER))
 

@@ -315,7 +315,6 @@ def main():
         made += 1
     print(u"Pockets: %d → %s" % (made, LAYER))
     if parts:  # second step: seam allowance — the view goes to the new parts, Seams.py asks where
-        rs.ZoomBoundingBox(rs.BoundingBox(parts))
         Seams.main(parts)
 
 
