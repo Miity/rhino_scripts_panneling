@@ -499,6 +499,7 @@ def main(ids=None):
     """ids — panels given by the calling script (TubePockets, Rinforzo): no selection prompt, the view goes to them."""
     print(HELP)
     doc = sc.doc
+    ids = [i for i in ids or [] if rs.IsObject(i)] or None  # a caller's part may be gone (its click undone)
     if ids:
         zoom_to(ids)
     ids = ids or rs.GetObjects(u"Select panels (closed curves = sew lines)", rs.filter.curve, preselect=True)

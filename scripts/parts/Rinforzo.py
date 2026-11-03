@@ -169,6 +169,7 @@ def main():
             continue
         parts.append(got[0][0])  # the contour of the full part
         made += 1
+    parts = [p for p in parts if rs.IsObject(p)]  # a click taken back with Undo leaves no part
     if parts and sc.sticky.get(STICKY + "_seam", True):  # second step: seam allowance — the view goes to the new parts, Seams.py asks where
         Seams.main(parts)
     print(u"Rinforzo: %d → %s" % (made, LAYER))
