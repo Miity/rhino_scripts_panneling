@@ -4,6 +4,10 @@ Select any part of a pocket (or several with a window) — the pocket is rebuilt
 in place, with the same number T<n>, layer and side. Only the parameters you changed in the options
 change; the rest stay each pocket's own. Parameters are read from UserText (TP_H…, edge — TP_Seg on the contour).
 Pocket = markup on the panel + full part above (TP_Up): you can select either, both are rebuilt.
+Option Seam: Yes — after the update the view zooms to the parts and pattern/Seams.py runs on them (the same second step as
+in TubePockets). Default Yes if a selected pocket had a seam cut line. A rebuilt pocket loses its old cut line (it is in
+the pocket's group), so with Seam=No the allowance is dropped (a warning is printed). Seam=Yes with no other change —
+nothing is rebuilt, Seams just runs on the existing parts (their cut lines are edited, not lost).
 """
 import os
 import sys
@@ -15,6 +19,9 @@ import scriptcontext as sc
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("TubePockets", None)
 import TubePockets as TP
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pattern"))
+sys.modules.pop("Seams", None)
+import Seams
 
 KEYS = ("H", "Trim", "Hem", "Notch", "Rigid")
 TOGGLES = ("Notch", "Rigid")
@@ -39,7 +46,7 @@ def read_pocket(ids, tol):
     up = rs.GetUserText(oid, "TP_Up")
     vals["up"] = Rhino.Geometry.Vector3d(*[float(x) for x in up.split(",")]) if up else None
     vals["markup"] = tagged(oid, rs.GetUserText(oid, "TP_N"), True) if up else []
-    vals.update(n=int(rs.GetUserText(oid, "TP_N")), seg=seg, toward=rs.coercegeometry(texts[0]).Plane.Origin,  # label inside the pocket
+    vals.update(outline=oid, had_seam=any(rs.GetUserText(i, Seams.KEY) for i in ids), n=int(rs.GetUserText(oid, "TP_N")), seg=seg, toward=rs.coercegeometry(texts[0]).Plane.Origin,  # label inside the pocket
                 normal=plane.ZAxis if ok else rs.ViewCPlane().ZAxis, ids=ids,
                 attrs=sc.doc.Objects.FindId(rs.coerceguid(oid)).Attributes.Duplicate())  # contour layer, not Fold
     return vals
@@ -50,7 +57,8 @@ HELP = u"""Options:
   Trim — how much shorter the pocket top is at each end
   Hem — hem allowance at the ends, on each side (0 — none)
   Notch — pocket centre mark (a tick from the edge into the pocket)
-  Rigid — Yes: top is a copy of the edge without changing its shape; No: regular offset"""  # printed at start — visible under the option fields
+  Rigid — Yes: top is a copy of the edge without changing its shape; No: regular offset
+  Seam — Yes: run the seam allowance step (Seams.py) on the pockets afterwards; rebuilt pockets lose the old cut line"""  # printed at start — visible under the option fields
 
 
 def main():
@@ -82,6 +90,8 @@ def main():
     opts = dict((k, Rhino.Input.Custom.OptionDouble(first[k], 0.0, 1e6)) for k in ("H", "Trim", "Hem"))
     for k in TOGGLES:
         opts[k] = Rhino.Input.Custom.OptionToggle(bool(first[k]), "No", "Yes")
+    seam = Rhino.Input.Custom.OptionToggle(any(p["had_seam"] for p in pockets), "No", "Yes")
+    go.AddOptionToggle("Seam", seam)
     for k in KEYS:
         (go.AddOptionToggle if k in TOGGLES else go.AddOptionDouble)(k, opts[k])
     while True:
@@ -92,10 +102,14 @@ def main():
             return
         break
     changed = dict((k, float(opts[k].CurrentValue)) for k in KEYS if float(opts[k].CurrentValue) != first[k])
-    if not changed:
+    if not changed and not seam.CurrentValue:
         print(u"Nothing changed")
         return
+    parts = []
     for p in pockets:
+        if not changed:  # only Seams again, on the parts as they are
+            parts.append(p["outline"])
+            continue
         p.update(changed)
         h, trim, notch, rigid = p["H"], p["Trim"], bool(p["Notch"]), bool(p["Rigid"])
         hem = p["Hem"]
@@ -110,9 +124,18 @@ def main():
             continue
         p["attrs"].RemoveFromAllGroups()
         rs.DeleteObjects(list(p["ids"]) + p["markup"])
-        print(u"Updated: " + TP.add_pocket(doc, res + (toward,), h, trim, notch, p["n"], p["attrs"], p["normal"],
-                                           tol, rigid, hem, up)[0])
-    print(u"Changed: " + ", ".join(u"%s=%g" % kv for kv in sorted(changed.items())))
+        label, part = TP.add_pocket(doc, res + (toward,), h, trim, notch, p["n"], p["attrs"], p["normal"],
+                                    tol, rigid, hem, up)
+        print(u"Updated: " + label)
+        if seam.CurrentValue:
+            parts.append(part)
+        elif p["had_seam"]:
+            print(u"%s: the old seam cut line is gone (Seam=No)" % label)
+    if changed:
+        print(u"Changed: " + ", ".join(u"%s=%g" % kv for kv in sorted(changed.items())))
+    if parts:  # second step: seam allowance
+        rs.ZoomBoundingBox(rs.BoundingBox(parts))
+        Seams.main(parts)
 
 
 if __name__ == "__main__":
