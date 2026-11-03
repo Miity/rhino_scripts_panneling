@@ -23,14 +23,18 @@ in which a plotter cuts layers must still be set in the plotter software.
 """
 
 import math
+import os
+import sys
 
 try:
     import Rhino
     import System
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
+    import TextToCurves
 except ImportError:
-    Rhino = System = rs = sc = None
+    Rhino = System = rs = sc = TextToCurves = None
 
 
 def sub(a, b):
@@ -354,6 +358,14 @@ def only_inside(ids, plane, polygons, tol):
     return keep
 
 
+def as_curves(ids):
+    """Texts become letter curves (markup/TextToCurves.py: the cutter needs curves); other objects stay."""
+    out = []
+    for object_id in ids:
+        out.extend(TextToCurves.convert(object_id) or [object_id])
+    return out
+
+
 def off_contour(object_id, contours, tol):
     """Replace a curve by its parts that do not run along a cut contour (same layer, groups, attributes).
 
@@ -481,8 +493,8 @@ def main():
         print(u"Cut layout not created: {0}".format(error))
         return
     contours = [rs.coercecurve(i) for i in created[edge_count:]]
-    to_int = [new for i in to_int for new in off_contour(i, contours, tol)]
-    to_ink = [new for i in to_ink for new in off_contour(i, contours, tol)]
+    to_int = [new for i in as_curves(to_int) for new in off_contour(i, contours, tol)]
+    to_ink = [new for i in as_curves(to_ink) for new in off_contour(i, contours, tol)]
     for object_id in to_int:
         rs.ObjectLayer(object_id, "int")
     for object_id in to_ink:
