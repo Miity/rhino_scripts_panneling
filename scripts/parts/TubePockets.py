@@ -15,7 +15,7 @@ of the pocket are extended to it straight; the old end stays in the group as a f
 Only markup stays on the panel (in place): ends + pocket top as one open curve (without the edge and Hem)
 + label (UserText TP_Markup). The full part for cutting — UP (10000) up along CPlane Y
 (UserText TP_Up), that is what Layout lays out. Markup and full part — one group, also linked by number (UserText TP_N).
-Option Seam — seam allowance on the full part (cut line = sew contour offset outward by Seam on all sides; Seam=0 — none).
+Option Seam — seam allowance on the full part, only on the top (the line sewn to the panel; ends have Hem, the bottom is the panel edge): the top moves away from the edge by Seam, ends follow. Seam=0 — none.
 The sew contour stays inside the part, in sublayer <layer>::Sew (it travels with the part to Layout). Not on the markup.
 Option Layout (default Yes): No — full part in place, no markup (like old pockets).
 Options W / H / Trim / Hem / Seam / Notch / Rigid / Layout / Up / Angle / Style — in the click prompt, remembered between runs.
@@ -120,6 +120,29 @@ def reversed_copy(c):
     return c
 
 
+def seam_top(outer, inner, sides, seam, normal, tol):
+    """Pocket top moved away from the edge by seam, ends extended / trimmed to the side lines: [new top, side, side] or None."""
+    m = inner.PointAt(inner.Domain.Mid)
+    q = outer.PointAt(outer.ClosestPoint(m)[1])
+    top = offset(inner, m + (m - q), seam, normal, tol)
+    big = 10 * (seam + inner.GetLength())
+    topx = top and top.Extend(CurveEnd.Both, big, CurveExtensionStyle.Line)
+    if topx is None:
+        return None
+    ts, pieces = [], []
+    for sd in sides:
+        sx = sd.Extend(CurveEnd.Both, big, CurveExtensionStyle.Line)
+        x = Intersection.CurveCurve(topx, sx, tol, tol) if sx else None
+        if not x or x.Count == 0:
+            return None
+        po = min((outer.PointAtStart, outer.PointAtEnd), key=lambda p: sd.PointAt(sd.ClosestPoint(p)[1]).DistanceTo(p))
+        tp = sx.ClosestPoint(po)[1]
+        pieces.append(sx.Trim(min(tp, x[0].ParameterB), max(tp, x[0].ParameterB)))
+        ts.append(x[0].ParameterA)
+    top = topx.Trim(min(ts), max(ts))
+    return None if None in pieces or top is None else [top] + pieces
+
+
 def pocket(crv, click, w, h, trim, notch, normal, tol, rigid=False, hem=0.0, seam=0.0):
     """(contour — with the seam allowance, edge, centre mark or None, fold lines, markup: ends + top, without the edge,
     sew contour or None if seam=0);
@@ -165,14 +188,12 @@ def pocket(crv, click, w, h, trim, notch, normal, tol, rigid=False, hem=0.0, sea
         # ponytail: goes H/10 into the pocket from the edge; for a fixed depth — a separate option.
         mark = LineCurve(m, m + d * (h / 10.0))
     sew, cut = None, joined[0]
-    if seam > 0:
-        bb = cut.GetBoundingBox(True)
-        far = bb.Min - Vector3d(1, 1, 0) * (bb.Diagonal.Length + 1e3)  # outside the closed contour: offset goes away from it
-        offs = cut.Offset(far, normal, seam, tol, CurveOffsetCornerStyle.Sharp)
-        offs = Curve.JoinCurves(offs, tol) if offs else None
-        if not offs or len(offs) != 1 or not offs[0].IsClosed:
+    if seam > 0:  # only the top (the line sewn to the panel); ends have Hem, the bottom is the panel edge
+        top = seam_top(hemmed[0], hemmed[1], sides, seam, normal, tol)
+        cut = top and Curve.JoinCurves([hemmed[0]] + list(top), tol)
+        if not cut or len(cut) != 1 or not cut[0].IsClosed:
             return u"seam allowance Seam failed"
-        sew, cut = cut, offs[0]
+        sew, cut = joined[0], cut[0]
     return cut, seg, mark, folds, simple[0], sew
 
 
@@ -313,7 +334,7 @@ HELP = u"""Options:
   H — pocket height from the edge into the panel
   Trim — how much shorter the pocket top is at each end
   Hem — hem allowance at the ends, on each side (0 — none)
-  Seam — seam allowance around the full part (cut line outside, sew contour inside in sublayer Sew; 0 — none)
+  Seam — seam allowance on the top of the full part (cut line outside, sew contour inside in sublayer Sew; 0 — none)
   Notch — pocket centre mark (a tick from the edge into the pocket)
   Rigid — Yes: top is a copy of the edge without changing its shape; No: regular offset
   Layout — Yes: only markup on the panel, full part `Up` up; No: full part in place
