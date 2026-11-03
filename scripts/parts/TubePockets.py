@@ -306,7 +306,7 @@ def main():
             print(u"Skipped: " + res)
             continue
         res = res + (toward,)
-        label, part = add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid, hem,
+        label, part = add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid,
                            rs.ViewCPlane().YAxis * sc.sticky.get(UP_KEY, UP) if sc.sticky[STICKY + "_layout"] else None)
         print(label)
         if seam:
