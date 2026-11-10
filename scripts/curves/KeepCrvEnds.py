@@ -1,22 +1,25 @@
 # -*- coding: utf-8 -*-
 """Cuts out the middle of curves: keeps the given length at the start and at the end.
 Both pieces of each curve keep the original's layer/attributes and groups, are grouped together and selected."""
+import os
+import sys
+
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.modules.pop("TrimCrvEnds", None)  # live Rhino keeps old module versions
+import TrimCrvEnds  # the cut points at a length from each end
+
 
 def keep_ends(crv, dist):
     """Returns [start, end] pieces or None if the curve is too short."""
-    length = crv.GetLength()
-    if length - 2 * dist <= sc.doc.ModelAbsoluteTolerance:
-        return None
-    ok0, t0 = crv.LengthParameter(dist)
-    ok1, t1 = crv.LengthParameter(length - dist)
-    if not (ok0 and ok1):
+    ts = TrimCrvEnds.cut_params(crv, dist, dist)
+    if ts is None:
         return None
     d = crv.Domain
-    pieces = [crv.Trim(d.T0, t0), crv.Trim(t1, d.T1)]
+    pieces = [crv.Trim(d.T0, ts[0]), crv.Trim(ts[1], d.T1)]
     return pieces if all(pieces) else None
 
 

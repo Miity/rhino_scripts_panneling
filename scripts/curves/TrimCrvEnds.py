@@ -5,18 +5,20 @@ import rhinoscriptsyntax as rs
 import scriptcontext as sc
 
 
-def trim_ends(crv, dist, side="Both"):
-    tol = sc.doc.ModelAbsoluteTolerance
+def cut_params(crv, d0, d1):
+    """Curve parameters at length d0 from the start and d1 from the end; None if the curve is too short.
+    Also used by curves/KeepCrvEnds.py."""
     length = crv.GetLength()
-    d0 = dist if side in ("Both", "Start") else 0.0
-    d1 = dist if side in ("Both", "End") else 0.0
-    if length - d0 - d1 <= tol:
+    if length - d0 - d1 <= sc.doc.ModelAbsoluteTolerance:
         return None
     ok0, t0 = crv.LengthParameter(d0)
     ok1, t1 = crv.LengthParameter(length - d1)
-    if not (ok0 and ok1):
-        return None
-    return crv.Trim(t0, t1)
+    return (t0, t1) if ok0 and ok1 else None
+
+
+def trim_ends(crv, dist, side="Both"):
+    ts = cut_params(crv, dist if side in ("Both", "Start") else 0.0, dist if side in ("Both", "End") else 0.0)
+    return crv.Trim(ts[0], ts[1]) if ts else None
 
 
 def replace(oid, new):
