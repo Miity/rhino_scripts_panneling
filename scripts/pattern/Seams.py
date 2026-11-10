@@ -14,7 +14,6 @@ the panel together with its cut line keeps the link; the next click on the panel
 Notches of the panel (Convert Notches) move with the seam: out to the new cut line (back to the sew line — no seam).
 Later PreparePanelCut makes the cut line the outer contour on CUT and the panel edges the sew line on INK.
 """
-import math
 import os
 import sys
 
@@ -28,7 +27,7 @@ from Rhino.Geometry.Intersect import Intersection
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "parts"))
 sys.modules.pop("ZipCover", None)  # Rhino keeps modules from the first run for the session
-from ZipCover import close_panel, layer_attrs  # "almost closed" DXF panels, <parent>::<name> layer
+from ZipCover import breaks as turns, close_panel, layer_attrs, runs, segments  # "almost closed" DXF panels, <parent>::<name> layer, edges corner to corner
 sys.modules.pop("JoinCorner", None)
 from JoinCorner import clean, micro  # no micro zigzags / spikes on the cut line (plotter knife)
 sys.path.insert(0, os.path.dirname(HERE))  # scripts/: shared click_undo
@@ -139,9 +138,7 @@ def edges(lp, angle, tol, breaks=(), riprese=()):
         return sorted(ts)
 
     segs = []
-    for s in lp.DuplicateSegments() or [lp.DuplicateCurve()]:
-        if s.GetLength() <= tol:
-            continue
+    for s in segments(lp, tol):  # micro zigzags (DXF, FindZigzags) dropped, the next segment starts where the last ended
         ts = cuts(s)
         if ts and s.IsClosed:  # one closed segment (circle): it starts at the first break point
             s = s.DuplicateCurve()
@@ -149,28 +146,15 @@ def edges(lp, angle, tol, breaks=(), riprese=()):
             ts = cuts(s)
         b = [s.Domain.T0] + ts + [s.Domain.T1]
         segs += [p for p in (s.Trim(x, y) for x, y in zip(b, b[1:]) if y - x > 1e-9) if p] if ts else [s]
-    # ponytail: micro zigzags (DXF, FindZigzags) — segments under 100 tol dropped, the next one starts where the last ended
-    short = [s for s in segs if s.GetLength() < 100 * tol]
-    if len(short) < len(segs) - 1:
-        segs = [s for s in segs if s.GetLength() >= 100 * tol]
-        for i in range(len(segs)):
-            if segs[i - 1].PointAtEnd.DistanceTo(segs[i].PointAtStart) > tol:
-                segs[i] = segs[i].DuplicateCurve()
-                segs[i].SetStartPoint(segs[i - 1].PointAtEnd)
     n = len(segs)
-    rad = math.radians(angle)
     ends = [p for r in riprese for p in (r.PointAtStart, r.PointAtEnd)]
     # ponytail: a ripresa end that is also a real panel corner loses that corner — riprese sit inside an edge
-    corners = sorted((set(i for i in range(n) if Vector3d.VectorAngle(segs[i - 1].TangentAtEnd, segs[i].TangentAtStart) > rad)
+    corners = sorted((set(turns(segs, True, angle))  # direction breaks (the argument breaks — break points)
                       | set(i for i in range(n) for p in breaks if segs[i].PointAtStart.DistanceTo(p) <= near))
                      - set(i for i in range(n) for p in ends if segs[i].PointAtStart.DistanceTo(p) <= near))
     if len(corners) < 2:
         return [lp.DuplicateCurve()]
-    out = []
-    for j, s in enumerate(corners):
-        k = (corners[(j + 1) % len(corners)] - s) % n or n
-        out.append(Curve.JoinCurves([segs[(s + m) % n] for m in range(k)], tol)[0])
-    return out
+    return [Curve.JoinCurves(run, tol)[0] for run in runs(segs, True, corners)]
 
 
 def offset_toward(crv, toward, d, normal, tol):

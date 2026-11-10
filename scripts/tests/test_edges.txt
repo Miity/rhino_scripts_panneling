@@ -1,0 +1,2 @@
+bottom edge: ZipCover 1000.00, Seams 1000.00, ZipStops (open curve) 1000.00, JoinCorner tail 2 of 3 segments
+OK

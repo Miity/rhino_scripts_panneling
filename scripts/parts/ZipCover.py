@@ -13,7 +13,6 @@ it with the markup (for that the edge must be a polyline / lines).
 EditPanel=Yes: the panel contour itself gets the strip (one closed curve; layer, groups, UserText kept),
 the old edge stays as a line (zip line) + label, one group.
 """
-import math
 import os
 import sys
 
@@ -32,6 +31,9 @@ from PatternTextStyles import by_layer, cm, label_attrs, label_style, part_layer
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curves"))
+sys.modules.pop("SplitCrvByAngle", None)
+from SplitCrvByAngle import breaks, runs, segments  # edges corner to corner: one way for every script
 
 STICKY = "ZipCover"
 CODE, NAME = "Off", "ZipCover"  # label code, sublayer of Parts
@@ -70,10 +72,9 @@ def pick_edge(panel, click, angle, tol):
     panel = close_panel(panel)
     if panel is None:
         return u"panel is not closed (gap between ends larger than %g mm)" % GAP_MM
-    segs = [c for c in panel.DuplicateSegments() if c.GetLength() > tol] or [panel.DuplicateCurve()]
+    segs = segments(panel, tol)  # micro segments (DXF stubs) dropped, as in Seams / Notches
     n = len(segs)
-    corners = set(i for i in range(n) if Vector3d.VectorAngle(segs[i - 1].TangentAtEnd, segs[i].TangentAtStart)
-                  > math.radians(angle))  # corner i — start of segment i
+    corners = set(breaks(segs, True, angle))  # corner i — start of segment i
     if len(corners) < 2:
         return u"panel has fewer than two corners larger than %g°" % angle
     i = min(range(n), key=lambda k: segs[k].PointAt(segs[k].ClosestPoint(click)[1]).DistanceTo(click))

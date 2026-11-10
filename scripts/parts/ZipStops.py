@@ -21,7 +21,6 @@ and measures it live. An edge that already has a number is skipped. Numbering co
 in the layer (Z and Can separately).
 Then the flip step: clicking a number moves it to the other side of the line (mirror) if it is in the way;
 Enter — done. Enter on the object selection — straight to flipping."""
-import math
 import os
 import re
 import sys
@@ -69,15 +68,8 @@ TEXT_SPOTS = 6  # how far along the edge the text may move: text widths from the
 
 def curve_edge(crv, click, angle, tol):
     """Open curve: its piece corner to corner nearest the click (no corners — the whole curve)."""
-    groups = []
-    for s in crv.DuplicateSegments() or [crv.DuplicateCurve()]:
-        if s.GetLength() <= tol:
-            continue
-        if groups and Vector3d.VectorAngle(groups[-1][-1].TangentAtEnd, s.TangentAtStart) <= math.radians(angle):
-            groups[-1].append(s)
-        else:
-            groups.append([s])
-    pieces = [Curve.JoinCurves(g, tol)[0] for g in groups] or [crv]
+    segs = ZipCover.segments(crv, tol)
+    pieces = [Curve.JoinCurves(g, tol)[0] for g in ZipCover.runs(segs, False, ZipCover.breaks(segs, False, angle))] or [crv]
     return min(pieces, key=lambda c: c.PointAt(c.ClosestPoint(click)[1]).DistanceTo(click))
 
 

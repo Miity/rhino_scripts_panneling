@@ -4,7 +4,9 @@ Micro steps shorter than Noise are ignored: the turn is measured between the lon
 The pieces keep the layer, attributes and groups of the curve and are selected.
 
 Also a module: ``angle`` / ``turn_angle`` / ``corners`` (which vertices of a polyline are corners) are used by
-curves/smooth_corners.py and curves/ReducePoints.py. This part works without Rhino."""
+curves/smooth_corners.py and curves/ReducePoints.py; this part works without Rhino. ``segments`` / ``breaks`` / ``runs``
+(a curve as its segments, where the direction breaks, the pieces corner to corner) are the one way every script finds
+edges: parts/JoinCorner.py, parts/ZipCover.py (pick_edge), parts/ZipStops.py (curve_edge), pattern/Seams.py (edges)."""
 import math
 import os
 import sys
@@ -22,6 +24,7 @@ except ImportError:  # outside Rhino only the corner maths is available
 STICKY = "SplitCrvByAngle"
 ANGLE = 45.0   # degrees: a sharper turn is a corner
 NOISE_MM = 1.0  # segments shorter than this are micro steps
+MICRO = 100  # segments() drops segments under MICRO tolerances: DXF stubs, zigzags — none on fabric
 
 
 def angle(u, v):
@@ -52,6 +55,48 @@ def corners(pts, closed, min_angle):
     return out
 
 
+def segments(crv, tol):
+    """Segments of crv; micro ones (under MICRO tolerances) dropped, the gap they leave closed: the next segment
+    starts where the last one ended. All are micro — they stay."""
+    segs = [s for s in crv.DuplicateSegments() or [] if s.GetLength() > tol] or [crv.DuplicateCurve()]
+    keep = [s for s in segs if s.GetLength() >= MICRO * tol] or segs
+    for i in range(0 if crv.IsClosed else 1, len(keep)):
+        if keep[i - 1].PointAtEnd.DistanceTo(keep[i].PointAtStart) > tol:
+            keep[i] = keep[i].DuplicateCurve()
+            keep[i].SetStartPoint(keep[i - 1].PointAtEnd)
+    return keep
+
+
+def breaks(segs, closed, min_angle):
+    """Indices of the segments that start at a corner: the direction breaks by more than min_angle (degrees)
+    between segs[i - 1] and segs[i]. Open — the first segment never starts at a corner."""
+    out = []
+    for i in range(0 if closed else 1, len(segs)):
+        prev, cur = segs[i - 1], segs[i]
+        v1, v2 = prev.TangentAtEnd, cur.TangentAtStart
+        if v1.IsZero:
+            v1 = prev.PointAtEnd - prev.PointAtStart
+        if v2.IsZero:
+            v2 = cur.PointAtEnd - cur.PointAtStart
+        if angle((v1.X, v1.Y, v1.Z), (v2.X, v2.Y, v2.Z)) > min_angle:
+            out.append(i)
+    return out
+
+
+def runs(segs, closed, corners):
+    """Segments grouped corner to corner, in order. Closed: run k goes from corner k to the next one (no corner —
+    one run, all segments); open: the curve cut at its corners."""
+    n = len(segs)
+    corners = sorted(set(corners))
+    if not corners:
+        return [list(segs)] if segs else []
+    if closed:
+        return [[segs[(s + m) % n] for m in range((corners[(j + 1) % len(corners)] - s) % n or n)]
+                for j, s in enumerate(corners)]
+    cuts = [0] + [c for c in corners if 0 < c < n] + [n]
+    return [segs[a:b] for a, b in zip(cuts, cuts[1:]) if b > a]
+
+
 def split_params(crv, min_angle, noise):
     """Curve parameters of the corners sharper than min_angle (degrees)."""
     segs = [s for s in crv.DuplicateSegments() or [] if s.GetLength() > noise]
@@ -59,15 +104,8 @@ def split_params(crv, min_angle, noise):
         return []
     lo, hi = crv.Domain.T0, crv.Domain.T1
     out = []
-    for i in range(0 if crv.IsClosed else 1, len(segs)):
-        prev, cur = segs[i - 1], segs[i]
-        v1, v2 = prev.TangentAt(prev.Domain.Max), cur.TangentAt(cur.Domain.Min)
-        if v1.IsZero:
-            v1 = prev.PointAtEnd - prev.PointAtStart
-        if v2.IsZero:
-            v2 = cur.PointAtEnd - cur.PointAtStart
-        if angle((v1.X, v1.Y, v1.Z), (v2.X, v2.Y, v2.Z)) <= min_angle + 1e-3:
-            continue
+    for i in breaks(segs, crv.IsClosed, min_angle + 1e-3):
+        cur = segs[i]
         ok, t = crv.ClosestPoint(cur.PointAtStart)
         if ok and (crv.IsClosed or (abs(t - lo) > 1e-5 and abs(t - hi) > 1e-5)):
             out.append(t)

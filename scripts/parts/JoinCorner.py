@@ -27,21 +27,13 @@ from Rhino.Geometry.Intersect import Intersection
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curves"))
+sys.modules.pop("SplitCrvByAngle", None)
+from SplitCrvByAngle import breaks, segments  # a curve as its segments (micro ones dropped), where its direction breaks
 
 STICKY = "JoinCorner"
 MICRO_MM = 0.5  # plotter knife: segments shorter than this are merged, spikes next to them (under 3x) cut off
 SPIKE = 120.0  # degrees: a turn sharper than this next to a micro segment is a spike (the knife turns back)
-
-
-def segments(crv, tol):
-    """Segments of crv; micro ones (under 100 tol: DXF stubs, zigzags — none on fabric) dropped, the gap closed."""
-    segs = [s for s in crv.DuplicateSegments() or [crv.DuplicateCurve()] if s.GetLength() > tol]
-    keep = [s for s in segs if s.GetLength() >= 100 * tol] or segs
-    for i in range(0 if crv.IsClosed else 1, len(keep)):
-        if keep[i - 1].PointAtEnd.DistanceTo(keep[i].PointAtStart) > tol:
-            keep[i] = keep[i].DuplicateCurve()
-            keep[i].SetStartPoint(keep[i - 1].PointAtEnd)
-    return keep
 
 
 def micro(doc):
@@ -78,14 +70,10 @@ def clean(crv, size):
 
 def tail(segs, at_end, angle):
     """Number of segments in the edge at that end of segs (corner to corner: breaks up to angle stay in the edge)."""
-    order = list(reversed(segs)) if at_end else segs
-    n = 1
-    while n < len(order):
-        a, b = (order[n], order[n - 1]) if at_end else (order[n - 1], order[n])
-        if Vector3d.VectorAngle(a.TangentAtEnd, b.TangentAtStart) > math.radians(angle):
-            break
-        n += 1
-    return n
+    corners = breaks(segs, False, angle)
+    if not corners:
+        return len(segs)
+    return len(segs) - corners[-1] if at_end else corners[0]
 
 
 def drops(segs, at_end, angle):
