@@ -13,6 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 out = open(os.path.join(HERE, "test_prepare_panel_cut.txt"), "w")
 try:
     import Rhino
+    import System
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
     from Rhino.Geometry import Point3d, Polyline, PolylineCurve
@@ -61,6 +62,23 @@ try:
         assert len(cut) == 1 and points(cut[0].Geometry) == points(seam), (len(points(cut[0].Geometry)), len(points(seam)))
         got = sorted(len(points(o.Geometry)) for o in inked)
         assert got == [2, 2, len(points(sew))] and any(points(o.Geometry) == points(sew) for o in inked), got
+        doc.Dispose()
+
+        # a U reaching 30 past the panel edge (ReinfD, p1.3dm): the part inside goes to ink, the part outside is dropped;
+        # a line ending 0.08 past the edge (cut line turned into a polyline) goes whole; a neighbour's line only touching the panel stays
+        doc = Rhino.RhinoDoc.CreateHeadless(None)
+        doc.ModelUnitSystem = Rhino.UnitSystem.Millimeters
+        sc.doc = doc
+        doc.Layers.Add("marks", System.Drawing.Color.Black)
+        panel = doc.Objects.AddCurve(pl((0, 0), (100, 0), (100, 60), (0, 60), (0, 0)))
+        u = doc.Objects.AddCurve(pl((40, 90), (40, 30), (60, 30), (60, 90)))
+        near = doc.Objects.AddCurve(pl((50, 10), (100.08, 10)))
+        touch = doc.Objects.AddCurve(pl((100, 20), (150, 20)))
+        cut, inked = run(doc, [[panel], [], []])
+        got = sorted(points(o.Geometry) for o in inked)
+        assert got == [[(40.0, 60.0), (40.0, 30.0), (60.0, 30.0), (60.0, 60.0)], [(50.0, 10.0), (100.0, 10.0)]], got
+        assert doc.Objects.FindId(u) is None and doc.Objects.FindId(touch) is not None
+        assert doc.Layers[doc.Objects.FindId(touch).Attributes.LayerIndex].Name != "ink"
         doc.Dispose()
 
         # a panel with a spike curling back at a corner: either stopped with the hint, or cut 1:1 with the spike

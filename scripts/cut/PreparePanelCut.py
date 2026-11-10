@@ -2,12 +2,14 @@
 """Prepare outside cuts and unique, separate internal lines from panel linework.
 
 Run in Rhino 6/7/8 with _EditPythonScript or _ScriptEditor. Step 1: select
-coplanar polylines or lines (panels, seam strips, loose edges, duplicates are
+coplanar curves (polylines and lines go as they are; any other curve goes as its
+polyline copy, 0.1 mm / 5 degrees like CrvToPolyline, the curve itself is not changed) (panels, seam strips, loose edges, duplicates are
 fine); every area they enclose counts as a panel, and each separate
 group of touching areas becomes its own panel. Step 2: select what belongs on ``int``
 (Enter = nothing). Step 3: select what belongs on ``ink`` (Enter = every other
-visible curve and text; objects already on ``int`` stay there, also when selected in step 1; their count is printed). Only curves lying inside the panels (texts by their
-centre) are used in steps 2 and 3;
+visible curve and text; objects already on ``int`` stay there, also when selected in step 1; their count is printed). Only curves inside the panels (texts by their
+centre) are used in steps 2 and 3; a curve reaching past the cut contour goes
+trimmed at it (the part outside the panel is dropped);
 everything else is left untouched. Panels are hidden after success and can be restored with
 Rhino's _Show command. Geometry goes 1:1 (nothing is cleaned or smoothed): a contour or inner
 line that runs along one selected line is that line itself (arcs too); a micro
@@ -276,16 +278,27 @@ DUPLICATE_MM = 0.5  # copies closer than this are one cut line
 CLEAN_MM = 0.05  # points closer than this are one node (lines meeting); longer noise is an error, FindZigzags fixes it
 
 
+POLYLINE_MM, POLYLINE_DEG = 0.1, 5  # a curve as a polyline: the numbers of curves/CrvToPolyline.py
+
+
+def polyline_curve(curve):
+    """The curve itself if it is a polyline / line, else its polyline copy (the object is not changed); None if neither."""
+    if curve is None or curve.TryGetPolyline()[0]:
+        return curve
+    return curve.ToPolyline(0, 0, math.radians(POLYLINE_DEG), 0, 0, POLYLINE_MM * Rhino.RhinoMath.UnitScale(
+        Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem), 0, 0, True)
+
+
 def unique_polylines(ids):
     """Polylines of the selection, keeping one of each near-duplicate group."""
     gap = DUPLICATE_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters,
                                                    sc.doc.ModelUnitSystem)
     curves = []
     for object_id in ids:
-        curve = rs.coercecurve(object_id)
+        curve = polyline_curve(rs.coercecurve(object_id))
         ok, polyline = curve.TryGetPolyline() if curve is not None else (False, None)
         if not ok or polyline is None:
-            raise ValueError(u"The selection contains a curve that is not a polyline or a line.")
+            raise ValueError(u"The selection contains a curve that could not be turned into a polyline.")
         curves.append((polyline.Count, curve, polyline))
     kept = []
     # ponytail: pairwise check, fine for hundreds of curves.
@@ -339,7 +352,8 @@ def curve_samples(curve):
 
 
 def only_inside(ids, plane, polygons, tol):
-    """Keep curves lying fully in the panel plane and inside the panels.
+    """Keep curves lying in the panel plane that are inside the panels at least in part
+    (the part past the cut contour is trimmed later: off_contour).
 
     Texts and other annotations count by the centre of their bounding box.
     """
@@ -351,9 +365,9 @@ def only_inside(ids, plane, polygons, tol):
         else:
             box = rs.coercegeometry(object_id).GetBoundingBox(True)
             points = [box.Center] if box.IsValid else []
-        if points and all(abs((p - plane.Origin) * plane.ZAxis) <= tol and point_covered(
-                ((p - plane.Origin) * plane.XAxis, (p - plane.Origin) * plane.YAxis),
-                polygons, tol) for p in points):
+        if (points and all(abs((p - plane.Origin) * plane.ZAxis) <= tol for p in points) and
+                any(point_covered(((p - plane.Origin) * plane.XAxis, (p - plane.Origin) * plane.YAxis),
+                                  polygons, tol) for p in points)):
             keep.append(object_id)
     return keep
 
@@ -366,11 +380,13 @@ def as_curves(ids):
     return out
 
 
-def off_contour(object_id, contours, tol):
-    """Replace a curve by its parts that do not run along a cut contour (same layer, groups, attributes).
+def off_contour(object_id, contours, plane, tol):
+    """Replace a curve by its parts inside a cut contour and not along it (same layer, groups, attributes).
 
-    A line lying under the contour would be a second line there. Returns the new ids,
-    or [object_id] when nothing overlaps.
+    A line lying under the contour would be a second line there; a part past the contour is
+    off the panel (a D reinforcement reaching over the edge) — nothing to draw or cut there.
+    Returns the new ids, [object_id] when the whole curve stays, [] when nothing is left
+    (a curve with no part inside a panel is not touched).
     """
     curve = rs.coercecurve(object_id)
     if curve is None:
@@ -385,16 +401,21 @@ def off_contour(object_id, contours, tol):
     params = sorted(set(round(t, 9) for t in params if lo + 1e-9 < t < hi - 1e-9))
     if params and curve.IsClosed:
         params.insert(0, lo)  # a closed curve cut at one parameter stays one piece
-    pieces = curve.Split(params) if params else None
-    if not pieces:
-        return [object_id]
-    keep = []
+    pieces = list(curve.Split(params) or []) if params else []
+    pieces = pieces or [curve]
+    keep, outside = [], 0
     for piece in pieces:
         mid = piece.PointAtNormalizedLength(0.5)
-        if all(contour.PointAt(contour.ClosestPoint(mid)[1]).DistanceTo(mid) > tol for contour in contours):
+        if any(contour.PointAt(contour.ClosestPoint(mid)[1]).DistanceTo(mid) <= tol for contour in contours):
+            continue  # along the contour
+        if any(contour.Contains(mid, plane, tol) == Rhino.Geometry.PointContainment.Inside for contour in contours):
             keep.append(piece)
+        else:
+            outside += 1
     if len(keep) == len(pieces):
         return [object_id]
+    if not keep and outside:
+        return []  # only touches a panel from outside: left as it is
     attributes = rs.coercerhinoobject(object_id).Attributes.Duplicate()
     new_ids = [sc.doc.Objects.AddCurve(c, attributes) for c in Rhino.Geometry.Curve.JoinCurves(keep, tol)] if keep else []
     sc.doc.Objects.Delete(object_id, True)
@@ -406,7 +427,7 @@ NOTCH = "Notch"  # UserText of a notch (pattern/Notches.py): stays on its layer,
 
 
 def main():
-    ids = rs.GetObjects(u"Step 1: select panel lines (polylines, lines, seam strips)", rs.filter.curve,
+    ids = rs.GetObjects(u"Step 1: select panel lines (curves, seam strips)", rs.filter.curve,
                         preselect=True, select=False)
     ids = [i for i in ids or [] if not rs.GetUserText(i, NOTCH)]  # notches are already on INK / INT
     # Already on int (layer names ignore case: INT is int): never panel lines, left as they are.
@@ -456,7 +477,7 @@ def main():
         x, y = nodes[index]
         return plane.PointAt(x, y)
 
-    inputs = [c for c in (rs.coercecurve(i) for i in ids) if c is not None]
+    inputs = [c for c in (polyline_curve(rs.coercecurve(i)) for i in ids) if c is not None]
 
     def original(curve):
         """The selected line this rebuilt curve runs along (within the noise ignored), as it is: geometry 1:1."""
@@ -493,8 +514,10 @@ def main():
         print(u"Cut layout not created: {0}".format(error))
         return
     contours = [rs.coercecurve(i) for i in created[edge_count:]]
-    to_int = [new for i in as_curves(to_int) for new in off_contour(i, contours, tol)]
-    to_ink = [new for i in as_curves(to_ink) for new in off_contour(i, contours, tol)]
+    # A curve on the contour may be that far from the contour's polyline copy.
+    near = tol + POLYLINE_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
+    to_int = [new for i in as_curves(to_int) for new in off_contour(i, contours, plane, near)]
+    to_ink = [new for i in as_curves(to_ink) for new in off_contour(i, contours, plane, near)]
     for object_id in to_int:
         rs.ObjectLayer(object_id, "int")
     for object_id in to_ink:
