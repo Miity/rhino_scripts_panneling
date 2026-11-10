@@ -18,7 +18,7 @@ from Rhino.Geometry import ArcCurve, Circle, Curve, CurveEnd, CurveExtensionStyl
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
 sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
-from PatternTextStyles import by_layer, label_attrs, label_style, pick_style  # re-exported for Reinf D / O, Rinforzo
+from PatternTextStyles import by_layer, label_attrs, label_style, part_layer, pick_style  # re-exported for Reinf D / O, Rinforzo
 
 LAYER = "Parts::Reinforcements"
 UP = 10000.0  # default: the full part is this far up along CPlane Y from the markup (option Up)
@@ -92,11 +92,7 @@ def piece(curves, center, toward, r, normal, tol):
 
 
 def layer():
-    if not rs.IsLayer("Parts"):
-        rs.AddLayer("Parts")
-    if not rs.IsLayer(LAYER):
-        rs.AddLayer("Reinforcements", parent="Parts")
-    return LAYER
+    return part_layer("Reinforcements")
 
 
 def next_number(lay, prefix):

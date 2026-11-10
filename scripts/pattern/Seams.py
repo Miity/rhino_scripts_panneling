@@ -173,20 +173,26 @@ def edges(lp, angle, tol, breaks=(), riprese=()):
     return out
 
 
+def offset_toward(crv, toward, d, normal, tol):
+    """Offset of a curve by d towards point toward, in the same direction as crv. None — failed.
+    Also used by parts/TubePockets.py."""
+    offs = crv.Offset(toward, normal, d, tol, CurveOffsetCornerStyle.Sharp)
+    offs = Curve.JoinCurves(offs, tol) if offs else None
+    if not offs:
+        return None
+    o = max(offs, key=lambda c: c.GetLength())
+    if not o.IsClosed and o.PointAtStart.DistanceTo(crv.PointAtStart) > o.PointAtEnd.DistanceTo(crv.PointAtStart):
+        o.Reverse()
+    return o
+
+
 def offset(edge, w, normal, tol):
     """Edge moved by w to the right of its direction (outside the counter-clockwise panel); w = 0 — the edge itself."""
     if w <= tol:
         return edge.DuplicateCurve()
     t = edge.Domain.Mid
     side = Vector3d.CrossProduct(edge.TangentAt(t), normal)
-    offs = edge.Offset(edge.PointAt(t) + side * w, normal, w, tol, CurveOffsetCornerStyle.Sharp)
-    offs = Curve.JoinCurves(offs, tol) if offs else None
-    if not offs:
-        return None
-    o = max(offs, key=lambda c: c.GetLength())
-    if not o.IsClosed and o.PointAtStart.DistanceTo(edge.PointAtStart) > o.PointAtEnd.DistanceTo(edge.PointAtStart):
-        o.Reverse()
-    return o
+    return offset_toward(edge, edge.PointAt(t) + side * w, w, normal, tol)
 
 
 def ray(p, d, q, e):

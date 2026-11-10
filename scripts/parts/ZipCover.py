@@ -27,7 +27,7 @@ from Rhino.Geometry.Intersect import Intersection
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
 sys.modules.pop("PatternTextStyles", None)  # Rhino keeps modules from the first run for the session
-from PatternTextStyles import by_layer, cm, label_attrs, label_style, pick_style  # label number in cm; style: option Style, default PAT 14 mm
+from PatternTextStyles import by_layer, cm, label_attrs, label_style, part_layer, pick_style  # label number in cm; style: option Style, default PAT 14 mm
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
@@ -179,12 +179,8 @@ def label_frame(crv, offset, normal):
 
 def layer_attrs(doc, name, parent="Parts"):
     """Attributes on layer <parent>::<name> (created if missing)."""
-    if not rs.IsLayer(parent):
-        rs.AddLayer(parent)
-    if not rs.IsLayer(parent + "::" + name):
-        rs.AddLayer(name, parent=parent)
     attrs = doc.CreateDefaultAttributes()
-    attrs.LayerIndex = doc.Layers.FindByFullPath(parent + "::" + name, -1)
+    attrs.LayerIndex = doc.Layers.FindByFullPath(part_layer(name, parent), -1)
     return attrs
 
 

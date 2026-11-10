@@ -47,6 +47,7 @@ from click_undo import UNDO, Steps  # option Undo: take back the last click
 
 sys.path.insert(0, HERE)
 sys.modules.pop("ZipCover", None)
+import ZipCover
 from ZipCover import by_layer, close_panel, label_attrs, pick_edge  # panel edge corner to corner; Labels layers
 
 # type → (prefix, layer, in the prompt, from how many edges to ask about junctions, default Trim in cm)
@@ -510,14 +511,7 @@ def next_number(kind):
 
 
 def layer_attrs(doc, kind):
-    layer = TYPES[kind][1]
-    if not rs.IsLayer("Parts"):
-        rs.AddLayer("Parts")
-    if not rs.IsLayer(layer):
-        rs.AddLayer(layer.split("::")[1], parent="Parts")
-    attrs = doc.CreateDefaultAttributes()
-    attrs.LayerIndex = doc.Layers.FindByFullPath(layer, -1)
-    return attrs
+    return ZipCover.layer_attrs(doc, TYPES[kind][1].split("::")[1])
 
 
 def ask_click(kind, nums, picked, cm):

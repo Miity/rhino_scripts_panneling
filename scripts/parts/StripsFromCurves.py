@@ -35,11 +35,7 @@ def strips(curves):
 
 def strips_layer():
     """Parts::Strips — creates it if missing."""
-    if not rs.IsLayer("Parts"):
-        rs.AddLayer("Parts")
-    if not rs.IsLayer("Parts::Strips"):
-        rs.AddLayer("Strips", parent="Parts")
-    return "Parts::Strips"
+    return PatternTextStyles.part_layer("Strips")
 
 
 HELP = u"""Options:

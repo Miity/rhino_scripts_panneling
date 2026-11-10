@@ -74,6 +74,16 @@ def cm(x, doc=None):
 PARTS, LABELS = "Parts", "Labels"  # texts / TextDots of Parts::<Name> live in Labels::<Name>: one switch hides them
 
 
+def part_layer(name, parent=PARTS):
+    """Full path of layer <parent>::<name>, made if missing (every parts script puts its result there)."""
+    if not rs.IsLayer(parent):
+        rs.AddLayer(parent)
+    path = parent + "::" + name
+    if not rs.IsLayer(path):
+        rs.AddLayer(name, parent=parent)
+    return path
+
+
 def label_layer(path, root=LABELS):
     """Parts::Zip → Labels::Zip (root=PARTS — back); other layers as they are."""
     head, sep, rest = path.partition("::")

@@ -19,7 +19,6 @@ Option Layout (default Yes): No — full part in place, no markup (like old pock
 Options W / H / Trim / Seam / Notch / Rigid / Layout / Up / Angle / Style — in the click prompt, remembered between runs.
 """
 import os
-import re
 import sys
 
 import Rhino
@@ -32,12 +31,12 @@ from Rhino.Geometry.Intersect import Intersection
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ZipCover",):  # Rhino keeps modules from the first run for the session — take fresh ones
     sys.modules.pop(_m, None)
-from ZipCover import by_layer, cm, label_attrs, label_frame, label_style, pick_edge, pick_style  # edge corner to corner; label along the strip; style
+from ZipCover import by_layer, cm, label_attrs, label_frame, label_style, part_layer, pick_edge, pick_style  # edge corner to corner; label along the strip; style
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curves"))
 sys.modules.pop("OffsetRigid", None)
 from OffsetRigid import shift  # rigid offset: move along the normal at a point
 sys.modules.pop("ReinfCircle", None)
-from ReinfCircle import UP, UP_KEY, up_option  # option Up, shared with Reinf*
+from ReinfCircle import UP, UP_KEY, next_number, up_option  # option Up and numbering, shared with Reinf*
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pattern"))
 sys.modules.pop("Seams", None)
@@ -51,22 +50,10 @@ LAYER = "Parts::Pockets"
 PREFIX = "T"  # tasca
 
 
-def offset(crv, toward, d, normal, tol):
-    """Offset of an open curve by d towards point toward, in the same direction as crv. None — failed."""
-    offs = crv.Offset(toward, normal, d, tol, CurveOffsetCornerStyle.Sharp)
-    offs = Curve.JoinCurves(offs, tol) if offs else None
-    if not offs:
-        return None
-    o = max(offs, key=lambda c: c.GetLength())
-    if o.PointAtStart.DistanceTo(crv.PointAtStart) > o.PointAtEnd.DistanceTo(crv.PointAtStart):
-        o.Reverse()
-    return o
-
-
 def pocket_side(seg, toward, h, normal, tol, rigid):
     """Pocket top: offset of seg by h towards toward; rigid — a copy of seg moved along the normal at the middle of seg."""
     if not rigid:
-        return offset(seg, toward, h, normal, tol)
+        return Seams.offset_toward(seg, toward, h, normal, tol)
     ok, tm = seg.LengthParameter(seg.GetLength() / 2.0)
     v = shift(seg, tm if ok else seg.Domain.Mid, normal, toward, h)
     if v is None:
@@ -182,21 +169,7 @@ def label(n, h):
 
 
 def layer():
-    if not rs.IsLayer("Parts"):
-        rs.AddLayer("Parts")
-    if not rs.IsLayer(LAYER):
-        rs.AddLayer("Pockets", parent="Parts")
-    return LAYER
-
-
-def next_number(lay):
-    """Next number after the largest T<n> already in the layer (or its Labels twin)."""
-    nums = [0]
-    for o in by_layer(lay):
-        m = re.match(PREFIX + r"(\d+)\b", rs.TextObjectText(o) if rs.IsText(o) else "")
-        if m:
-            nums.append(int(m.group(1)))
-    return max(nums) + 1
+    return part_layer("Pockets")
 
 
 def inward(panel, edge, normal):
@@ -275,7 +248,7 @@ def main():
     normal = plane.ZAxis if ok else rs.ViewCPlane().ZAxis
     attrs = doc.CreateDefaultAttributes()
     attrs.LayerIndex = doc.Layers.FindByFullPath(layer(), -1)
-    n = next_number(LAYER)
+    n = next_number(LAYER, PREFIX)
     made = 0
     parts = []
     steps = Steps(doc)

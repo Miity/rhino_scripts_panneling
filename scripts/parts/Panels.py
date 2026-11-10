@@ -69,11 +69,7 @@ def classify(curves, plane, tol):
 
 
 def layer():
-    if not rs.IsLayer("Parts"):
-        rs.AddLayer("Parts")
-    if not rs.IsLayer(LAYER):
-        rs.AddLayer("Panels", parent="Parts")
-    return LAYER
+    return D.pts.part_layer("Panels")
 
 
 def num(s):

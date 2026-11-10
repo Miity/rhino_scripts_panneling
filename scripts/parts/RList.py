@@ -3,12 +3,11 @@
 Takes labels marked by parts/MarkReinf.py (UserText Reinf = w, ReinfLen = edge length, both cm):
 selected, or Enter — all in the document. Strip length = edge + Plus (asked, cm, default PLUS_CM), rounded up to 1 cm.
 Output: CSV next to the .3dm (<file>_reinf.csv, ";" — for Excel), table to the clipboard and to the command line."""
-import io
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ZipList import order_cm
+from ZipList import order_cm, save_csv
 
 try:
     import Rhino
@@ -57,15 +56,9 @@ def main():
     sc.sticky["RList_plus"] = plus
     table = rows([(rs.TextObjectText(i), float(rs.GetUserText(i, "Reinf")), float(rs.GetUserText(i, "ReinfLen")))
                   for i in ids], plus)
-    path = sc.doc.Path
-    if path:
-        path = os.path.splitext(path)[0] + "_reinf.csv"
-    else:
-        path = rs.SaveFileName(u"Save strip table", "CSV (*.csv)|*.csv||", None, "reinf.csv")
-        if not path:
-            return
-    with io.open(path, "w", encoding="utf-8-sig", newline="") as f:  # BOM — so Excel reads non-ASCII correctly
-        f.write(csv_text(table, plus))
+    path = save_csv(csv_text(table, plus), "reinf", u"Save strip table")
+    if not path:
+        return
     clip = u"Strip W\tPieces\tTotal, cm\n" + u"".join(u"R%g\t%d\t%d\n" % t for t in totals(table))
     clip += u"\nLabel\tStrip, cm\n" + u"".join(u"%s\t%d\n" % (r[0], r[3]) for r in table)
     rs.ClipboardText(clip)

@@ -94,6 +94,21 @@ def csv_text(pieces, summary, tracks=()):
     return u"\r\n".join(rows) + u"\r\n"
 
 
+def save_csv(text, suffix, title):
+    """Writes the table next to the .3dm as <file>_<suffix>.csv (an unsaved file — asks where). Path or None.
+    Also used by parts/RList.py."""
+    path = sc.doc.Path
+    if path:
+        path = os.path.splitext(path)[0] + "_%s.csv" % suffix
+    else:
+        path = rs.SaveFileName(title, "CSV (*.csv)|*.csv||", None, suffix + ".csv")
+        if not path:
+            return None
+    with io.open(path, "w", encoding="utf-8-sig", newline="") as f:  # BOM — so Excel reads non-ASCII correctly
+        f.write(text)
+    return path
+
+
 def line_length(t, tol):
     """(length between the stops of the edge a number text marks, document units; warning or None).
     The edge is found again (ZipStops.edge_of) and measured live; not found — the length stored when marked."""
@@ -132,15 +147,9 @@ def main():
     pieces, summary = tables([z for z in lines if not is_track(z[0])])
     tracks = track_table([z for z in lines if is_track(z[0])])
 
-    path = sc.doc.Path
-    if path:
-        path = os.path.splitext(path)[0] + "_zips.csv"
-    else:
-        path = rs.SaveFileName(u"Save zip table", "CSV (*.csv)|*.csv||", None, "zips.csv")
-        if not path:
-            return
-    with io.open(path, "w", encoding="utf-8-sig", newline="") as f:  # BOM — so Excel reads non-ASCII correctly
-        f.write(csv_text(pieces, summary, tracks))
+    path = save_csv(csv_text(pieces, summary, tracks), "zips", u"Save zip table")
+    if not path:
+        return
 
     for p in pieces:
         if p[3] and p[2] - p[3] > DIFF_MM:
