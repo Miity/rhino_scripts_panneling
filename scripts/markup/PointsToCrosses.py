@@ -8,6 +8,7 @@ import rhinoscriptsyntax as rs
 import scriptcontext as sc
 
 MARK_MM = 10.0  # circles up to this radius are marks; bigger ones (panel holes) are not touched
+SIZE_MM = 1.0  # default half size of a cross / radius of a circle
 
 
 def is_mark_circle(obj):
@@ -16,20 +17,29 @@ def is_mark_circle(obj):
 
 
 def collect_positions(objs):
-    """Returns a list of (coordinate, layer, original_id) from different object types."""
+    """Returns a list of (coordinate, original_id) from different object types."""
     items = []
     for obj in objs:
         if rs.IsPoint(obj):
-            items.append((rs.PointCoordinates(obj), rs.ObjectLayer(obj), obj))
+            items.append((rs.PointCoordinates(obj), obj))
         elif rs.IsPointCloud(obj):
-            layer = rs.ObjectLayer(obj)
             for pt in rs.PointCloudPoints(obj):
-                items.append((pt, layer, obj))
+                items.append((pt, obj))
         elif rs.IsTextDot(obj):
-            items.append((rs.TextDotPoint(obj), rs.ObjectLayer(obj), obj))
+            items.append((rs.TextDotPoint(obj), obj))
         elif is_mark_circle(obj):
-            items.append((rs.CircleCenterPoint(obj), rs.ObjectLayer(obj), obj))
+            items.append((rs.CircleCenterPoint(obj), obj))
     return items
+
+
+def mark_attributes(src):
+    """Attributes of a new mark: the original's layer and groups only (its UserText, e.g. Notch, is not copied)."""
+    old = sc.doc.Objects.FindId(src).Attributes
+    attrs = Rhino.DocObjects.ObjectAttributes()
+    attrs.LayerIndex = old.LayerIndex
+    for g in old.GetGroupList() or []:
+        attrs.AddToGroup(g)
+    return attrs
 
 
 HELP = u"""Shape: Cross / Circle — mark of the given half size / radius
@@ -54,7 +64,8 @@ def points_to_crosses():
     shape = rs.GetString("Mark shape", "Cross", ["Cross", "Circle"])
     if shape not in ("Cross", "Circle"):
         return
-    arm = rs.GetReal("Half size (for a circle — radius), document units", 1.0, 0.001)
+    mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
+    arm = rs.GetReal("Half size (for a circle — radius), document units", SIZE_MM * mm, 0.001 * mm)
     if arm is None:
         return
     delete_originals = rs.GetBoolean(
@@ -63,35 +74,31 @@ def points_to_crosses():
         return
     delete_originals = delete_originals[0]
 
-    made = 0
+    view = sc.doc.Views.ActiveView
+    plane = view.ActiveViewport.ConstructionPlane() if view else Rhino.Geometry.Plane.WorldXY  # a circle lies in the CPlane
     originals = set()
     created = []
-    prev_layer = rs.CurrentLayer()
     rs.EnableRedraw(False)
     try:
-        for c, layer, src in items:
-            if layer and rs.IsLayer(layer):
-                rs.CurrentLayer(layer)
+        for c, src in items:
+            c = Rhino.Geometry.Point3d(c[0], c[1], c[2])
+            attrs = mark_attributes(src)
             if shape == "Circle":
-                new = [rs.AddCircle(c, arm)]
+                plane.Origin = c
+                created.append(sc.doc.Objects.AddCircle(Rhino.Geometry.Circle(plane, arm), attrs))
             else:
-                new = [rs.AddLine([c[0] - arm, c[1], c[2]], [c[0] + arm, c[1], c[2]]),
-                       rs.AddLine([c[0], c[1] - arm, c[2]], [c[0], c[1] + arm, c[2]])]
-                rs.AddObjectsToGroup(new, rs.AddGroup())
-            if layer and rs.IsLayer(layer):
-                rs.ObjectLayer(new, layer)  # original's layer
-            for g in rs.ObjectGroups(src) or []:  # stay in the original's groups
-                rs.AddObjectsToGroup(new, g)
-            created.extend(new)
+                attrs.AddToGroup(sc.doc.Groups.Add())  # the two lines of a cross — one group
+                x, y = Rhino.Geometry.Vector3d(arm, 0, 0), Rhino.Geometry.Vector3d(0, arm, 0)
+                created.append(sc.doc.Objects.AddLine(c - x, c + x, attrs))
+                created.append(sc.doc.Objects.AddLine(c - y, c + y, attrs))
             originals.add(src)
-            made += 1
         if delete_originals:
             rs.DeleteObjects(list(originals))
         rs.UnselectAllObjects()
         rs.SelectObjects(created)
     finally:
-        rs.CurrentLayer(prev_layer)
         rs.EnableRedraw(True)
+    made = len(items)
     print("Done: %d marks (%s)." % (made, shape))
 
 

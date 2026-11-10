@@ -20,9 +20,8 @@ def polyline_copy(curve):
 
 
 def main():
-    ids = rs.SelectedObjects()
+    ids = rs.GetObjects("Select curves to turn into polylines", rs.filter.curve, preselect=True)
     if not ids:
-        print("Please select curves before running.")
         return
     rs.EnableRedraw(False)
     changed = 0

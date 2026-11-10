@@ -16,6 +16,9 @@ import PatternTextStyles as pts
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
 from click_undo import UNDO, Steps  # option Undo: take back the last click
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curves"))
+sys.modules.pop("CrvToPolyline", None)
+import CrvToPolyline  # a panel with arcs / NURBS as a polyline
 
 LAYER = "INK"
 
@@ -118,7 +121,7 @@ def place_text(doc, text, crv, click, style, attr, tol):
         return None
     tb = doc.Objects.FindId(tid).Geometry.GetBoundingBox(True)
     w, hg = tb.Max.X - tb.Min.X + 2 * h, tb.Max.Y - tb.Min.Y + 2 * h  # text + margin h on all sides
-    pc = crv.ToPolyline(tol * 10, 0.05, 0, 0)  # arc -> polyline with 10*tol accuracy
+    pc = CrvToPolyline.polyline_copy(crv)  # arcs / NURBS -> polyline (0.1 mm)
     ok, poly = pc.TryGetPolyline() if pc else (False, None)
     spot = find_spot(poly, click.X if right else click.X + w, click.Y if top else click.Y + hg,
                      w, hg, h / 4.0, top, pb.Min.Y, pb.Max.Y) if ok else None

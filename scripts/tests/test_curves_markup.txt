@@ -1,0 +1,88 @@
+
+=== SplitCrvByAngle
+Curves split: 3 of 4, pieces: 6
+PolyCurve layer=A groups=[] len=78.54
+PolyCurve layer=A groups=[] len=100.00
+PolylineCurve layer=A groups=[] len=49.70
+PolylineCurve layer=A groups=[] len=100.42
+PolylineCurve layer=A groups=[0] len=50.00
+PolylineCurve layer=A groups=[0] len=100.00
+PolylineCurve layer=A groups=[] len=100.00
+
+RESULT SplitCrvByAngle: OK
+
+=== smooth_corners
+Curves rounded: 2, skipped: 0
+square: 4 arcs, length 391.416 (expected 391.416)
+line + arc: PolyCurve, start tangent continuous now: length 176.84
+
+RESULT smooth_corners: OK
+
+=== ReducePoints
+NURBS ellipse: polyline copy 221 points -> 65
+
+RESULT ReducePoints: OK
+
+=== TrimCrvEnds
+Options (mode One, at the click):
+  U — Undo: take back the last trim
+default in a cm document: 5.0
+Options (mode One, at the click):
+  U — Undo: take back the last trim
+Nothing to undo
+length before each click: [100.0, 80.0, 60.0, 80.0, 100.0, 100.0]
+
+RESULT TrimCrvEnds: OK
+
+=== KeepCrvEnds
+PolylineCurve layer=A groups=[0, 1] len=5.00
+PolylineCurve layer=A groups=[0, 1] len=5.00
+
+RESULT KeepCrvEnds: OK
+
+=== TrimOutsidePanel
+Curves trimmed / deleted: 1
+selected after: [80.0, 100.0]
+
+RESULT TrimOutsidePanel: OK
+
+=== CrvToPolyline
+Curves turned into polylines: 1 (layers and groups kept).
+
+RESULT CrvToPolyline: OK
+
+=== line_type
+Linetype '400,2' set on 1 curves.
+Linetype '400,2' set on 1 curves.
+linetypes named 400,2: 1, segments [(400.0, True), (2.0, False)], object linetype 400,2, source LinetypeFromObject
+
+RESULT line_type: OK
+
+=== PointsToCrosses
+Shape: Cross / Circle — mark of the given half size / radius
+Originals: Keep / Delete — the selected points / circles
+Done: 2 marks (Cross).
+LineCurve layer=A groups=[2] len=4.00 UserText 0
+LineCurve layer=A groups=[2] len=4.00 UserText 0
+LineCurve layer=A groups=[0, 1] len=4.00 UserText 0
+LineCurve layer=A groups=[0, 1] len=4.00 UserText 0
+Shape: Cross / Circle — mark of the given half size / radius
+Originals: Keep / Delete — the selected points / circles
+Done: 2 marks (Circle).
+ArcCurve layer=A groups=[] len=12.57 UserText 0
+ArcCurve layer=A groups=[0] len=12.57 UserText 0
+
+RESULT PointsToCrosses: OK
+
+=== DotToPanelText
+text box 242.9..262.3 x 222.0..236.0, corners inside the NURBS panel: [True, True, True, True]
+
+RESULT DotToPanelText: OK
+
+=== find_exact_connection
+Success! Connection options found: 2. Created lines selected.
+Success! Connection options found: 2. Created lines selected.
+offered lengths: [None, 125.0], lines: [125.0, 125.0, 125.0, 125.0]
+
+RESULT find_exact_connection: OK
+OK

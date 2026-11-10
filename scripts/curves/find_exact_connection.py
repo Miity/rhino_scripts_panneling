@@ -33,10 +33,12 @@ def find_exact_connection():
         return
         
     # 4. Enter the line length (L)
-    length = rs.GetReal("Enter the exact line length (L) in document units", minimum=0.001)
+    length = rs.GetReal("Enter the exact line length (L) in document units",
+                        sc.sticky.get("find_exact_connection_length"), minimum=0.001)
     if not length:
         print("Error: invalid length.")
         return
+    sc.sticky["find_exact_connection_length"] = length  # the last length is offered next time
 
     # 5. Math via RhinoCommon
     p1_3d = Rhino.Geometry.Point3d(p1[0], p1[1], p1[2])

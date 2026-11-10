@@ -1,41 +1,44 @@
 # -*- coding: utf-8 -*-
+"""Linetype '400,2' (dash 400 mm, gap 2 mm) on the selected curves, set by object (not by layer).
+A document without it (opened straight from DXF, no template) gets the linetype made first."""
+import Rhino
 import rhinoscriptsyntax as rs
+import scriptcontext as sc
 
-def assign_custom_linetype():
-    """
-    Assigns the linetype '400,2' to user-selected curves.
-    Ensures the linetype exists and overrides layer inheritance.
-    """
-    target_linetype = "400,2"
+NAME = "400,2"
+PATTERN = ((400.0, True), (2.0, False))  # mm: (length, dash or gap)
 
-    # Verify if the linetype exists in the current Rhino document
-    if not rs.IsLinetype(target_linetype):
-        rs.MessageBox("Linetype '{}' does not exist in this document. Please define it in Options > Linetypes first.".format(target_linetype), 48, "Missing Definition")
+
+def ensure(doc):
+    """Index of the linetype NAME in the document, made if missing (-1 if it could not be made)."""
+    for lt in doc.Linetypes:
+        if not lt.IsDeleted and lt.Name == NAME:
+            return lt.LinetypeIndex
+    lt = Rhino.DocObjects.Linetype()
+    lt.Name = NAME
+    for length, dash in PATTERN:
+        lt.AppendSegment(length, dash)
+    return doc.Linetypes.Add(lt)
+
+
+def main():
+    ids = rs.GetObjects("Select curves for linetype '{0}'".format(NAME), rs.filter.curve, preselect=True)
+    if not ids:
         return
-
-    # Prompt user to select curves
-    # Filter set to 4 (Curves) to avoid assigning linetypes to surfaces/meshes where it won't render
-    object_ids = rs.GetObjects("Select curves to apply linetype '400,2'", rs.filter.curve)
-    
-    if not object_ids:
+    index = ensure(sc.doc)
+    if index < 0:
+        print("Could not make linetype '{0}'.".format(NAME))
         return
-
-    # Disable redraw during the loop for performance on heavy files
     rs.EnableRedraw(False)
-    
-    modified_count = 0
-    for obj_id in object_ids:
-        # Assign the specific linetype
-        rs.ObjectLinetype(obj_id, target_linetype)
-        
-        # Force the object to read linetype from itself, not its layer (1 = By Object)
-        rs.ObjectLinetypeSource(obj_id, 1) 
-        modified_count += 1
-        
-    # Re-enable viewport redrawing
+    for object_id in ids:
+        obj = sc.doc.Objects.FindId(object_id)
+        obj.Attributes.LinetypeIndex = index
+        obj.Attributes.LinetypeSource = Rhino.DocObjects.ObjectLinetypeSource.LinetypeFromObject
+        obj.CommitChanges()
     rs.EnableRedraw(True)
-    
-    print("Successfully updated {} curves to linetype '{}'.".format(modified_count, target_linetype))
+    sc.doc.Views.Redraw()
+    print("Linetype '{0}' set on {1} curves.".format(NAME, len(ids)))
+
 
 if __name__ == "__main__":
-    assign_custom_linetype()
+    main()

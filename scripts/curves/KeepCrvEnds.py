@@ -10,7 +10,9 @@ import scriptcontext as sc
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("TrimCrvEnds", None)  # live Rhino keeps old module versions
+sys.modules.pop("TrimOutsidePanel", None)
 import TrimCrvEnds  # the cut points at a length from each end
+import TrimOutsidePanel  # replace: the pieces in place of the curve
 
 
 def keep_ends(crv, dist):
@@ -41,10 +43,8 @@ def main():
             skipped += 1
             result.append(oid)  # stays as is, but selected too
             continue
-        attrs = sc.doc.Objects.FindId(oid).Attributes  # layer, colour, linetype, groups
-        new = [sc.doc.Objects.AddCurve(p, attrs) for p in pieces]
+        new = TrimOutsidePanel.replace(oid, pieces, sc.doc.ModelAbsoluteTolerance, join=False)
         rs.AddObjectsToGroup(new, rs.AddGroup())
-        sc.doc.Objects.Delete(oid, True)
         result.extend(new)
     rs.UnselectAllObjects()
     rs.SelectObjects(result)

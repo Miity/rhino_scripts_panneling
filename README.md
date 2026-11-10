@@ -76,13 +76,13 @@ before it) without leaving the command; a number given in that click is reused. 
 **Curves** — `scripts/curves/`
 | Button | Left click | Right click |
 |---|---|---|
-| SplitByAngle | split curves at corners sharper than the threshold | SmoothCorners — round such corners |
+| SplitByAngle | split curves at corners sharper than the angle (micro steps shorter than the given length ignored); pieces keep layer / groups; angle and length remembered | SmoothCorners — round such corners with a fillet radius (angle and radius remembered; a curve that is not a polyline is taken as its polyline copy) |
 | CrvToPolyline | curves → polylines within 0.1 mm of the curve (replaced in place: layer, groups, attributes kept; polylines and lines left as they are; count printed) | — |
 | ConnectAll | connect all corners of the selected open curves at once (like `Connect`, one corner after another): ends closer than `Gap` (5) are paired, closest first, edges extended / trimmed to their intersection like JoinCorner (`Angle`); a curve that closes is done, ends with no partner are printed; the first curve of a chain keeps layer / groups, the rest are deleted; micro zigzags / spikes (< 0.5 mm, the inputs' own too) cleaned off the results (`JoinCorner.clean`) — the plotter knife would spin on them; one Undo | — |
-| ReducePoints | fewer points on selected polylines: a vertex turning more than `Angle` (10°) is a corner and stays exactly; runs between corners thinned within `Tol` (20) (no old point farther than Tol); `Smooth` (default Yes) — runs become smooth fitted curves, No — polylines with fewer vertices; open curves keep ends; layer / groups kept; one Undo | — |
-| TrimEnds | trim curve ends by a given distance | KeepEnds — cut out the middle, keep ends of a given length |
+| ReducePoints | fewer points on selected polylines: a vertex turning more than `Angle` (10°) is a corner and stays exactly; runs between corners thinned within `Tol` (20) (no old point farther than Tol); `Smooth` (default Yes) — runs become smooth fitted curves, No — polylines with fewer vertices; open curves keep ends; layer / groups kept; one Undo; a curve that is not a polyline is taken as its polyline copy first | — |
+| TrimEnds | trim curve ends by a given distance (default 50 mm): `Both` — the selected curves at both ends, `One` — click near the end to trim, click after click, `Undo` takes back the last trim | KeepEnds — cut out the middle, keep ends of a given length |
 | TrimOutside | trim everything outside the panel contour (closed curves too; the kept pieces of a curve joined) | — |
-| ExactConnection | contact point on a curve at a given length | — |
+| ExactConnection | contact point on a curve at a given length (the last length is offered again) | — |
 | MidLine | line from the midpoint of one curve to the midpoint of another | — |
 | OffsetRigid | offset without changing the shape: a copy moved by D along the normal at the clicked point | — |
 
@@ -131,8 +131,8 @@ before it) without leaving the command; a number given in that click is reused. 
 **Markup** — `scripts/markup/`
 | Button | Left click | Right click |
 |---|---|---|
-| Crosses | points / seam circles (radius up to 10 mm) → crosses or circles, in the mark's layer and groups; `Originals` Keep / Delete | — |
-| Linetype400,2 | assign linetype `400,2` | — |
+| Crosses | points / seam circles (radius up to 10 mm) → crosses or circles, in the mark's layer and groups (its UserText is not copied); `Originals` Keep / Delete | — |
+| Linetype400,2 | assign linetype `400,2` (dash 400 mm, gap 2 mm) to the selected curves; a document without it (opened from DXF) gets the linetype made | — |
 | TextStyles | create/update PAT 2.5–40 mm text styles | — |
 | TextToDot | text → TextDot | DotToPanelText — TextDot → text in the panel corner (INK) |
 | TextToCurves | text → curves for the nesting program: like `Explode`, but text with a flipped plane (after Mirror, 180° rotation, another CPlane) is not mirrored — the curves lie like the text on screen in the Top view (Draw forward); layer / colour / groups of the original, text without a group → letters in a new group; the original is deleted; each curve gets UserText `TextCurve` = the text (Preflight checks they are on INK) | — |

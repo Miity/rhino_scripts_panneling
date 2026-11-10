@@ -4,6 +4,8 @@ smooth_corners.py
 
 Rounds (fillets with an arc) the corners of selected polylines where the deviation angle
 from a straight line is larger than the given threshold. The other corners stay sharp.
+A curve that is not a polyline is taken as its polyline copy first (curves/CrvToPolyline.py as a module);
+which vertices are corners — curves/SplitCrvByAngle.py ``corners``. The last angle and radius are remembered.
 
 Angle convention: 0 deg = segments continue each other (straight),
 180 deg = full reversal. So a "sharp corner" = a LARGE value.
@@ -13,13 +15,21 @@ Run: _EditPythonScript / _ScriptEditor -> Run.
 """
 
 import math
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+for _m in ("SplitCrvByAngle", "CrvToPolyline"):  # live Rhino keeps old module versions
+    sys.modules.pop(_m, None)
+from SplitCrvByAngle import corners
 
 try:
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
     import Rhino
+    import CrvToPolyline
 except ImportError:                 # run outside Rhino -> only the self-check is available
-    rs = sc = Rhino = None
+    rs = sc = Rhino = CrvToPolyline = None
 
 TOL = 1e-9
 FILL = 0.999   # share of a segment that two neighbouring tangents may consume
@@ -33,21 +43,6 @@ def _sub(a, b):
 
 def _len(v):
     return math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
-
-
-def _unit(v):
-    n = _len(v)
-    return None if n < TOL else (v[0] / n, v[1] / n, v[2] / n)
-
-
-def turn_angle(p_prev, p, p_next):
-    """Deviation angle from a straight line in degrees. 0 = straight, 180 = reversal."""
-    a = _unit(_sub(p, p_prev))
-    b = _unit(_sub(p_next, p))
-    if a is None or b is None:
-        return 0.0
-    c = max(-1.0, min(1.0, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]))
-    return math.degrees(math.acos(c))
 
 
 def _clamp(pts, closed, t):
@@ -77,9 +72,8 @@ def tangent_lengths(pts, closed, radius, min_angle):
     """For each vertex — distance from the vertex to the arc tangent point (0 = do not bend)."""
     n = len(pts)
     t = [0.0] * n
-    for i in (range(n) if closed else range(1, n - 1)):
-        ang = turn_angle(pts[i - 1], pts[i], pts[(i + 1) % n])
-        if ang < min_angle or ang > 179.9:      # 180 -> degenerate arc, skip
+    for i, ang in corners(pts, closed, min_angle):
+        if ang > 179.9:      # 180 -> degenerate arc, skip
             continue
         t[i] = radius * math.tan(math.radians(ang) / 2.0)
     return _clamp(pts, closed, t)
@@ -129,20 +123,23 @@ def build_curve(pts, closed, t):
 
 
 def main():
-    ids = rs.GetObjects("Select polylines", rs.filter.curve, preselect=True, select=False)
+    ids = rs.GetObjects("Select curves", rs.filter.curve, preselect=True, select=False)
     if not ids:
         return
-    min_angle = rs.GetReal("Min. deviation angle from straight, deg (0=straight, 180=reversal)", 20.0, 0.0, 179.0)
+    min_angle = rs.GetReal("Min. deviation angle from straight, deg (0=straight, 180=reversal)",
+                           sc.sticky.get("smooth_corners_angle", 20.0), 0.0, 179.0)
     if min_angle is None:
         return
-    radius = rs.GetReal("Fillet radius", 5.0, TOL)
+    mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
+    radius = rs.GetReal("Fillet radius", sc.sticky.get("smooth_corners_radius", 5.0 * mm), TOL)
     if radius is None:
         return
+    sc.sticky["smooth_corners_angle"], sc.sticky["smooth_corners_radius"] = min_angle, radius
 
     done = 0
     skipped = []
     for gid in ids:
-        crv = rs.coercecurve(gid)
+        crv = CrvToPolyline.polyline_copy(rs.coercecurve(gid))
         ok, pl = crv.TryGetPolyline() if crv else (False, None)
         if not ok or pl is None or pl.Count < 3:
             skipped.append("not a polyline")

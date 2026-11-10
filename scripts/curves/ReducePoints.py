@@ -3,14 +3,22 @@
 it stays exactly where it is (so the angles of the joints do not change). The runs between corners are thinned
 within Tol (no point of the old curve farther than Tol from the new one); option Smooth — each run becomes a
 smooth fitted curve instead (the corners stay sharp). Open curves keep their ends. Layer, groups and UserText stay
-(the object is replaced in place); one Undo takes the whole run back. Curves that are not polylines are skipped
-(CrvToPolyline first)."""
+(the object is replaced in place); one Undo takes the whole run back. A curve that is not a polyline is taken as
+its polyline copy first (curves/CrvToPolyline.py as a module); corners — curves/SplitCrvByAngle.py ``corners``."""
 import math
+import os
+import sys
 
 import Rhino
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-from Rhino.Geometry import Curve, Polyline, PolylineCurve, Vector3d
+from Rhino.Geometry import Curve, Polyline, PolylineCurve
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+for _m in ("SplitCrvByAngle", "CrvToPolyline"):  # live Rhino keeps old module versions
+    sys.modules.pop(_m, None)
+import CrvToPolyline
+from SplitCrvByAngle import corners
 
 STICKY = "ReducePoints"
 
@@ -21,8 +29,9 @@ SMOOTH = True   # True: runs between corners become smooth fitted curves, False:
 
 
 def reduce(crv, tol, angle, smooth, join_tol=0.001):
-    """New curve with fewer points, or None if crv is not a polyline."""
-    ok, pl = crv.TryGetPolyline()
+    """New curve with fewer points, or None if crv cannot be a polyline / has too few points."""
+    crv = CrvToPolyline.polyline_copy(crv)
+    ok, pl = crv.TryGetPolyline() if crv is not None else (False, None)
     if not ok:
         return None
     closed = crv.IsClosed
@@ -31,8 +40,8 @@ def reduce(crv, tol, angle, smooth, join_tol=0.001):
     if n < 3:
         return None
     lim = math.radians(angle)
-    anchors = [i for i in range(n) if (not closed and i in (0, n - 1)) or (0 < i < n - 1 or closed)
-               and Vector3d.VectorAngle(pts[i] - pts[i - 1], pts[(i + 1) % n] - pts[i]) > lim]
+    anchors = sorted(set(([] if closed else [0, n - 1]) +
+                         [i for i, _ in corners([(p.X, p.Y, p.Z) for p in pts], closed, angle)]))
     if closed and not anchors:
         anchors = [0]
     runs = []
@@ -74,7 +83,7 @@ def main():
     print(HELP)
     doc = sc.doc
     go = Rhino.Input.Custom.GetObject()
-    go.SetCommandPrompt(u"Select polylines to reduce")
+    go.SetCommandPrompt(u"Select curves to reduce")
     go.GeometryFilter = Rhino.DocObjects.ObjectType.Curve
     go.EnablePreSelect(True, True)
     tol = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_tol", TOL), 0.0001, 1e6)
@@ -95,11 +104,11 @@ def main():
     done = before = after = 0
     try:
         for o in go.Objects():
-            crv = o.Curve()
+            crv = CrvToPolyline.polyline_copy(o.Curve())
             new = reduce(crv, tol.CurrentValue, angle.CurrentValue, smooth.CurrentValue, doc.ModelAbsoluteTolerance) \
                 if crv is not None else None
             if new is None:
-                print(u"Skipped a curve (not a polyline, or fitting failed)")
+                print(u"Skipped a curve (too few points, or fitting failed)")
                 continue
             before += crv.TryGetPolyline()[1].Count
             after += new.TryGetPolyline()[1].Count if new.TryGetPolyline()[0] else new.SpanCount + 1

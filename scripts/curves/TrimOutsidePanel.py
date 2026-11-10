@@ -40,10 +40,12 @@ def pieces(curve, contours, plane, tol):
     return out
 
 
-def replace(object_id, keep, tol):
-    """Replace the object by the kept pieces, touching ones joined (same layer, groups, attributes). Returns the new ids."""
+def replace(object_id, keep, tol, join=True):
+    """Replace the object by the kept pieces (same layer, groups, attributes); join — touching pieces become one curve.
+    Returns the new ids. Also used by curves/SplitCrvByAngle.py and curves/KeepCrvEnds.py (join=False)."""
     attributes = rs.coercerhinoobject(object_id).Attributes.Duplicate()
-    new_ids = [sc.doc.Objects.AddCurve(c, attributes) for c in Rhino.Geometry.Curve.JoinCurves(keep, tol)] if keep else []
+    curves = (Rhino.Geometry.Curve.JoinCurves(keep, tol) if join else keep) if keep else []
+    new_ids = [sc.doc.Objects.AddCurve(c, attributes) for c in curves]
     sc.doc.Objects.Delete(object_id, True)
     return new_ids
 
@@ -63,16 +65,19 @@ def main():
     tol = sc.doc.ModelAbsoluteTolerance
 
     rs.EnableRedraw(False)
-    changed = 0
+    changed, result = 0, []
     for oid in ids:
         if oid == panel_id:
             continue
         found = pieces(rs.coercecurve(oid), [panel], plane, tol)
         keep = [piece for piece, where in found if where != OUT]
         if len(keep) == len(found):
+            result.append(oid)
             continue
-        replace(oid, keep, tol)
+        result.extend(replace(oid, keep, tol))
         changed += 1
+    rs.UnselectAllObjects()
+    rs.SelectObjects(result)  # what is left of the selection stays selected
     rs.EnableRedraw(True)
     print("Curves trimmed / deleted: {0}".format(changed))
 
