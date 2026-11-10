@@ -13,6 +13,7 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
 
 ## Language
 
+- **Chat with the user is in Ukrainian**: replies, explanations, summaries, and the next-step box (recap, question, buttons).
 - **Code and docs are in English**: prompts in `rs.Get*` / `SetCommandPrompt`, option names, `print` messages, `HELP`, comments,
   docstrings, layer names, UserText keys, file names, README.
 - **Labels on the drawing are Italian codes** (customers and seamstresses are Italian), every number in a label is in **cm**
@@ -66,6 +67,12 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
 - A part with a copy `Up` up (Reinf*, Rinforzo, Bordino, TubePockets): the markup on the panel and the copy up are **one group** (`ReinfCircle.add_part`); LayoutParts splits such a group by `PartMarkup` / `TP_Markup`.
 - Scripts that **create parts** (strips, reinforcements etc.) live in `scripts/parts/`, put the result in layer `Parts::<Name>` and go to the **Parts** toolbar tab (`py("parts/<Script>.py")`).
 - Their texts / TextDots go to the twin layer `Labels::<Name>` (`PatternTextStyles.label_attrs(doc, attrs)`) — the user hides all labels with one layer before export; find texts by layer with `PatternTextStyles.by_layer` (sees `Parts::` and `Labels::`: older drawings keep texts in `Parts::`).
+- **Everything** a `scripts/parts/` script creates, side products too (sewing points, marks), goes to its `Parts::<Name>` layer — never to the layer of the curves the user selected. If the extra output needs the input geometry, build on a copy of the edge in `Parts::<Name>`; the original's layer and groups stay untouched. A `markup/` helper reused in a parts script does not bring its "same layer as the input" rule along — pass the Parts layer attributes.
+- A part script stores no panel id / link (they go stale: `Panels.py` copies the curve and deletes the input) — `PartPanel.py` finds the panel at run time; just keep the part findable (copy up with `LayoutUp`, or in place on the panel).
+- Output is cut and drawn 1:1, sizes in real mm on the fabric. Layers of the cutting file: `CUT` — panel outlines (knife), `INK` — pen (seam / dot lines, arrows, labels), `INT` — inner knife cuts (knife notches go here, never on `CUT`). Files are often opened straight from DXF: do not rely on template settings (annotation styles, linetypes) being there.
+- A script that adds text (labels, dimensions, numbers) uses the `PAT <h> mm` annotation styles of `markup/PatternTextStyles.py` (`ensure_styles(doc)`; font `SLF-RHN Architect` — single stroke for the pen; heights 2.5 / 3.5 / 5 / 7 / 10 / 14 / 20 / 28 / 40 mm, names below 10 zero-padded; model scale 1; height ≈ panel width / 15 snapped down) — no hardcoded fonts or heights.
+- Small tools the user keeps although Rhino can do the same — do not propose deleting them in cleanups: `sizes/draw_centered_rectangle.py` (Rect 1340), `curves/MidLine.py`, `markup/line_type.py` (Linetype 400,2), `curves/find_exact_connection.py`, the Analysis tab (SmallClosed, CutRisks, RecommendTabs, CutTabs), `MarkReinf` + `RList` + `ZipList` (to be reworked later). `PointsToCrosses` (buttons) and `ConvertNotches` (notches) are not duplicates.
+- A script the user edits themselves between sessions (e.g. `markup/PointsToCrosses.py`: input is points / point clouds / TextDots, not circles) — read the file again before describing or extending it.
 
 ## Toolbar (`Scripts.rui`)
 
@@ -73,8 +80,8 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
 - Tooltips — one short sentence (Rhino shows them on every hover); details go to README and `HELP`.
 - Button names — no spaces, each next word starts with a capital letter (`TubePockets`, `AggiornaTasche`), in `GROUPS` and in `IT`. A companion tool (update / variant / opposite of the same thing) goes on the right click of its main button (`TubePockets` → `UpdatePockets`, `Bordino` → `Pettola`, `SquishTo` → `MarksTo2D`, `Notches` → `MatchNotches`, `ZipStops` → `ZipList`, `Layout` → `LayoutStack`).
 - New script → add a line to `GROUPS` in `scripts/build_scripts_rui.py` (English) + its Italian name and tooltip to `IT` (and to the table in `README.md`).
-- **Do NOT run the builder `build_scripts_rui.py`** — the user rebuilds `Scripts.rui` themselves (with Rhino closed). Remind them of the build command at the end of the reply.
-- After every created / changed script, end the reply with the full button macro:
+- **Do NOT run the builder `build_scripts_rui.py`** — the user rebuilds `Scripts.rui` themselves (with Rhino closed). Remind them of the build command at the end of the reply. The command (in its own `bash` block): `python3 /Users/dmytro/Documents/Projects/Rhino/scripts/build_scripts_rui.py`.
+- After every created / changed script, end the reply with the full button macro (absolute path, no exceptions; each macro on its own):
   `!_-RunPythonScript "/Users/dmytro/Documents/Projects/Rhino/scripts/<subfolder/><Script>.py"`
 
 ## Git
