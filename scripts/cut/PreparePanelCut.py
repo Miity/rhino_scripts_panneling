@@ -33,10 +33,12 @@ try:
     import System
     import rhinoscriptsyntax as rs
     import scriptcontext as sc
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "markup"))
+    for folder in ("markup", "curves"):
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), folder))
     import TextToCurves
+    import TrimOutsidePanel
 except ImportError:
-    Rhino = System = rs = sc = TextToCurves = None
+    Rhino = System = rs = sc = TextToCurves = TrimOutsidePanel = None
 
 
 def sub(a, b):
@@ -353,7 +355,7 @@ def curve_samples(curve):
 
 def only_inside(ids, plane, polygons, tol):
     """Keep curves lying in the panel plane that are inside the panels at least in part
-    (the part past the cut contour is trimmed later: off_contour).
+    (the part past the cut contour is trimmed later: off_contour, curves/TrimOutsidePanel.py).
 
     Texts and other annotations count by the centre of their bounding box.
     """
@@ -391,35 +393,13 @@ def off_contour(object_id, contours, plane, tol):
     curve = rs.coercecurve(object_id)
     if curve is None:
         return [object_id]
-    params = []
-    for contour in contours:
-        for event in Rhino.Geometry.Intersect.Intersection.CurveCurve(curve, contour, tol, tol) or []:
-            params.append(event.ParameterA)
-            if event.IsOverlap:
-                params.append(event.OverlapA[1])
-    lo, hi = curve.Domain.T0, curve.Domain.T1
-    params = sorted(set(round(t, 9) for t in params if lo + 1e-9 < t < hi - 1e-9))
-    if params and curve.IsClosed:
-        params.insert(0, lo)  # a closed curve cut at one parameter stays one piece
-    pieces = list(curve.Split(params) or []) if params else []
-    pieces = pieces or [curve]
-    keep, outside = [], 0
-    for piece in pieces:
-        mid = piece.PointAtNormalizedLength(0.5)
-        if any(contour.PointAt(contour.ClosestPoint(mid)[1]).DistanceTo(mid) <= tol for contour in contours):
-            continue  # along the contour
-        if any(contour.Contains(mid, plane, tol) == Rhino.Geometry.PointContainment.Inside for contour in contours):
-            keep.append(piece)
-        else:
-            outside += 1
-    if len(keep) == len(pieces):
+    found = TrimOutsidePanel.pieces(curve, contours, plane, tol)
+    keep = [piece for piece, where in found if where == TrimOutsidePanel.IN]
+    if len(keep) == len(found):
         return [object_id]
-    if not keep and outside:
+    if not keep and any(where == TrimOutsidePanel.OUT for _, where in found):
         return []  # only touches a panel from outside: left as it is
-    attributes = rs.coercerhinoobject(object_id).Attributes.Duplicate()
-    new_ids = [sc.doc.Objects.AddCurve(c, attributes) for c in Rhino.Geometry.Curve.JoinCurves(keep, tol)] if keep else []
-    sc.doc.Objects.Delete(object_id, True)
-    return new_ids
+    return TrimOutsidePanel.replace(object_id, keep, tol)
 
 
 MARKS = 4 | 512  # rs.filter.curve | rs.filter.annotation: lines and texts

@@ -18,6 +18,7 @@ try:
     import scriptcontext as sc
     from Rhino.Geometry import Point3d, Polyline, PolylineCurve
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "cut"))
+    sys.modules.pop("TrimOutsidePanel", None)
     sys.modules.pop("PreparePanelCut", None)  # live Rhino keeps old module versions
     import PreparePanelCut as M
 
@@ -80,6 +81,15 @@ try:
         assert doc.Objects.FindId(u) is None and doc.Objects.FindId(touch) is not None
         assert doc.Layers[doc.Objects.FindId(touch).Attributes.LayerIndex].Name != "ink"
         doc.Dispose()
+
+        # curves/TrimOutsidePanel.pieces: a closed curve over the panel edge is cut into its part inside (40 long, also cut at its seam) and outside
+        import TrimOutsidePanel as T
+        box = pl((0, 0), (100, 0), (100, 60), (0, 60), (0, 0))
+        got = T.pieces(pl((90, 20), (110, 20), (110, 40), (90, 40), (90, 20)), [box], Rhino.Geometry.Plane.WorldXY, 0.01)
+        assert sorted(set(w for _, w in got)) == [T.IN, T.OUT], got
+        assert abs(sum(c.GetLength() for c, w in got if w == T.IN) - 40) < 1e-6
+        got = [w for _, w in T.pieces(pl((0, 0), (100, 0)), [box], Rhino.Geometry.Plane.WorldXY, 0.01)]
+        assert got == [T.ON], got
 
         # a panel with a spike curling back at a corner: either stopped with the hint, or cut 1:1 with the spike
         doc = Rhino.RhinoDoc.CreateHeadless(None)
