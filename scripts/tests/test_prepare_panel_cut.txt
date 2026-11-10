@@ -1,5 +1,8 @@
 Done: panels (contours on cut): 1, inner panel lines on ink: 0, moved to int: 0, to ink: 1. Source shapes hidden; result selected for Export Selected.
 Done: panels (contours on cut): 1, inner panel lines on ink: 3, moved to int: 0, to ink: 0. Source shapes hidden; result selected for Export Selected.
 Done: panels (contours on cut): 1, inner panel lines on ink: 0, moved to int: 0, to ink: 2. Source shapes hidden; result selected for Export Selected.
+Lines trimmed at the cut contour (the part outside a panel / along the contour dropped): 2.
+Done: panels (contours on cut): 1, inner panel lines on ink: 1, moved to int: 0, to ink: 1. Source shapes hidden; result selected for Export Selected.
+Lines trimmed at the cut contour (the part outside a panel / along the contour dropped): 1.
 Cut layout not created: Lines too close or a segment too short relative to the document tolerance. A micro zigzag / spike on a panel line breaks the contour: FindZigzags (Analysis) finds and fixes it; nothing here changes your geometry.
 OK

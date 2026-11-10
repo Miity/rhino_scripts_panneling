@@ -2,9 +2,9 @@
 """Prepare outside cuts and unique, separate internal lines from panel linework.
 
 Run in Rhino 6/7/8 with _EditPythonScript or _ScriptEditor. Step 1: select
-coplanar curves (polylines and lines go as they are; any other curve goes as its
-polyline copy, 0.1 mm / 5 degrees like CrvToPolyline, the curve itself is not changed) (panels, seam strips, loose edges, duplicates are
-fine); every area they enclose counts as a panel, and each separate
+coplanar curves of any kind, no need to turn them into polylines (panels, seam strips,
+loose edges, duplicates are fine; the areas are worked out on polyline copies, 0.1 mm /
+5 degrees, curves/CrvToPolyline.py as a module, the curves themselves are not changed); every area they enclose counts as a panel, and each separate
 group of touching areas becomes its own panel. Step 2: select what belongs on ``int``
 (Enter = nothing). Step 3: select what belongs on ``ink`` (Enter = every other
 visible curve and text; objects already on ``int`` stay there, also when selected in step 1; their count is printed). Only curves inside the panels (texts by their
@@ -12,7 +12,9 @@ centre) are used in steps 2 and 3; a curve reaching past the cut contour goes
 trimmed at it (the part outside the panel is dropped);
 everything else is left untouched. Panels are hidden after success and can be restored with
 Rhino's _Show command. Geometry goes 1:1 (nothing is cleaned or smoothed): a contour or inner
-line that runs along one selected line is that line itself (arcs too); a micro
+line that runs along one selected curve is that curve itself or its part (a NURBS stays a NURBS,
+nothing turned into a polyline); only a line put together from several selected curves is a
+polyline (count printed); a micro
 zigzag / spike that breaks the contour stops the script (FindZigzags fixes it,
 Preflight shows them on the cutting file). Each panel becomes one outside loop on ``cut``; every
 other edge goes once, touching pieces joined into one curve, to ``int`` if
@@ -37,8 +39,9 @@ try:
         sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), folder))
     import TextToCurves
     import TrimOutsidePanel
+    import CrvToPolyline
 except ImportError:
-    Rhino = System = rs = sc = TextToCurves = TrimOutsidePanel = None
+    Rhino = System = rs = sc = TextToCurves = TrimOutsidePanel = CrvToPolyline = None
 
 
 def sub(a, b):
@@ -211,7 +214,7 @@ def occupancy_sides(a, b, polygons, segments, tol):
     if nearest is not None:
         step = min(step, nearest * 0.25)
     if step <= tol:
-        raise ValueError(u"Lines too close or a segment too short relative to the document tolerance.")
+        raise Broken(u"Lines too close or a segment too short relative to the document tolerance.")
     normal = (-(b[1] - a[1]) / length, (b[0] - a[0]) / length)
     left = (middle[0] + normal[0] * step, middle[1] + normal[1] * step)
     right = (middle[0] - normal[0] * step, middle[1] - normal[1] * step)
@@ -232,8 +235,12 @@ def classify(nodes, edges, polygons, segments, tol, closed_nodes):
         elif in_left:
             internal.append((i, j))
         else:
-            raise ValueError(u"Could not determine the segment role.")
+            raise Broken(u"Could not determine the segment role.")
     return outside, internal
+
+
+class Broken(ValueError):
+    """The contour does not come together: a micro zigzag / spike can be the cause (FindZigzags hint)."""
 
 
 def trace_boundary_loops(nodes, edges):
@@ -242,7 +249,7 @@ def trace_boundary_loops(nodes, edges):
         adjacency.setdefault(i, []).append(j)
         adjacency.setdefault(j, []).append(i)
     if not edges or any(len(neighbors) != 2 for neighbors in adjacency.values()):
-        raise ValueError(u"The outer contour has a gap or an ambiguous connection.")
+        raise Broken(u"The outer contour has a gap or an ambiguous connection.")
     unseen = set(adjacency)
     loops = []
     while unseen:
@@ -256,7 +263,7 @@ def trace_boundary_loops(nodes, edges):
             if nxt == start:
                 break
             if nxt in loop:
-                raise ValueError(u"The outer contour touches itself.")
+                raise Broken(u"The outer contour touches itself.")
             loop.append(nxt)
             previous, current = current, nxt
         unseen.difference_update(loop)
@@ -280,24 +287,13 @@ DUPLICATE_MM = 0.5  # copies closer than this are one cut line
 CLEAN_MM = 0.05  # points closer than this are one node (lines meeting); longer noise is an error, FindZigzags fixes it
 
 
-POLYLINE_MM, POLYLINE_DEG = 0.1, 5  # a curve as a polyline: the numbers of curves/CrvToPolyline.py
-
-
-def polyline_curve(curve):
-    """The curve itself if it is a polyline / line, else its polyline copy (the object is not changed); None if neither."""
-    if curve is None or curve.TryGetPolyline()[0]:
-        return curve
-    return curve.ToPolyline(0, 0, math.radians(POLYLINE_DEG), 0, 0, POLYLINE_MM * Rhino.RhinoMath.UnitScale(
-        Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem), 0, 0, True)
-
-
 def unique_polylines(ids):
     """Polylines of the selection, keeping one of each near-duplicate group."""
     gap = DUPLICATE_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters,
                                                    sc.doc.ModelUnitSystem)
     curves = []
     for object_id in ids:
-        curve = polyline_curve(rs.coercecurve(object_id))
+        curve = CrvToPolyline.polyline_copy(rs.coercecurve(object_id))
         ok, polyline = curve.TryGetPolyline() if curve is not None else (False, None)
         if not ok or polyline is None:
             raise ValueError(u"The selection contains a curve that could not be turned into a polyline.")
@@ -423,8 +419,9 @@ def main():
         plane, segments = get_plane_and_segments(ids, tol)
         nodes, loops, internal, polygons = prepare(segments, tol)
     except ValueError as error:
-        print(u"Cut layout not created: {0} A micro zigzag / spike on a panel line breaks the contour: "
-              u"FindZigzags (Analysis) finds and fixes it; nothing here changes your geometry.".format(error))
+        print(u"Cut layout not created: {0}{1}".format(error, (
+            u" A micro zigzag / spike on a panel line breaks the contour: FindZigzags (Analysis) finds and fixes it; "
+            u"nothing here changes your geometry.") if isinstance(error, Broken) else u""))
         return
 
     panel_ids = set(ids)
@@ -457,16 +454,34 @@ def main():
         x, y = nodes[index]
         return plane.PointAt(x, y)
 
-    inputs = [c for c in (polyline_curve(rs.coercecurve(i)) for i in ids) if c is not None]
+    inputs = [c for c in (rs.coercecurve(i) for i in ids) if c is not None]
+    # A selected curve may be that far from its polyline copy the lines are rebuilt from.
+    near = tol + CrvToPolyline.TOL_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
+
+    rebuilt = []  # lines put together from several curves, at least one not a polyline
+
+    def along(c, curve):
+        if c is None or abs(c.GetLength() - curve.GetLength()) > 10 * near:
+            return False
+        gap = Rhino.Geometry.Curve.GetDistancesBetweenCurves(c, curve, tol)  # (ok, max distance, ...)
+        return gap[0] and gap[1] <= 2 * near
 
     def original(curve):
-        """The selected line this rebuilt curve runs along (within the noise ignored), as it is: geometry 1:1."""
+        """The selected curve this rebuilt polyline runs along, or the part of it, as it is (a NURBS stays a NURBS):
+        geometry 1:1. A line put together from several selected curves stays the rebuilt polyline."""
         for c in inputs:
-            if c.IsClosed != curve.IsClosed or abs(c.GetLength() - curve.GetLength()) > 10 * tol:
-                continue
-            gap = Rhino.Geometry.Curve.GetDistancesBetweenCurves(c, curve, tol)  # (ok, max distance, ...)
-            if gap[0] and gap[1] <= 5 * tol:
+            if c.IsClosed == curve.IsClosed and along(c, curve):
                 return c.DuplicateCurve()
+        if not curve.IsClosed:
+            for c in inputs:
+                ok_a, a = c.ClosestPoint(curve.PointAtStart, near)
+                ok_b, b = c.ClosestPoint(curve.PointAtEnd, near)
+                if ok_a and ok_b and a != b:
+                    for part in (c.Trim(min(a, b), max(a, b)), c.Trim(max(a, b), min(a, b)) if c.IsClosed else None):
+                        if along(part, curve):
+                            return part
+        if not all(c.TryGetPolyline()[0] for c in inputs):
+            rebuilt.append(curve)
         return curve
 
     created = []
@@ -494,10 +509,18 @@ def main():
         print(u"Cut layout not created: {0}".format(error))
         return
     contours = [rs.coercecurve(i) for i in created[edge_count:]]
-    # A curve on the contour may be that far from the contour's polyline copy.
-    near = tol + POLYLINE_MM * Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
-    to_int = [new for i in as_curves(to_int) for new in off_contour(i, contours, plane, near)]
-    to_ink = [new for i in as_curves(to_ink) for new in off_contour(i, contours, plane, near)]
+    trimmed = []
+
+    def trim(ids_):
+        out = []
+        for i in as_curves(ids_):
+            new = off_contour(i, contours, plane, near)
+            if new != [i] and not rs.IsObject(i):
+                trimmed.append(i)
+            out.extend(new)
+        return out
+
+    to_int, to_ink = trim(to_int), trim(to_ink)
     for object_id in to_int:
         rs.ObjectLayer(object_id, "int")
     for object_id in to_ink:
@@ -512,6 +535,11 @@ def main():
           u"moved to int: {1}, to ink: {2}. "
           u"Source shapes hidden; result selected for Export Selected."
           .format(edge_count, len(to_int), len(to_ink), len(loops), edge_layer))
+    if rebuilt:
+        print(u"Lines put together from several selected curves, made as polylines ({0} mm from the curves): {1}."
+              .format(CrvToPolyline.TOL_MM, len(rebuilt)))
+    if trimmed:
+        print(u"Lines trimmed at the cut contour (the part outside a panel / along the contour dropped): {0}.".format(len(trimmed)))
 
 
 def _self_check():

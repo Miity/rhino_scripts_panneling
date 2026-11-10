@@ -19,6 +19,7 @@ try:
     from Rhino.Geometry import Point3d, Polyline, PolylineCurve
     sys.path.insert(0, os.path.join(os.path.dirname(HERE), "cut"))
     sys.modules.pop("TrimOutsidePanel", None)
+    sys.modules.pop("CrvToPolyline", None)
     sys.modules.pop("PreparePanelCut", None)  # live Rhino keeps old module versions
     import PreparePanelCut as M
 
@@ -80,6 +81,24 @@ try:
         assert got == [[(40.0, 60.0), (40.0, 30.0), (60.0, 30.0), (60.0, 60.0)], [(50.0, 10.0), (100.0, 10.0)]], got
         assert doc.Objects.FindId(u) is None and doc.Objects.FindId(touch) is not None
         assert doc.Layers[doc.Objects.FindId(touch).Attributes.LayerIndex].Name != "ink"
+        doc.Dispose()
+
+        # a NURBS panel with a NURBS sew line inside and a line over the edge: cut = the panel curve itself (not a polyline),
+        # the sew line moved as it is, the line trimmed at the curve
+        doc = Rhino.RhinoDoc.CreateHeadless(None)
+        doc.ModelUnitSystem = Rhino.UnitSystem.Millimeters
+        sc.doc = doc
+        doc.Layers.Add("marks", System.Drawing.Color.Black)
+        oval = Rhino.Geometry.Ellipse(Rhino.Geometry.Plane.WorldXY, 500, 300).ToNurbsCurve()
+        inner = Rhino.Geometry.Ellipse(Rhino.Geometry.Plane.WorldXY, 490, 290).ToNurbsCurve()
+        ids = [doc.Objects.AddCurve(oval), doc.Objects.AddCurve(inner)]
+        over = doc.Objects.AddCurve(pl((0, 0), (600, 0)))
+        cut, inked = run(doc, [list(ids), [], []])
+        assert len(cut) == 1 and not cut[0].Geometry.TryGetPolyline()[0], type(cut[0].Geometry)
+        assert abs(cut[0].Geometry.GetLength() - oval.GetLength()) < 1e-6
+        got = sorted(round(o.Geometry.GetLength(), 3) for o in inked)
+        assert got == [500.0, round(inner.GetLength(), 3)], got
+        assert not any(o.Geometry.TryGetPolyline()[0] for o in inked if o.Geometry.IsClosed)
         doc.Dispose()
 
         # curves/TrimOutsidePanel.pieces: a closed curve over the panel edge is cut into its part inside (40 long, also cut at its seam) and outside
