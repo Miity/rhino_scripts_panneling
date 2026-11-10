@@ -61,6 +61,8 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
 - Put new scripts in a subfolder `scripts/<tab>/` (sizes / curves / analysis / cut / parts / markup) or `Grasshoper scripts/` (`.gh`); in `GROUPS` — `py("<folder>/<Script>.py")`.
 - Keep IronPython 2.7 and CPython 3 compatibility unless explicitly told otherwise.
 - Take units and tolerances from the document (`sc.doc.ModelAbsoluteTolerance`), do not hardcode them.
+- Scripts are used as modules: when a script needs what another script already does, improve that script (its core as a function, its `main()` still working) and import it — do not grow a look-alike function next to it (`cut/PreparePanelCut.py` imports `curves/TrimOutsidePanel.py` `pieces` / `replace` and `curves/CrvToPolyline.py` `polyline_copy`).
+- Rules for working on this project (how to write, reuse, test, report) are written here, in this file — not in the assistant's memory.
 - A part with a copy `Up` up (Reinf*, Rinforzo, Bordino, TubePockets): the markup on the panel and the copy up are **one group** (`ReinfCircle.add_part`); LayoutParts splits such a group by `PartMarkup` / `TP_Markup`.
 - Scripts that **create parts** (strips, reinforcements etc.) live in `scripts/parts/`, put the result in layer `Parts::<Name>` and go to the **Parts** toolbar tab (`py("parts/<Script>.py")`).
 - Their texts / TextDots go to the twin layer `Labels::<Name>` (`PatternTextStyles.label_attrs(doc, attrs)`) — the user hides all labels with one layer before export; find texts by layer with `PatternTextStyles.by_layer` (sees `Parts::` and `Labels::`: older drawings keep texts in `Parts::`).
