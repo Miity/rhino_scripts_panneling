@@ -75,7 +75,8 @@ try:
     M.add_pocket(sc.doc, res + (toward,), 100, 50, True, 9, attrs, Z, tol, False, up)
     ids = [o for o in rs.AllObjects() if o not in before]
     try:
-        markup = [o for o in ids if rs.GetUserText(o, "TP_Markup")]
+        markup = [o for o in ids if rs.GetUserText(o, "PartMarkup")]  # the format of every part up (ReinfCircle.add_part)
+        assert all(rs.GetUserText(o, "PartLink") == rs.GetUserText(ids[0], "PartLink") for o in ids)
         full = [o for o in ids if o not in markup]
         assert len(markup) == 2 and rs.ObjectGroups(markup[0]) == rs.ObjectGroups(markup[1])
         assert all(rs.BoundingBox(o)[0].Y < 1000 for o in markup)
@@ -84,7 +85,18 @@ try:
         assert set(U.tagged(markup[0], "9", False)) == set(o for o in full if rs.ObjectLayer(o) in ("Parts::" + name, "Labels::" + name))
         assert [rs.ObjectLayer(o) for o in ids if rs.IsText(o)] == ["Labels::" + name] * 2
         assert len(rs.ObjectGroups(full[0])) == 1 and all(rs.ObjectGroups(o) == rs.ObjectGroups(full[0]) for o in ids)  # one group
-        p = U.read_pocket([o for o in rs.ObjectsByGroup(rs.ObjectGroups(full[0])[0]) if not rs.GetUserText(o, "TP_Markup")], tol)
+        p = U.read_pocket(rs.ObjectsByGroup(rs.ObjectGroups(full[0])[0]), tol)
+        assert p["up"] == up and set(p["markup"]) == set(markup) and p["n"] == 9, p
+        # a pocket made before the common format (TP_Up / TP_Markup instead of LayoutUp / PartMarkup) is read the same
+        for o in ids:
+            for new, old in (("LayoutUp", "TP_Up"), ("PartMarkup", "TP_Markup")):
+                if rs.GetUserText(o, new):
+                    rs.SetUserText(o, old, rs.GetUserText(o, new))
+                    rs.SetUserText(o, new)
+            rs.SetUserText(o, "PartLink")
+        for o in markup:
+            rs.SetUserText(o, "TP_Up", "%r,%r,%r" % (up.X, up.Y, up.Z))  # old pockets had it on the markup too
+        p = U.read_pocket(rs.ObjectsByGroup(rs.ObjectGroups(full[0])[0]), tol)
         assert p["up"] == up and set(p["markup"]) == set(markup) and p["n"] == 9, p
         seg = p["seg"].DuplicateCurve()
         seg.Translate(-up)

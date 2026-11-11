@@ -31,7 +31,7 @@ from Seams import (BREAK, BREAKS, KEY, MATCH_MM, NOTCH, PARENT, RIPRESA, break_o
                    mid, segment)
 sys.path.insert(0, os.path.dirname(HERE))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
-from click_undo import UNDO, Steps  # option Undo: take back the last click
+from click_undo import CHANGED, UNDO, Steps, click_options  # option Undo: take back the last click
 
 STICKY = "Break"
 PICK_MM = 3.0  # a click this close to a break point removes it
@@ -118,26 +118,15 @@ def ripresa(doc, panel, click, steps, tol):
 def ask(gp, doc):
     """Click with options Undo / Type / Pick. A point, UNDO or None (Enter / Esc)."""
     mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
-    pick = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_pick", PICK_MM * mm), 0.0, 1e6)
     while True:
         kind = sc.sticky.get(STICKY + "_type", 0)
-        gp.ClearCommandOptions()
         gp.SetCommandPrompt(u"Click on a panel contour or a 3D surface edge — a break point there; on a break point — remove it (Enter — done)"
                             if TYPES[kind] == "Break" else
                             u"Click near the ripresa segment — mark it; on a marked one — remove it (Enter — done)")
-        i_undo = gp.AddOption("Undo")
-        i_type = gp.AddOptionList("Type", TYPES, kind)
-        if TYPES[kind] == "Break":
-            gp.AddOptionDouble("Pick", pick)
-        r = gp.Get()
-        sc.sticky[STICKY + "_pick"] = pick.CurrentValue
-        if r == Rhino.Input.GetResult.Option:
-            if gp.OptionIndex() == i_undo:
-                return UNDO
-            if gp.OptionIndex() == i_type:
-                sc.sticky[STICKY + "_type"] = gp.Option().CurrentListOptionIndex
-            continue
-        return gp.Point() if r == Rhino.Input.GetResult.Point else None
+        got = click_options(gp, [("Type", STICKY + "_type", TYPES)] +
+                    ([("Pick", STICKY + "_pick", PICK_MM * mm, 0.0, 1e6)] if TYPES[kind] == "Break" else []))
+        if not got == CHANGED:  # (a point compared with != to a string is not reliable under .NET)
+            return got
 
 
 HELP = u"""Options:

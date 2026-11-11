@@ -20,7 +20,7 @@ sys.modules.pop("Seams", None)  # Rhino keeps modules from the first run for the
 from Seams import KEY, MATCH_MM, NOTCH, breaks_on, edges, loop, riprese_on, skips, to_sewn, up_normal
 sys.path.insert(0, os.path.dirname(HERE))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
-from click_undo import UNDO  # option Undo on edge B: pick edge A again
+from click_undo import UNDO, click_options  # option Undo on edge B: pick edge A again
 
 STICKY = "MatchNotches"
 
@@ -56,19 +56,8 @@ def ask(prompt, undo):
     """Click with options (Undo) / Angle. A point, UNDO or None (Enter / Esc)."""
     gp = Rhino.Input.Custom.GetPoint()
     gp.AcceptNothing(True)
-    a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
-    while True:
-        gp.ClearCommandOptions()
-        gp.SetCommandPrompt(prompt)
-        i_undo = gp.AddOption("Undo") if undo else -1
-        gp.AddOptionDouble("Angle", a)
-        r = gp.Get()
-        sc.sticky[STICKY + "_angle"] = a.CurrentValue
-        if r == Rhino.Input.GetResult.Option:
-            if gp.OptionIndex() == i_undo:
-                return UNDO
-            continue
-        return gp.Point() if r == Rhino.Input.GetResult.Point else None
+    gp.SetCommandPrompt(prompt)
+    return click_options(gp, [("Angle", STICKY + "_angle", 30.0, 1.0, 179.0)], undo=undo)
 
 
 HELP = u"""Per seam two clicks: near edge A, then near edge B sewn to it. Only checks: nothing is placed.

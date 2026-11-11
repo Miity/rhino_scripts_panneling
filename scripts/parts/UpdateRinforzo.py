@@ -26,6 +26,8 @@ import Seams
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.modules.pop("click_undo", None)
 from click_undo import Steps
+sys.modules.pop("UpdateTubePockets", None)
+from UpdateTubePockets import update  # the steps of an Update script: select, options, rebuild, Seams
 
 KEYS = ("W",)
 
@@ -47,7 +49,7 @@ def read_strip(ids, tol):
     click = panel.PointAt(panel.ClosestPoint(box.Center - up)[1])
     ok, plane = panel.TryGetPlane(tol)
     vals = dict((k, float(rs.GetUserText(oid, "RF_" + k))) for k in KEYS + ("Angle",))
-    vals.update(contour=oid, layout=bool(int(rs.GetUserText(oid, "RF_Layout"))), panel_id=panel_id, panel=panel,
+    vals.update(part=oid, name=u"Rinforzo", layout=bool(int(rs.GetUserText(oid, "RF_Layout"))), panel_id=panel_id, panel=panel,
                 click=click, had_seam=any(rs.GetUserText(i, Seams.KEY) for i in ids), ids=list(ids), up=up,
                 normal=plane.ZAxis if ok else rs.ViewCPlane().ZAxis,
                 attrs=sc.doc.Objects.FindId(rs.coerceguid(oid)).Attributes.Duplicate())
@@ -59,75 +61,28 @@ HELP = u"""Options:
   Seam — Yes: run the seam allowance step (Seams.py) on the strips afterwards; rebuilt strips lose the old cut line"""  # printed at start — visible under the option fields
 
 
+def rebuild(s, doc, tol):
+    """The strip again with its new width. (label, full contour id) or None (skipped)."""
+    s["attrs"].RemoveFromAllGroups()
+    for key in list(s["attrs"].GetUserStrings().AllKeys):  # the old data (RF_*, PartLink…) must not go to every new object
+        s["attrs"].DeleteUserString(key)
+    sc.sticky[RF.UP_KEY] = s["up"].Length  # the full part goes up as far as before (add_part uses CPlane Y)
+    rs.DeleteObjects(s["ids"])
+    steps = Steps(doc)
+    steps.start()
+    got = RF.make(doc, s["panel_id"], s["panel"], s["click"], s["W"], s["Angle"], s["layout"],
+                  s["normal"], tol, s["attrs"], steps)
+    return (got[1], got[0][0]) if got is not None else None
+
+
 def main():
     print(HELP)
-    doc = sc.doc
-    tol = doc.ModelAbsoluteTolerance
-    sel = rs.GetObjects(u"Select Rinforzo strips (any part)", preselect=True)
-    if not sel:
-        return
-    groups, strips = set(), []
-    for o in sel:
-        g = (rs.ObjectGroups(o) or [None])[0]
-        if g is None or g in groups:
-            continue
-        groups.add(g)
-        res = read_strip(rs.ObjectsByGroup(g), tol)  # one group: markup + full part
-        if isinstance(res, dict):
-            strips.append(res)
-        else:
-            print(u"Skipped: " + res)
-    if not strips:
-        return
-    first = strips[0]
-    print(u"Rinforzo now: W=%g" % tuple(first[k] for k in KEYS))
-    go = Rhino.Input.Custom.GetOption()
-    go.SetCommandPrompt(u"New parameters (Enter — apply to %d strips)" % len(strips))
-    go.AcceptNothing(True)
-    opts = dict((k, Rhino.Input.Custom.OptionDouble(first[k], 0.001 if k == "W" else 0.0, 1e6)) for k in KEYS)
-    seam = Rhino.Input.Custom.OptionToggle(any(s["had_seam"] for s in strips), "No", "Yes")
-    go.AddOptionToggle("Seam", seam)
-    for k in KEYS:
-        go.AddOptionDouble(k, opts[k])
-    while True:
-        r = go.Get()
-        if r == Rhino.Input.GetResult.Option:
-            continue
-        if r != Rhino.Input.GetResult.Nothing:
-            return
-        break
-    changed = dict((k, float(opts[k].CurrentValue)) for k in KEYS if float(opts[k].CurrentValue) != first[k])
-    if not changed and not seam.CurrentValue:
-        print(u"Nothing changed")
-        return
-    parts, steps = [], Steps(doc)
     saved_up = sc.sticky.get(RF.UP_KEY)
-    for s in strips:
-        if not changed:  # only Seams again, on the parts as they are
-            parts.append(s["contour"])
-            continue
-        s.update(changed)
-        s["attrs"].RemoveFromAllGroups()
-        for key in list(s["attrs"].GetUserStrings().AllKeys):  # the old data (RF_*, PartLink…) must not go to every new object
-            s["attrs"].DeleteUserString(key)
-        sc.sticky[RF.UP_KEY] = s["up"].Length  # the full part goes up as far as before (add_part uses CPlane Y)
-        rs.DeleteObjects(s["ids"])
-        steps.start()
-        got = RF.make(doc, s["panel_id"], s["panel"], s["click"], s["W"], s["Angle"], s["layout"],
-                      s["normal"], tol, s["attrs"], steps)
-        if got is None:
-            continue
-        print(u"Updated: " + got[1])
-        if seam.CurrentValue:
-            parts.append(got[0][0])
-        elif s["had_seam"]:
-            print(u"%s: the old seam cut line is gone (Seam=No)" % got[1])
-    if saved_up is not None:
-        sc.sticky[RF.UP_KEY] = saved_up
-    if changed:
-        print(u"Changed: " + ", ".join(u"%s=%g" % kv for kv in sorted(changed.items())))
-    if parts:  # second step: seam allowance
-        Seams.main(parts)
+    try:
+        update(u"strips", read_strip, rebuild, KEYS, lowest={"W": 0.001})
+    finally:
+        if saved_up is not None:
+            sc.sticky[RF.UP_KEY] = saved_up
 
 
 if __name__ == "__main__":

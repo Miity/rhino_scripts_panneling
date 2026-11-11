@@ -29,7 +29,7 @@ for _m in ("ReinfCircle", "ZipCover", "ZipStops"):  # Rhino keeps modules from t
     sys.modules.pop(_m, None)
 from ZipStops import (EDGE, RINF_LINE, edge_of, holds, labels_after, mid_point, read_trims, stored_point, zip_span,
                       zip_text)
-from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, off_panel, label_style, pick_style  # layer, style
+from ReinfCircle import LAYER, UP_KEY, UP_OPTION, add_part, layer, off_panel, label_style, pick_style  # layer, style
 from ZipCover import cm, flap, label_frame  # edge corner to corner + offset, ends along the neighbours; label along the edge
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pattern"))
@@ -37,7 +37,7 @@ sys.modules.pop("Seams", None)
 import Seams  # seam allowance of the full part: second step
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
-from click_undo import UNDO, Steps  # option Undo: take back the last click
+from click_undo import UNDO, Steps, click_options  # option Undo: take back the last click
 
 STICKY = "Rinforzo"
 CODE = "R"  # rinforzo
@@ -98,33 +98,12 @@ def make(doc, oid, panel, click, w, angle, layout, normal, tol, attrs, steps):
 
 
 def ask(gp):
-    """Click near an edge with options W / Angle / Layout / Seam / Style / Undo. A point, UNDO or None (Enter / Esc)."""
+    """Click near an edge with options Undo / W / Angle / Layout / Seam / Up / Style. A point, UNDO or None (Enter / Esc)."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
-    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 60.0 * unit), 0.001, 1e6)
-    a = Rhino.Input.Custom.OptionDouble(sc.sticky.get("ZipCover_angle", 30.0), 1.0, 179.0)  # shared with ZipCover
-    i_undo = gp.AddOption("Undo")
-    gp.AddOptionDouble("W", w)
-    gp.AddOptionDouble("Angle", a)
-    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
-    gp.AddOptionToggle("Layout", lay)
-    seam = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_seam", True), "No", "Yes")
-    gp.AddOptionToggle("Seam", seam)
-    up = up_option(gp)
-    i_style = gp.AddOption("Style")
-    while True:
-        r = gp.Get()
-        sc.sticky[STICKY + "_layout"] = lay.CurrentValue
-        sc.sticky[STICKY + "_seam"] = seam.CurrentValue
-        sc.sticky[UP_KEY] = up.CurrentValue
-        sc.sticky[STICKY] = w.CurrentValue
-        sc.sticky["ZipCover_angle"] = a.CurrentValue
-        if r == Rhino.Input.GetResult.Option:
-            if gp.OptionIndex() == i_undo:
-                return UNDO
-            if gp.OptionIndex() == i_style:
-                pick_style(sc.doc, STICKY)
-            continue
-        return gp.Point() if r == Rhino.Input.GetResult.Point else None
+    return click_options(gp, [("W", STICKY, 60.0 * unit, 0.001, 1e6),
+                      ("Angle", "ZipCover_angle", 30.0, 1.0, 179.0),  # shared with ZipCover
+                      ("Layout", STICKY + "_layout", True), ("Seam", STICKY + "_seam", True), UP_OPTION],
+                 style=lambda: pick_style(sc.doc, STICKY))
 
 
 HELP = u"""Options:

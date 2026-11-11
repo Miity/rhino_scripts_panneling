@@ -55,12 +55,13 @@ try:
         def __getattr__(self, name):
             return self.over[name] if name in self.over else getattr(self.real, name)
     get_objects = rs.GetObjects
-    U.Rhino = NS(Rhino, Input=NS(Rhino.Input, Custom=NS(Rhino.Input.Custom, GetOption=Opts)))
+    UT = sys.modules[U.update.__module__]  # the option prompt lives in UpdateTubePockets.update
+    UT.Rhino = NS(Rhino, Input=NS(Rhino.Input, Custom=NS(Rhino.Input.Custom, GetOption=Opts)))
     rs.GetObjects = lambda *a, **k: [contour]
     try:
         U.main()
     finally:
-        U.Rhino, rs.GetObjects = Rhino, get_objects
+        UT.Rhino, rs.GetObjects = Rhino, get_objects
     news = [i for i in rs.AllObjects() if rs.GetUserText(i, "RF_W")]
     assert len(news) == 1, news  # the contour keeps its id (attributes are copied)
     c = news[0]

@@ -11,7 +11,6 @@ import sys
 
 import rhinoscriptsyntax as rs
 import scriptcontext as sc
-import Rhino
 import System
 from System.Collections.Generic import List
 from Rhino.Geometry import ArcCurve, Circle, Curve, CurveEnd, CurveExtensionStyle, Plane, Point3d, Transform
@@ -25,11 +24,7 @@ UP = 10000.0  # default: the full part is this far up along CPlane Y from the ma
 UP_KEY = "Parts_up"  # sticky: option Up, shared by all part scripts (Reinf*, TubePockets)
 
 
-def up_option(gp):
-    """Option Up — how far up the full part goes. Store CurrentValue in sc.sticky[UP_KEY] after each Get."""
-    o = Rhino.Input.Custom.OptionDouble(sc.sticky.get(UP_KEY, UP), 0.0, 1e7)
-    gp.AddOptionDouble("Up", o)
-    return o
+UP_OPTION = ("Up", UP_KEY, UP, 0.0, 1e7)  # option Up of click_undo.click_options — how far up the full part goes
 
 
 def off_panel(crv, curves, tol):
@@ -41,13 +36,16 @@ def off_panel(crv, curves, tol):
     return list(Curve.JoinCurves(keep, tol)) if keep else []
 
 
-def add_part(doc, full, te, markup, attrs, layout=True):
+def add_part(doc, full, te, markup, attrs, layout=True, up=None):
     """layout: full part (geometry full + label te) — UP up along CPlane Y; in place — markup (curves markup + the same
     label); both in one group (selected / moved / deleted together). Returns (full ids, markup ids).
     Without layout — full part in place, no markup (markup ids = []).
     The pair is linked by UserText PartLink (common id); the full part has LayoutUp (offset vector), the markup — PartMarkup.
+    up — the offset vector itself (a part rebuilt where it was); None — option Up along CPlane Y.
+    Every part with a copy up goes through here (Reinf*, Rinforzo, Bordino, TubePockets): one format.
     """
-    up = rs.ViewCPlane().YAxis * (sc.sticky.get(UP_KEY, UP) if layout else 0.0)
+    if up is None:
+        up = rs.ViewCPlane().YAxis * (sc.sticky.get(UP_KEY, UP) if layout else 0.0)
     xf = Transform.Translation(up)
 
     def add(geo, a=attrs):

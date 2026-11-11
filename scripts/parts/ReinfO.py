@@ -23,11 +23,11 @@ from Rhino.Geometry import AreaMassProperties, ArcCurve, Circle, Curve, Plane, P
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino keeps modules from the first run for the session
-from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, next_number, off_panel, piece, label_style, pick_style  # layer, numbering, trimming, style
+from ReinfCircle import LAYER, UP_OPTION, add_part, layer, next_number, off_panel, piece, label_style, pick_style  # layer, numbering, trimming, style
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
-from click_undo import UNDO, Steps  # option Undo: take back the last click
+from click_undo import UNDO, Steps, click_options  # option Undo: take back the last click
 
 STICKY = "ReinfO"
 PREFIX = "RO"  # Reinforcement O
@@ -81,32 +81,20 @@ def arc_label(crv, center, r, normal, gap, tol):
 def get_edge(curves, center, normal, tol):
     """Second point with a live O and option Plus. (point, plus) or None."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
-    plus = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 50.0 * unit), 0.0, 1e6)
 
     def draw(sender, e):
-        cut = o_shape(curves, center, e.CurrentPoint, plus.CurrentValue, normal, tol)[0]
+        cut = o_shape(curves, center, e.CurrentPoint, sc.sticky.get(STICKY, 50.0 * unit), normal, tol)[0]
         if cut:
             e.Display.DrawCurve(cut, sc.doc.Layers.CurrentLayer.Color, 2)
     gp = Rhino.Input.Custom.GetPoint()
     gp.SetCommandPrompt(u"Click on a line: R = distance to it + Plus")
     gp.SetBasePoint(center, True)
     gp.DrawLineFromPoint(center, True)
-    gp.AddOptionDouble("Plus", plus)
-    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
-    gp.AddOptionToggle("Layout", lay)
-    up = up_option(gp)
-    i_style = gp.AddOption("Style")
     gp.DynamicDraw += draw
     try:
-        while True:
-            res = gp.Get()
-            sc.sticky[STICKY] = plus.CurrentValue
-            sc.sticky[STICKY + "_layout"] = lay.CurrentValue
-            sc.sticky[UP_KEY] = up.CurrentValue
-            if res == Rhino.Input.GetResult.Option and gp.OptionIndex() == i_style:
-                pick_style(sc.doc, STICKY)
-            if res != Rhino.Input.GetResult.Option:
-                return (gp.Point(), plus.CurrentValue) if res == Rhino.Input.GetResult.Point else None
+        got = click_options(gp, [("Plus", STICKY, 50.0 * unit, 0.0, 1e6), ("Layout", STICKY + "_layout", True), UP_OPTION],
+                    style=lambda: pick_style(sc.doc, STICKY), undo=False)
+        return (got, sc.sticky[STICKY]) if got is not None else None
     finally:
         gp.DynamicDraw -= draw
 
@@ -116,11 +104,7 @@ def get_center():
     gp = Rhino.Input.Custom.GetPoint()
     gp.SetCommandPrompt(u"Top corner of the pocket — centre of the O (Enter — done)")
     gp.AcceptNothing(True)
-    i_undo = gp.AddOption("Undo")
-    res = gp.Get()
-    if res == Rhino.Input.GetResult.Option and gp.OptionIndex() == i_undo:
-        return UNDO
-    return gp.Point() if res == Rhino.Input.GetResult.Point else None
+    return click_options(gp)
 
 
 HELP = u"""Options:

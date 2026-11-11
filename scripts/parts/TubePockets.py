@@ -36,14 +36,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 sys.modules.pop("OffsetRigid", None)
 from OffsetRigid import shift  # rigid offset: move along the normal at a point
 sys.modules.pop("ReinfCircle", None)
-from ReinfCircle import UP, UP_KEY, next_number, up_option  # option Up and numbering, shared with Reinf*
+from ReinfCircle import UP, UP_KEY, UP_OPTION, add_part, next_number  # option Up and numbering, shared with Reinf*
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pattern"))
 sys.modules.pop("Seams", None)
 import Seams  # seam allowance of the full part: second step
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
-from click_undo import UNDO, Steps  # option Undo: take back the last click
+from click_undo import UNDO, Steps, click_options  # option Undo: take back the last click
 
 STICKY = "TubePockets"
 LAYER = "Parts::Pockets"
@@ -124,41 +124,22 @@ def pocket(crv, click, w, h, trim, notch, normal, tol, rigid=False):
 def add_pocket(doc, res, h, trim, notch, n, attrs, normal, tol, rigid=False, up=None):
     """Adds a pocket: res (contour, edge, mark, markup, toward) — in place.
     up=None — full part in place (old pockets); otherwise the full part is moved by up,
-    and the markup stays in place (ends + top without the edge + label). Parameters — UserText for UpdateTubePockets."""
+    and the markup stays in place (ends + top without the edge + label) — ReinfCircle.add_part, the format of every
+    part with a copy up (PartLink, LayoutUp, PartMarkup). Parameters — UserText TP_* for UpdateTubePockets."""
     outline, seg, mark, simple, toward = res
-    xf = Transform.Translation(up if up is not None else Vector3d.Zero)
     te = Rhino.Geometry.TextEntity.Create(label(n, h),
                                           label_frame(seg, pocket_side(seg, toward, h, normal, tol, rigid), normal),
                                           label_style(doc, STICKY), False, 0, 0)
     te.TextHorizontalAlignment = Rhino.DocObjects.TextHorizontalAlignment.Center
     te.TextVerticalAlignment = Rhino.DocObjects.TextVerticalAlignment.Middle
-
-    def add(geo, a):
-        geo = geo.Duplicate()
-        geo.Transform(xf)
-        return doc.Objects.Add(geo, a)
-
-    full = [add(outline, attrs)]
+    full, markup = add_part(doc, [outline] + ([mark] if mark else []), te, [simple], attrs, up is not None, up)
     seam = seg.DuplicateCurve()  # the edge is not drawn — stored on the contour for UpdateTubePockets
-    seam.Transform(xf)
-    rs.SetUserText(full[0], "TP_Seg", seam.ToJSON(None))
-    if mark:
-        full.append(add(mark, attrs))
-    text = label_attrs(doc, attrs)  # labels — Labels::Pockets
-    full.append(add(te, text))
-    groups = [full]
     if up is not None:
-        groups.append([doc.Objects.AddCurve(simple, attrs), doc.Objects.AddText(te, text)])
-    for i, ids in enumerate(groups):
-        for o in ids:
-            for k, v in (("H", h), ("Trim", trim), ("Notch", int(notch)), ("Rigid", int(rigid)),
-                         ("N", n)):
-                rs.SetUserText(o, "TP_" + k, "%g" % v)
-            if up is not None:
-                rs.SetUserText(o, "TP_Up", "%r,%r,%r" % (up.X, up.Y, up.Z))
-            if i == 1:
-                rs.SetUserText(o, "TP_Markup", "1")
-    rs.AddObjectsToGroup(sum(groups, []), rs.AddGroup())  # markup on the panel + full part up — one group
+        seam.Translate(up)
+    rs.SetUserText(full[0], "TP_Seg", seam.ToJSON(None))
+    for o in full + markup:
+        for k, v in (("H", h), ("Trim", trim), ("Notch", int(notch)), ("Rigid", int(rigid)), ("N", n)):
+            rs.SetUserText(o, "TP_" + k, "%g" % v)
     doc.Views.Redraw()
     return label(n, h), full[0]
 
@@ -183,43 +164,18 @@ def inward(panel, edge, normal):
 
 
 def ask(gp):
-    """Click near an edge with options W, H, Trim, Seam, Notch, Rigid, Angle, Style, Undo. (point, values), UNDO or None."""
-    get = sc.sticky.get
-    w = Rhino.Input.Custom.OptionDouble(get(STICKY + "_w", 2000.0), 0.0, 1e7)
-    h = Rhino.Input.Custom.OptionDouble(get(STICKY + "_h", 130.0), 0.001, 1e6)
-    trim = Rhino.Input.Custom.OptionDouble(get(STICKY + "_trim", 50.0), 0.0, 1e6)
-    seam = Rhino.Input.Custom.OptionToggle(get(STICKY + "_seam", True), "No", "Yes")
-    notch = Rhino.Input.Custom.OptionToggle(get(STICKY + "_notch", True), "No", "Yes")
-    rigid = Rhino.Input.Custom.OptionToggle(get(STICKY + "_rigid", False), "No", "Yes")
-    angle = Rhino.Input.Custom.OptionDouble(get("ZipCover_angle", 30.0), 1.0, 179.0)  # shared with ZipCover
-    i_undo = gp.AddOption("Undo")
-    gp.AddOptionDouble("W", w)
-    gp.AddOptionDouble("H", h)
-    gp.AddOptionDouble("Trim", trim)
-    gp.AddOptionToggle("Seam", seam)
-    gp.AddOptionToggle("Notch", notch)
-    gp.AddOptionToggle("Rigid", rigid)
-    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
-    gp.AddOptionToggle("Layout", lay)
-    up = up_option(gp)
-    gp.AddOptionDouble("Angle", angle)
-    i_style = gp.AddOption("Style")
-    while True:
-        r = gp.Get()
-        vals = (w.CurrentValue, h.CurrentValue, trim.CurrentValue, notch.CurrentValue, rigid.CurrentValue,
-                seam.CurrentValue)
-        for k, v in zip(("_w", "_h", "_trim", "_notch", "_rigid", "_seam"), vals):
-            sc.sticky[STICKY + k] = v
-        sc.sticky["ZipCover_angle"] = angle.CurrentValue
-        sc.sticky[STICKY + "_layout"] = lay.CurrentValue
-        sc.sticky[UP_KEY] = up.CurrentValue
-        if r == Rhino.Input.GetResult.Option:
-            if gp.OptionIndex() == i_undo:
-                return UNDO
-            if gp.OptionIndex() == i_style:
-                pick_style(sc.doc, STICKY)
-            continue
-        return (gp.Point(), vals + (angle.CurrentValue,)) if r == Rhino.Input.GetResult.Point else None
+    """Click near an edge with options Undo, W, H, Trim, Seam, Notch, Rigid, Layout, Up, Angle, Style.
+    (point, values), UNDO or None."""
+    got = click_options(gp, [("W", STICKY + "_w", 2000.0, 0.0, 1e7), ("H", STICKY + "_h", 130.0, 0.001, 1e6),
+                     ("Trim", STICKY + "_trim", 50.0, 0.0, 1e6), ("Seam", STICKY + "_seam", True),
+                     ("Notch", STICKY + "_notch", True), ("Rigid", STICKY + "_rigid", False),
+                     ("Layout", STICKY + "_layout", True), UP_OPTION,
+                     ("Angle", "ZipCover_angle", 30.0, 1.0, 179.0)],  # shared with ZipCover
+                style=lambda: pick_style(sc.doc, STICKY))
+    if got is None or got == UNDO:
+        return got
+    return got, tuple(sc.sticky[STICKY + k] for k in ("_w", "_h", "_trim", "_notch", "_rigid", "_seam")) + (
+        sc.sticky["ZipCover_angle"],)
 
 
 HELP = u"""Options:

@@ -19,11 +19,11 @@ from Rhino.Geometry import Arc, ArcCurve, Curve, Plane, Polyline, PolylineCurve,
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.modules.pop("ReinfCircle", None)  # Rhino keeps modules from the first run for the session
-from ReinfCircle import LAYER, UP_KEY, add_part, up_option, layer, next_number, off_panel, label_style, pick_style  # layer, numbering, style
+from ReinfCircle import LAYER, UP_OPTION, add_part, layer, next_number, off_panel, label_style, pick_style  # layer, numbering, style
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
-from click_undo import UNDO, Steps  # option Undo: take back the last click
+from click_undo import UNDO, Steps, click_options  # option Undo: take back the last click
 
 STICKY = "ReinfD"
 PREFIX = "RD"  # Reinforcement D
@@ -47,32 +47,16 @@ def d_shape(top, bottom, w, r, normal, tol):
 
 
 def get_top():
-    """First point with options W, R, Layout, Style, Undo. (point, w, r), UNDO or None."""
+    """First point with options Undo, W, R, Layout, Up, Style. (point, w, r), UNDO or None."""
     gp = Rhino.Input.Custom.GetPoint()
     gp.SetCommandPrompt(u"Top corner of the pocket — centre of the D (Enter — done)")
     gp.AcceptNothing(True)
-    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_w", 100.0), 0.001, 1e6)
-    r = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 50.0), 0.001, 1e6)
-    i_undo = gp.AddOption("Undo")
-    gp.AddOptionDouble("W", w)
-    gp.AddOptionDouble("R", r)
-    lay = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_layout", True), "No", "Yes")
-    gp.AddOptionToggle("Layout", lay)
-    up = up_option(gp)
-    i_style = gp.AddOption("Style")
-    while True:
-        res = gp.Get()
-        sc.sticky[STICKY + "_w"] = w.CurrentValue
-        sc.sticky[STICKY] = r.CurrentValue
-        sc.sticky[STICKY + "_layout"] = lay.CurrentValue
-        sc.sticky[UP_KEY] = up.CurrentValue
-        if res == Rhino.Input.GetResult.Option:
-            if gp.OptionIndex() == i_undo:
-                return UNDO
-            if gp.OptionIndex() == i_style:
-                pick_style(sc.doc, STICKY)
-            continue
-        return (gp.Point(), w.CurrentValue, r.CurrentValue) if res == Rhino.Input.GetResult.Point else None
+    unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
+    got = click_options(gp, [("W", STICKY + "_w", 100.0 * unit, 0.001, 1e6), ("R", STICKY, 50.0 * unit, 0.001, 1e6),
+                     ("Layout", STICKY + "_layout", True), UP_OPTION], style=lambda: pick_style(sc.doc, STICKY))
+    if got is None or got == UNDO:
+        return got
+    return got, sc.sticky[STICKY + "_w"], sc.sticky[STICKY]
 
 
 def get_bottom(top, w, r, normal, tol):

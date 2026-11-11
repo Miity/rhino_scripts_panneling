@@ -27,13 +27,13 @@ from Rhino.Geometry import CurveOrientation, Plane, Polyline, PolylineCurve, Tex
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 for _m in ("ReinfCircle", "ZipCover", "ZipStops"):  # Rhino keeps modules from the first run for the session
     sys.modules.pop(_m, None)
-from ReinfCircle import UP_KEY, add_part, up_option  # copy of the part Up up, as Rinforzo
+from ReinfCircle import UP_OPTION, add_part  # copy of the part Up up, as Rinforzo
 from ZipCover import cm, label_attrs, label_style, layer_attrs, pick_edge, pick_style
 from ZipStops import BORD_EDGE, BORD_LINE, LINE, bordino_near, labels_after, mid_point, point_at, zip_text
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
-from click_undo import UNDO, Steps  # option Undo: take back the last click
+from click_undo import UNDO, Steps, click_options  # option Undo: take back the last click
 
 KINDS = {"Bordino": ("B", 35.0), "Pettola": ("Pt", 100.0)}  # kind → (label code, default W in mm)
 GAP_MM = 100.0  # part this far from the edge (outermost point of a curved edge)
@@ -64,28 +64,9 @@ def ask(gp, kind):
     """Click near an edge with options Undo / W / Plus / Angle / Up / Style. A point, UNDO or None (Enter / Esc).
     W, Plus and Style are remembered per kind (sticky key = kind)."""
     unit = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, sc.doc.ModelUnitSystem)
-    i_undo = gp.AddOption("Undo")
-    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(kind, KINDS[kind][1] * unit), 0.001, 1e6)
-    plus = Rhino.Input.Custom.OptionDouble(sc.sticky.get(kind + "_plus", 60.0 * unit), 0.0, 1e6)
-    a = Rhino.Input.Custom.OptionDouble(sc.sticky.get("ZipCover_angle", 30.0), 1.0, 179.0)  # shared with ZipCover
-    gp.AddOptionDouble("W", w)
-    gp.AddOptionDouble("Plus", plus)
-    gp.AddOptionDouble("Angle", a)
-    up = up_option(gp)
-    i_style = gp.AddOption("Style")
-    while True:
-        r = gp.Get()
-        sc.sticky[kind] = w.CurrentValue
-        sc.sticky[kind + "_plus"] = plus.CurrentValue
-        sc.sticky["ZipCover_angle"] = a.CurrentValue
-        sc.sticky[UP_KEY] = up.CurrentValue
-        if r == Rhino.Input.GetResult.Option:
-            if gp.OptionIndex() == i_undo:
-                return UNDO
-            if gp.OptionIndex() == i_style:
-                pick_style(sc.doc, kind)
-            continue
-        return gp.Point() if r == Rhino.Input.GetResult.Point else None
+    return click_options(gp, [("W", kind, KINDS[kind][1] * unit, 0.001, 1e6), ("Plus", kind + "_plus", 60.0 * unit, 0.0, 1e6),
+                      ("Angle", "ZipCover_angle", 30.0, 1.0, 179.0),  # shared with ZipCover
+                      UP_OPTION], style=lambda: pick_style(sc.doc, kind))
 
 
 HELP = u"""Options:

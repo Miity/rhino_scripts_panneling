@@ -26,7 +26,7 @@ from Rhino.Geometry.Intersect import Intersection
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
-from click_undo import UNDO, Steps  # option Undo: take back the last click
+from click_undo import UNDO, Steps, click_options  # option Undo: take back the last click
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curves"))
 sys.modules.pop("SplitCrvByAngle", None)
 from SplitCrvByAngle import breaks, segments  # a curve as its segments (micro ones dropped), where its direction breaks
@@ -225,18 +225,8 @@ def merge_groups(keep_id, drop_id):
 
 
 def ask(gp):
-    """Click near the corner with options Angle / Undo. A point, UNDO or None (Enter / Esc)."""
-    a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
-    i_undo = gp.AddOption("Undo")
-    gp.AddOptionDouble("Angle", a)
-    while True:
-        r = gp.Get()
-        sc.sticky[STICKY + "_angle"] = a.CurrentValue
-        if r == Rhino.Input.GetResult.Option:
-            if gp.OptionIndex() == i_undo:
-                return UNDO
-            continue
-        return gp.Point() if r == Rhino.Input.GetResult.Point else None
+    """Click near the corner with options Undo / Angle. A point, UNDO or None (Enter / Esc)."""
+    return click_options(gp, [("Angle", STICKY + "_angle", 30.0, 1.0, 179.0)])
 
 
 HELP = u"""Options:

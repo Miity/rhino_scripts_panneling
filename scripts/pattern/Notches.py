@@ -33,7 +33,7 @@ from Seams import (KEY, MATCH_MM, NOTCH, PARENT, breaks_on, edges, layer_attrs, 
                    to_sewn, up_normal)
 sys.path.insert(0, os.path.dirname(HERE))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
-from click_undo import UNDO, Steps  # option Undo: take back the last click
+from click_undo import CHANGED, UNDO, Steps, click_options  # option Undo: take back the last click
 
 STICKY = "Notches"
 LAYER = "Notches"  # points: layer Pattern::Notches
@@ -105,39 +105,17 @@ def place(doc, oid, click, tol):
 def ask(gp, doc):
     """Click with options Undo / Mode / (mode options) / Angle. A point, UNDO or None (Enter / Esc).
     Values — in sc.sticky."""
-    C = Rhino.Input.Custom
-    num = dict((k, C.OptionDouble(opt(k, doc), 0.0, 1e6)) for k in MM_KEYS)
-    count = C.OptionInteger(opt("count"), 1, 1000)
-    pct = C.OptionToggle(opt("pct"), "No", "Yes")
-    a = C.OptionDouble(opt("angle"), 1.0, 179.0)
+    def number(name, k):
+        return name, STICKY + "_" + k, float(opt(k, doc)), 0.0, 1e6
     while True:
         mode = MODES[opt("mode")]
-        gp.ClearCommandOptions()
         gp.SetCommandPrompt(u"Click near an edge: first third — from its nearer corner, middle third — from the middle (Enter — done)")
-        i_undo = gp.AddOption("Undo")
-        i_mode = gp.AddOptionList("Mode", MODES, opt("mode"))
-        if mode == "Single":
-            gp.AddOptionDouble("Distance", num["dist"])
-            gp.AddOptionToggle("Percent", pct)
-        elif mode == "Evenly":
-            gp.AddOptionDouble("First", num["first"])
-            gp.AddOptionDouble("Last", num["last"])
-            gp.AddOptionInteger("Count", count)
-        elif mode == "Repeat":
-            gp.AddOptionDouble("Every", num["every"])
-        gp.AddOptionDouble("Angle", a)
-        r = gp.Get()
-        for k, v in num.items():
-            sc.sticky[STICKY + "_" + k] = v.CurrentValue
-        sc.sticky.update({STICKY + "_count": count.CurrentValue, STICKY + "_pct": pct.CurrentValue,
-                          STICKY + "_angle": a.CurrentValue})
-        if r == Rhino.Input.GetResult.Option:
-            if gp.OptionIndex() == i_undo:
-                return UNDO
-            if gp.OptionIndex() == i_mode:
-                sc.sticky[STICKY + "_mode"] = gp.Option().CurrentListOptionIndex
-            continue
-        return gp.Point() if r == Rhino.Input.GetResult.Point else None
+        got = click_options(gp, [("Mode", STICKY + "_mode", MODES, DEFAULTS["mode"])] + {
+            "Single": [number("Distance", "dist"), ("Percent", STICKY + "_pct", bool(opt("pct")))],
+            "Evenly": [number("First", "first"), number("Last", "last"), ("Count", STICKY + "_count", int(opt("count")), 1, 1000)],
+            "Repeat": [number("Every", "every")]}.get(mode, []) + [("Angle", STICKY + "_angle", float(opt("angle")), 1.0, 179.0)])
+        if not got == CHANGED:  # (a point compared with != to a string is not reliable under .NET)
+            return got
 
 
 HELP = u"""Options (where the click sits on the edge sets From: first third — Start = nearer corner, middle — Middle, last — End):

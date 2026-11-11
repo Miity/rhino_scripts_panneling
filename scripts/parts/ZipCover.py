@@ -30,7 +30,7 @@ from PatternTextStyles import by_layer, cm, label_attrs, label_style, part_layer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
-from click_undo import UNDO, Steps  # option Undo: take back the last click
+from click_undo import UNDO, Steps, click_options  # option Undo: take back the last click
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curves"))
 sys.modules.pop("SplitCrvByAngle", None)
 from SplitCrvByAngle import breaks, runs, segments  # edges corner to corner: one way for every script
@@ -202,27 +202,9 @@ def edit_panel(doc, oid, panel, edge, outer, tol):
 
 
 def ask(gp):
-    """Click near an edge with options W / Angle / EditPanel / Style / Undo. A point, UNDO or None (Enter / Esc)."""
-    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY, 10.0), 0.001, 1e6)
-    a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
-    i_undo = gp.AddOption("Undo")
-    gp.AddOptionDouble("W", w)
-    gp.AddOptionDouble("Angle", a)
-    ed = Rhino.Input.Custom.OptionToggle(sc.sticky.get(STICKY + "_edit", False), "No", "Yes")
-    gp.AddOptionToggle("EditPanel", ed)
-    i_style = gp.AddOption("Style")
-    while True:
-        r = gp.Get()
-        sc.sticky[STICKY] = w.CurrentValue
-        sc.sticky[STICKY + "_edit"] = ed.CurrentValue
-        sc.sticky[STICKY + "_angle"] = a.CurrentValue
-        if r == Rhino.Input.GetResult.Option:
-            if gp.OptionIndex() == i_undo:
-                return UNDO
-            if gp.OptionIndex() == i_style:
-                pick_style(sc.doc, STICKY)
-            continue
-        return gp.Point() if r == Rhino.Input.GetResult.Point else None
+    """Click near an edge with options Undo / W / Angle / EditPanel / Style. A point, UNDO or None (Enter / Esc)."""
+    return click_options(gp, [("W", STICKY, 10.0, 0.001, 1e6), ("Angle", STICKY + "_angle", 30.0, 1.0, 179.0),
+                      ("EditPanel", STICKY + "_edit", False)], style=lambda: pick_style(sc.doc, STICKY))
 
 
 HELP = u"""Options:

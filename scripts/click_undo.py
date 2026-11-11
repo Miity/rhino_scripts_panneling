@@ -8,8 +8,8 @@ Undo of a step: added objects deleted, deleted undeleted, changed ones get back 
 
 Use in a click loop:
     steps = Steps()
-    i_undo = gp.AddOption("Undo")                      # FIRST option in the click prompt (keeps U); on it return UNDO
-    if click == UNDO: steps.undo(); <re-read state, numbers>; continue
+    pt = click_options(gp, [("W", "MyScript_w", 60.0, 0.0, 1e6), ("Layout", "MyScript_layout", True)])   # the prompt: see click_options
+    if pt == UNDO: steps.undo(); <re-read state, numbers>; continue
     steps.start()                                      # before each click's changes
     steps.change(id) BEFORE Replace / ModifyAttributes / group or UserText change; steps.delete(id) to delete
 """
@@ -17,6 +17,58 @@ import Rhino
 import scriptcontext as sc
 
 UNDO = "undo"  # what a click prompt returns for the Undo option
+CHANGED = "changed"  # ... for a list option: the caller builds its prompt / options again and asks once more
+
+
+def click_options(gp, options=(), style=None, undo=True):
+    """One click of a click loop: prompt gp (a GetPoint, its text already set) with options, asked until a point or
+    Enter. Undo is added first (it keeps the letter U), then options in their order, Style last:
+      (name, sticky key, default, lowest, highest) — a number (an int default — a whole number);
+      (name, sticky key, True / False) — a Yes / No switch;
+      (name, sticky key, [values], default index) — a list: the picked index goes to sticky, returns CHANGED;
+      "Name" — a plain option: returns its name.
+    Numbers and switches are read from sc.sticky[key] (default when not there yet) and written back after every Get —
+    the caller reads them from sc.sticky. style — called for the option Style (pick a text style).
+    Returns a point, UNDO, CHANGED, the name of a plain option, or None (Enter / Esc)."""
+    C = Rhino.Input.Custom
+    gp.ClearCommandOptions()
+    i_undo = gp.AddOption("Undo") if undo else -1
+    held, lists, plain = [], {}, {}
+    for o in options:
+        if not isinstance(o, (tuple, list)):
+            plain[gp.AddOption(o)] = o
+            continue
+        name, key, default = o[0], o[1], o[2]
+        if isinstance(default, (tuple, list)):
+            lists[gp.AddOptionList(name, default, sc.sticky.get(key, o[3] if len(o) > 3 else 0))] = key
+            continue
+        if isinstance(default, bool):
+            value = C.OptionToggle(sc.sticky.get(key, default), "No", "Yes")
+            gp.AddOptionToggle(name, value)
+        elif isinstance(default, int):
+            value = C.OptionInteger(sc.sticky.get(key, default), o[3], o[4])
+            gp.AddOptionInteger(name, value)
+        else:
+            value = C.OptionDouble(sc.sticky.get(key, default), o[3], o[4])
+            gp.AddOptionDouble(name, value)
+        held.append((key, value))
+    i_style = gp.AddOption("Style") if style else -1
+    while True:
+        res = gp.Get()
+        for key, value in held:
+            sc.sticky[key] = value.CurrentValue
+        if res != Rhino.Input.GetResult.Option:
+            return gp.Point() if res == Rhino.Input.GetResult.Point else None
+        i = gp.OptionIndex()
+        if i == i_undo:
+            return UNDO
+        if i in plain:
+            return plain[i]
+        if i in lists:
+            sc.sticky[lists[i]] = gp.Option().CurrentListOptionIndex
+            return CHANGED
+        if i == i_style:
+            style()
 
 
 class Steps(object):

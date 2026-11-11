@@ -32,7 +32,7 @@ sys.modules.pop("JoinCorner", None)
 from JoinCorner import clean, micro  # no micro zigzags / spikes on the cut line (plotter knife)
 sys.path.insert(0, os.path.dirname(HERE))  # scripts/: shared click_undo
 sys.modules.pop("click_undo", None)
-from click_undo import UNDO, Steps  # option Undo: take back the last click
+from click_undo import CHANGED, UNDO, Steps, click_options  # option Undo: take back the last click
 
 STICKY = "Seams"
 PARENT, NAME = "Pattern", "Seams"  # cut lines: layer Pattern::Seams
@@ -319,37 +319,19 @@ def ask(gp, doc):
     """Click with options Undo / Mode / Width (Seam) or Corner (Corner) / All / Angle.
     A point, UNDO, ALL or None (Enter / Esc). Mode, width, corner style, angle — in sc.sticky."""
     mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, doc.ModelUnitSystem)
-    w = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_width", WIDTH_MM * mm), 0.0, 1e6)
-    a = Rhino.Input.Custom.OptionDouble(sc.sticky.get(STICKY + "_angle", 30.0), 1.0, 179.0)
     while True:
         mode = sc.sticky.setdefault(STICKY + "_mode", 0)
-        gp.ClearCommandOptions()
+        sc.sticky.setdefault(STICKY + "_corner", 0)
         gp.SetCommandPrompt(u"Click near an edge — it gets the seam (Enter — done)" if mode == 0 else
                             u"Click near a corner — it gets the corner style (Enter — done)")
-        i_undo = gp.AddOption("Undo")
-        i_mode = gp.AddOptionList("Mode", MODES, mode)
-        i_c = -1
-        if mode == 0:
-            gp.AddOptionDouble("Width", w)
-        else:
-            i_c = gp.AddOptionList("Corner", STYLES, sc.sticky.setdefault(STICKY + "_corner", 0))
-        i_all = gp.AddOption("All")
-        gp.AddOptionDouble("Angle", a)
-        r = gp.Get()
-        sc.sticky[STICKY + "_width"] = w.CurrentValue
-        sc.sticky[STICKY + "_angle"] = a.CurrentValue
-        if r == Rhino.Input.GetResult.Option:
-            i = gp.OptionIndex()
-            if i == i_undo:
-                return UNDO
-            if i == i_all:
-                return ALL
-            if i == i_mode:
-                sc.sticky[STICKY + "_mode"] = gp.Option().CurrentListOptionIndex
-            elif i == i_c:
-                sc.sticky[STICKY + "_corner"] = gp.Option().CurrentListOptionIndex
-            continue
-        return gp.Point() if r == Rhino.Input.GetResult.Point else None
+        got = click_options(gp, [("Mode", STICKY + "_mode", MODES),
+                         ("Width", STICKY + "_width", WIDTH_MM * mm, 0.0, 1e6) if mode == 0 else
+                         ("Corner", STICKY + "_corner", STYLES),
+                         "All", ("Angle", STICKY + "_angle", 30.0, 1.0, 179.0)])
+        if got == "All":
+            return ALL
+        if not got == CHANGED:  # (a point compared with != to a string is not reliable under .NET)
+            return got
 
 
 def edge_of(es, q, widths):
