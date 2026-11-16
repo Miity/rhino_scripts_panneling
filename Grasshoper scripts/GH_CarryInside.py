@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
-"""CarryInside — GhPython component for autonest_v2.gh.
+"""CarryInside — GhPython component for autonest_v2.gh and autonest_v3.gh.
 
 Each panel (a Rhino group: CUT + INT, INK, texts…, from PanelGroups) goes to
 its nested place: the CUT's own OpenNest transform is applied to a copy of
 every member.
 
 A CUT that doesn't fit OpenNest puts on an extra copy of the sheet (IDS ≥
-number of sheets): it is left out with a warning, the message counts the
-placed ones ("11/12 placed").
+number of sheets; OpenNest2: Sheet Id -1 or ≥ number of sheets): it is left out
+with a warning, the message counts the placed ones ("11/12 placed").
 
 Inputs:
     Ids  : Ids output of PanelGroups — branch {i}: CUT id, then the rest of
            its group (Tree access)
-    X    : Transform output of OpenNest (Tree access)
+    X    : Transform output of OpenNest / Transforms of OpenNest2 (Tree access)
     Bake : Button — copies (CUT + its group) added to the Rhino document with
            their own layer / colour / linetype, one group per panel, one undo
 Outputs (one per layer, to bake each into its layer; branch {i} = panel i):
@@ -24,11 +24,22 @@ Outputs (one per layer, to bake each into its layer; branch {i} = panel i):
 """
 
 
+NESTS = ("component_nest1", "component2_nest")      # OpenNest (v2), OpenNest2 (v3)
+
+
+def sheet_count(nest):
+    """Number of sheet curves given to the nest (OpenNest2: to its Sheets component)."""
+    p = nest.Params.Input[0]
+    if nest.GetType().FullName.endswith("component2_nest") and p.Sources:
+        p = p.Sources[0].Attributes.GetTopLevel.DocObject.Params.Input[0]
+    return p.VolatileDataCount
+
+
 def find_nest(param):
     """OpenNest that feeds param, through relays."""
     for s in param.Sources:
         o = s.Attributes.GetTopLevel.DocObject
-        if o.GetType().FullName.endswith("component_nest1"):
+        if o.GetType().FullName.endswith(NESTS):
             return o
         if hasattr(o, "Sources"):
             o = find_nest(o)
@@ -56,9 +67,9 @@ if "ghenv" in globals():
     off = set()
     if nest:
         sheet_of = nest.Params.Output[4].VolatileData
-        sheets = nest.Params.Input[0].VolatileDataCount
+        sheets = sheet_count(nest)
         off = set(i for i in range(min(len(parts), sheet_of.PathCount))
-                  if sheet_of.Branches[i].Count and sheet_of.Branches[i][0].Value >= sheets)
+                  if sheet_of.Branches[i].Count and not 0 <= sheet_of.Branches[i][0].Value < sheets)
 
     if not parts:
         comp.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error, "Ids must come from PanelGroups")
@@ -108,5 +119,6 @@ if __name__ == "__main__" and "ghenv" not in globals():
             return self.name
     nest = P("opennest_2.component_nest1")
     assert find_nest(P("x", [P("Relay", [nest])])) is nest
+    assert find_nest(P("x", [P("Relay", [P("opennest_2.component2_nest")])])).name.endswith("component2_nest")
     assert find_nest(P("x", [P("Relay")])) is None
     print("ok")

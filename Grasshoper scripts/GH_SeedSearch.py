@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""SeedSearch — GhPython component for autonest_v2.gh.
+"""SeedSearch — GhPython component for autonest_v2.gh and autonest_v3.gh.
 
 Tries OpenNest2 seeds one after another and keeps the layout that takes the
 least material along X; among the shortest (within Tol) — the smallest
@@ -10,8 +10,8 @@ number of sheets): such a layout is missing panels and never wins over one
 with all of them; its length counts only the panels on the real sheet.
 
 Inputs:
-    Geo     : Geo output of OpenNest, Tree access (only to be solved when it changes;
-              the layout is read from OpenNest itself)
+    Geo     : Geo output of OpenNest (v2) / All Geo of OpenNest2 (v3), Tree access (only
+              to be solved when it changes; the layout is read from the nest itself)
     Run     : Boolean Toggle — True starts a new search, False stops it
     From    : first seed (default 1)
     Count   : how many seeds (default 50)
@@ -23,6 +23,15 @@ Outputs:
     A       : its bounding box area, m²
     Table   : "seed  L cm  A m²  [missing n]" per tried seed, best first
 """
+
+
+NESTS = ("component_nest1", "component2_nest")      # OpenNest (v2), OpenNest2 (v3)
+
+
+def finished(message):
+    """OpenNest ends with "fit …", OpenNest2 with "<n> gens → <k> sheet(s)"."""
+    message = message or ""
+    return message.startswith("fit") or "sheet(s)" in message
 
 
 def pick(results, tol):
@@ -59,23 +68,32 @@ if "ghenv" in globals():
     cm = Rhino.RhinoMath.UnitScale(Rhino.RhinoDoc.ActiveDoc.ModelUnitSystem, Rhino.UnitSystem.Centimeters)
 
     nest = next((o for o in (s.Attributes.GetTopLevel.DocObject for s in comp.Params.Input[0].Sources)
-                 if o.GetType().FullName.endswith("component_nest1")), None)
+                 if o.GetType().FullName.endswith(NESTS)), None)
     inp = dict((p.Name, p) for p in nest.Params.Input) if nest else {}
-    slider = inp["Seed"].Sources[0] if nest and inp["Seed"].Sources else None
+    v3 = bool(nest) and nest.GetType().FullName.endswith("component2_nest")
+    if v3:      # OpenNest2: Seed is on the NestOptions component, sheets on the Sheets component
+        owner = lambda p: p.Sources[0].Attributes.GetTopLevel.DocObject if p.Sources else None
+        opts, shs = owner(inp["Options"]), owner(inp["Sheets"])
+        seed_in = dict((p.Name, p) for p in opts.Params.Input).get("Seed") if opts else None
+        sheet_in = shs.Params.Input[0] if shs else None
+    else:
+        seed_in, sheet_in = inp.get("Seed"), inp.get("Sheets")
+    slider = seed_in.Sources[0] if seed_in is not None and seed_in.Sources else None
     if not isinstance(slider, Grasshopper.Kernel.Special.GH_NumberSlider):
         comp.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error,
-                               "Geo must come from OpenNest, its Seed from a Number Slider")
+                               "Geo must come from OpenNest / OpenNest2, its Seed from a Number Slider")
     else:
         def measure():
             """(length, area, missing panels) of the finished layout in cm / m², None while OpenNest is busy."""
-            if not (nest.Message or "").startswith("fit"):
+            if not finished(nest.Message):
                 return None
-            geo, sheet_of = nest.Params.Output[1].VolatileData, nest.Params.Output[4].VolatileData
-            sheets = list(inp["Sheets"].VolatileData.AllData(True))
+            # parts as placed (v2 Geo, v3 All Geo — Borders are grown by the spacing) and their sheet numbers
+            geo, sheet_of = nest.Params.Output[2 if v3 else 1].VolatileData, nest.Params.Output[4].VolatileData
+            sheets = list(sheet_in.VolatileData.AllData(True))
             box = Rhino.Geometry.BoundingBox.Empty
             placed = 0
             for i in range(min(geo.PathCount, sheet_of.PathCount)):
-                if geo.Branches[i].Count and sheet_of.Branches[i].Count and sheet_of.Branches[i][0].Value < len(sheets):
+                if geo.Branches[i].Count and sheet_of.Branches[i].Count and 0 <= sheet_of.Branches[i][0].Value < len(sheets):
                     placed += 1
                     for g in geo.Branches[i]:
                         box.Union(g.Boundingbox)
@@ -84,7 +102,7 @@ if "ghenv" in globals():
             x0 = min(g.Boundingbox.Min.X for g in sheets)
             length = (box.Max.X - x0) * cm
             # one curve per part (the Cut list grafted)
-            return length, length * (box.Max.Y - box.Min.Y) * cm / 1e4, inp["Geo"].VolatileDataCount - placed
+            return length, length * (box.Max.Y - box.Min.Y) * cm / 1e4, (geo.PathCount if v3 else inp["Geo"].VolatileDataCount) - placed
 
         def set_seed(value):
             """Seed on the slider at the next solution; the result on screen is not its own until OpenNest restarts."""
@@ -144,4 +162,5 @@ if __name__ == "__main__" and "ghenv" not in globals():
     assert table(r, 1.0)[0].startswith("3 ")
     assert table(r, 1.0)[-1] == "5  900.0 cm  15.000 m2  missing 1"   # shorter, but a panel short — last
     assert pick([(5, 900.0, 15.0, 2), (6, 950.0, 15.0, 1)], 1.0)[0] == 6
+    assert finished("fit 12.3") and finished("100 gens   \u2192   1 sheet(s)") and not finished("gen 5 / 100") and not finished(None)
     print("ok")
