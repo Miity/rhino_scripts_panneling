@@ -18,13 +18,14 @@ Inputs:
     Minutes : time limit, 0 — none
     Tol     : cm — lengths within Tol count as equally short (default 1)
 Outputs:
-    Seed    : best seed (set on the Seed slider at the end)
+    Seed    : best seed (set on the Seed slider / OpenNest2's Seed option at the end)
     L       : its length along X, cm
     A       : its bounding box area, m²
     Table   : "seed  L cm  A m²  [missing n]" per tried seed, best first
 """
 
 
+SETTLE = 6          # s after a new seed: a finished layout is taken as its own even if "busy" was never seen (OpenNest2 restarts between two looks); ponytail: a restart later than this takes the old layout
 NESTS = ("component_nest1", "component2_nest")      # OpenNest (v2), OpenNest2 (v3)
 
 
@@ -62,7 +63,7 @@ if "ghenv" in globals():
     gd = comp.OnPingDocument()
     st = sc.sticky.setdefault("SeedSearch.%s" % comp.InstanceGuid, {"on": False, "run": False, "seeds": [], "results": []})
     From = 1 if From is None else int(From)
-    Count = int(Count or 50)
+    Count = max(1, int(Count or 50))
     Minutes = float(Minutes or 0)
     Tol = 1.0 if Tol is None else float(Tol)
     cm = Rhino.RhinoMath.UnitScale(Rhino.RhinoDoc.ActiveDoc.ModelUnitSystem, Rhino.UnitSystem.Centimeters)
@@ -71,18 +72,25 @@ if "ghenv" in globals():
                  if o.GetType().FullName.endswith(NESTS)), None)
     inp = dict((p.Name, p) for p in nest.Params.Input) if nest else {}
     v3 = bool(nest) and nest.GetType().FullName.endswith("component2_nest")
-    if v3:      # OpenNest2: Seed is on the NestOptions component, sheets on the Sheets component
+    opt = None
+    if v3:      # OpenNest2: sheets on the Sheets component; Seed an option of the nest itself
         owner = lambda p: p.Sources[0].Attributes.GetTopLevel.DocObject if p.Sources else None
-        opts, shs = owner(inp["Options"]), owner(inp["Sheets"])
-        seed_in = dict((p.Name, p) for p in opts.Params.Input).get("Seed") if opts else None
+        shs = owner(inp["Sheets"])
         sheet_in = shs.Params.Input[0] if shs else None
+        if not inp["Options"].Sources:      # own options (the panel on the component); a wired Options overrides them
+            opt = next((o for o in nest.Options if o.Key == "seed"), None)
+        else:
+            opts = owner(inp["Options"])
+            seed_in = dict((p.Name, p) for p in opts.Params.Input).get("Seed") if opts else None
     else:
         seed_in, sheet_in = inp.get("Seed"), inp.get("Sheets")
-    slider = seed_in.Sources[0] if seed_in is not None and seed_in.Sources else None
-    if not isinstance(slider, Grasshopper.Kernel.Special.GH_NumberSlider):
+    slider = None if opt else (seed_in.Sources[0] if seed_in is not None and seed_in.Sources else None)
+    if not opt and not isinstance(slider, Grasshopper.Kernel.Special.GH_NumberSlider):
         comp.AddRuntimeMessage(Grasshopper.Kernel.GH_RuntimeMessageLevel.Error,
-                               "Geo must come from OpenNest / OpenNest2, its Seed from a Number Slider")
+                               "Geo must come from OpenNest / OpenNest2 — its Seed from a Number Slider (or OpenNest2's own Seed option)")
     else:
+        seed_now = lambda: int(opt.Value if opt else slider.CurrentValue)
+
         def measure():
             """(length, area, missing panels) of the finished layout in cm / m², None while OpenNest is busy."""
             if not finished(nest.Message):
@@ -97,17 +105,24 @@ if "ghenv" in globals():
                     placed += 1
                     for g in geo.Branches[i]:
                         box.Union(g.Boundingbox)
+            total = geo.PathCount if v3 else inp["Geo"].VolatileDataCount
             if not box.IsValid:
-                return None
+                return float("inf"), float("inf"), total      # nothing placed — the worst layout, not "busy"
             x0 = min(g.Boundingbox.Min.X for g in sheets)
             length = (box.Max.X - x0) * cm
             # one curve per part (the Cut list grafted)
-            return length, length * (box.Max.Y - box.Min.Y) * cm / 1e4, (geo.PathCount if v3 else inp["Geo"].VolatileDataCount) - placed
+            return length, length * (box.Max.Y - box.Min.Y) * cm / 1e4, total - placed
 
         def set_seed(value):
             """Seed on the slider at the next solution; the result on screen is not its own until OpenNest restarts."""
-            st["fresh"] = False
+            st["fresh"], st["seen"], st["t_set"] = False, False, time.time()
             def cb(doc):
+                if opt:         # same call the option field makes when typed into
+                    opt.Value = float(value)
+                    flags = System.Reflection.BindingFlags
+                    nest.GetType().BaseType.GetMethod("OnOptionChanged", flags.NonPublic | flags.Public | flags.Instance).Invoke(nest, [opt])
+                    nest.ExpireSolution(False)      # the option alone doesn't restart it ("live — watching")
+                    return
                 v = System.Decimal(value)
                 slider.Slider.Maximum = max(slider.Slider.Maximum, v)
                 slider.Slider.Minimum = min(slider.Slider.Minimum, v)
@@ -117,12 +132,12 @@ if "ghenv" in globals():
 
         def stop():
             st["run"] = False
-            if st["results"]:
+            if st["results"] and pick(st["results"], Tol)[0] != seed_now():      # no restart if the best is on screen
                 set_seed(pick(st["results"], Tol)[0])
 
         if Run and not st["on"]:
             st.update(run=True, seeds=list(range(From, From + Count)), results=[], t0=time.time())
-            if int(slider.CurrentValue) == From:
+            if seed_now() == From:
                 st["fresh"] = True
             else:
                 set_seed(From)
@@ -131,16 +146,24 @@ if "ghenv" in globals():
         st["on"] = bool(Run)
 
         # ponytail: no per-seed timeout — if OpenNest never prints "fit" the search waits; Run off stops it
-        if st["run"] and int(slider.CurrentValue) == st["seeds"][0]:
+        if st["run"] and seed_now() == st["seeds"][0]:
             done = measure()
             if done is None:
-                st["fresh"] = True
-            elif st["fresh"]:
+                st["fresh"], st["seen"] = True, False
+            elif not (st["fresh"] or time.time() - st.get("t_set", 0) > SETTLE):
+                pass
+            elif not st.get("seen"):
+                st["seen"] = True       # finished — taken after a second look (message and outputs are not updated at one moment)
+            else:
                 st["results"].append((st["seeds"].pop(0),) + done)
+                st["seen"] = False
                 if st["seeds"] and not (Minutes and time.time() - st["t0"] > Minutes * 60):
                     set_seed(st["seeds"][0])
                 else:
                     stop()
+
+        if st["run"]:       # OpenNest2 expires its outputs only when the layout changed: look again while waiting
+            gd.ScheduleSolution(500, Grasshopper.Kernel.GH_Document.GH_ScheduleDelegate(lambda doc: comp.ExpireSolution(False)))
 
         n = len(st["results"])
         if n:
