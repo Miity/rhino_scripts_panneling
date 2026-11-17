@@ -10,7 +10,7 @@ number of sheets): such a layout is missing panels and never wins over one
 with all of them; its length counts only the panels on the real sheet.
 
 Inputs:
-    Geo     : Geo output of OpenNest (v2) / All Geo of OpenNest2 (v3), Tree access (only
+    Geo     : Geo output of OpenNest (v2) / All Geo of OpenNest2 (v3) / Geo of MergeNests (v4: both nests get the seed), Tree access (only
               to be solved when it changes; the layout is read from the nest itself)
     Run     : Boolean Toggle — True starts a new search, False stops it
     From    : first seed (default 1)
@@ -70,6 +70,15 @@ if "ghenv" in globals():
 
     nest = next((o for o in (s.Attributes.GetTopLevel.DocObject for s in comp.Params.Input[0].Sources)
                  if o.GetType().FullName.endswith(NESTS)), None)
+    merge, nest2 = None, None
+    src = next((x.Attributes.GetTopLevel.DocObject for x in comp.Params.Input[0].Sources), None)
+    if nest is None and src is not None and hasattr(src, "Params"):        # v4: Geo comes from MergeNests, two nests
+        ins = dict((p.Name, p) for p in src.Params.Input)
+        if "BigX" in ins and "SmallX" in ins and ins["BigX"].Sources and ins["SmallX"].Sources:
+            merge = src
+            nest = ins["BigX"].Sources[0].Attributes.GetTopLevel.DocObject
+            nest2 = ins["SmallX"].Sources[0].Attributes.GetTopLevel.DocObject
+    nests = [n for n in (nest, nest2) if n is not None]
     inp = dict((p.Name, p) for p in nest.Params.Input) if nest else {}
     v3 = bool(nest) and nest.GetType().FullName.endswith("component2_nest")
     opt = None
@@ -79,6 +88,8 @@ if "ghenv" in globals():
         sheet_in = shs.Params.Input[0] if shs else None
         if not inp["Options"].Sources:      # own options (the panel on the component); a wired Options overrides them
             opt = next((o for o in nest.Options if o.Key == "seed"), None)
+            if merge and nest2.Params.Input[2].Sources:         # the second nest has its own options, they must not be wired
+                opt = None
         else:
             opts = owner(inp["Options"])
             seed_in = dict((p.Name, p) for p in opts.Params.Input).get("Seed") if opts else None
@@ -93,15 +104,23 @@ if "ghenv" in globals():
 
         def measure():
             """(length, area, missing panels) of the finished layout in cm / m², None while OpenNest is busy."""
-            if not finished(nest.Message):
+            if not all(finished(n.Message) for n in nests):
+                st["t_fin"] = None
                 return None
+            if merge:       # the second nest restarts only after the first one is done: not at the same moment
+                st["t_fin"] = st.get("t_fin") or time.time()
+                if time.time() - st["t_fin"] < 3:
+                    return None
             # parts as placed (v2 Geo, v3 All Geo — Borders are grown by the spacing) and their sheet numbers
             geo, sheet_of = nest.Params.Output[2 if v3 else 1].VolatileData, nest.Params.Output[4].VolatileData
+            if merge:       # placed outlines in panel order, an empty branch = didn't fit
+                geo = merge.Params.Output[2].VolatileData
+                sheet_of = geo
             sheets = list(sheet_in.VolatileData.AllData(True))
             box = Rhino.Geometry.BoundingBox.Empty
             placed = 0
             for i in range(min(geo.PathCount, sheet_of.PathCount)):
-                if geo.Branches[i].Count and sheet_of.Branches[i].Count and 0 <= sheet_of.Branches[i][0].Value < len(sheets):
+                if geo.Branches[i].Count and (merge or (sheet_of.Branches[i].Count and 0 <= sheet_of.Branches[i][0].Value < len(sheets))):
                     placed += 1
                     for g in geo.Branches[i]:
                         box.Union(g.Boundingbox)
@@ -118,10 +137,12 @@ if "ghenv" in globals():
             st["fresh"], st["seen"], st["t_set"] = False, False, time.time()
             def cb(doc):
                 if opt:         # same call the option field makes when typed into
-                    opt.Value = float(value)
                     flags = System.Reflection.BindingFlags
-                    nest.GetType().BaseType.GetMethod("OnOptionChanged", flags.NonPublic | flags.Public | flags.Instance).Invoke(nest, [opt])
-                    nest.ExpireSolution(False)      # the option alone doesn't restart it ("live — watching")
+                    for n in nests:
+                        o = next(o for o in n.Options if o.Key == "seed")
+                        o.Value = float(value)
+                        n.GetType().BaseType.GetMethod("OnOptionChanged", flags.NonPublic | flags.Public | flags.Instance).Invoke(n, [o])
+                        n.ExpireSolution(False)     # the option alone doesn't restart it ("live — watching")
                     return
                 v = System.Decimal(value)
                 slider.Slider.Maximum = max(slider.Slider.Maximum, v)
