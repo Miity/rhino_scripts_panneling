@@ -30,9 +30,10 @@ NESTS = ("component_nest1", "component2_nest")      # OpenNest (v2), OpenNest2 (
 
 
 def finished(message):
-    """OpenNest ends with "fit …", OpenNest2 with "<n> gens → <k> sheet(s)"."""
+    """OpenNest ends with "fit …", OpenNest2 with "<n> gens → <k> sheet(s)" (after the document is solved again, its result
+    kept: "live — watching")."""
     message = message or ""
-    return message.startswith("fit") or "sheet(s)" in message
+    return message.startswith("fit") or "sheet(s)" in message or "watching" in message
 
 
 def pick(results, tol):
@@ -79,16 +80,18 @@ if "ghenv" in globals():
             nest = ins["BigX"].Sources[0].Attributes.GetTopLevel.DocObject
             nest2 = ins["SmallX"].Sources[0].Attributes.GetTopLevel.DocObject
     nests = [n for n in (nest, nest2) if n is not None]
+    if merge:       # a nest that got no parts (Big = 0 / 100) prints no "sheet(s)": not waited for, not seeded
+        nests = [n for n, i in ((nest, "BigIdx"), (nest2, "SmallIdx")) if next(p for p in merge.Params.Input if p.Name == i).VolatileDataCount]
     inp = dict((p.Name, p) for p in nest.Params.Input) if nest else {}
     v3 = bool(nest) and nest.GetType().FullName.endswith("component2_nest")
-    opt = None
+    opt, seed_in = None, None
     if v3:      # OpenNest2: sheets on the Sheets component; Seed an option of the nest itself
         owner = lambda p: p.Sources[0].Attributes.GetTopLevel.DocObject if p.Sources else None
         shs = owner(inp["Sheets"])
         sheet_in = shs.Params.Input[0] if shs else None
         if not inp["Options"].Sources:      # own options (the panel on the component); a wired Options overrides them
             opt = next((o for o in nest.Options if o.Key == "seed"), None)
-            if merge and nest2.Params.Input[2].Sources:         # the second nest has its own options, they must not be wired
+            if merge and next(p for p in nest2.Params.Input if p.Name == "Options").Sources:     # the second nest's options must not be wired
                 opt = None
         else:
             opts = owner(inp["Options"])
@@ -134,7 +137,7 @@ if "ghenv" in globals():
 
         def set_seed(value):
             """Seed on the slider at the next solution; the result on screen is not its own until OpenNest restarts."""
-            st["fresh"], st["seen"], st["t_set"] = False, False, time.time()
+            st["fresh"], st["seen"], st["t_set"], st["t_fin"] = False, False, time.time(), None
             def cb(doc):
                 if opt:         # same call the option field makes when typed into
                     flags = System.Reflection.BindingFlags
@@ -206,5 +209,5 @@ if __name__ == "__main__" and "ghenv" not in globals():
     assert table(r, 1.0)[0].startswith("3 ")
     assert table(r, 1.0)[-1] == "5  900.0 cm  15.000 m2  missing 1"   # shorter, but a panel short — last
     assert pick([(5, 900.0, 15.0, 2), (6, 950.0, 15.0, 1)], 1.0)[0] == 6
-    assert finished("fit 12.3") and finished("100 gens   \u2192   1 sheet(s)") and not finished("gen 5 / 100") and not finished(None)
+    assert finished("fit 12.3") and finished("100 gens   \u2192   1 sheet(s)") and not finished("gen 5 / 100") and not finished(None) and finished("live \u2014 watching")
     print("ok")

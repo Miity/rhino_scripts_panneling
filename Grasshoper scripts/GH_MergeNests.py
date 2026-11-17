@@ -18,13 +18,13 @@ Outputs:
 
 
 def order(big_idx, small_idx):
-    """[(nest 0 big / 1 small, branch k) per panel i] from the two index lists."""
+    """[(nest 0 big / 1 small, branch k) or None per panel i] from the two index lists (None = in neither)."""
     where = {}
     for k, i in enumerate(big_idx):
         where[i] = (0, k)
     for k, i in enumerate(small_idx):
         where[i] = (1, k)
-    return [where[i] for i in sorted(where)]
+    return [where.get(i) for i in range(max(where) + 1 if where else 0)]
 
 
 if "ghenv" in globals():
@@ -37,11 +37,14 @@ if "ghenv" in globals():
     X, Geo = DataTree[object](), DataTree[object]()
     first = lambda tree, k: tree.Branches[k][0] if k < tree.PathCount and tree.Branches[k].Count else None
     placed = [0, 0]
-    for i, (n, k) in enumerate(order([g.Value for g in P[6].AllData(True)], [g.Value for g in P[7].AllData(True)])):
-        x, sid, geo = (P[0], P[2], P[4]) if n == 0 else (P[1], P[3], P[5])
-        s = first(sid, k)
+    for i, w in enumerate(order([g.Value for g in P[6].AllData(True)], [g.Value for g in P[7].AllData(True)])):
         X.EnsurePath(GH_Path(i))
         Geo.EnsurePath(GH_Path(i))
+        if w is None:
+            continue
+        n, k = w
+        x, sid, geo = (P[0], P[2], P[4]) if n == 0 else (P[1], P[3], P[5])
+        s = first(sid, k)
         if s is not None and int(s.Value) == 0 and first(x, k) is not None and first(geo, k) is not None:
             X.Add(first(x, k).Value, GH_Path(i))
             Geo.Add(first(geo, k).Value, GH_Path(i))
@@ -53,4 +56,5 @@ if "ghenv" in globals():
 if __name__ == "__main__" and "ghenv" not in globals():
     assert order([0, 2], [1, 3]) == [(0, 0), (1, 0), (0, 1), (1, 1)]
     assert order([], [0]) == [(1, 0)]
+    assert order([0, 3], [1]) == [(0, 0), (1, 0), None, (0, 1)]      # panel 2 in neither list: an empty branch
     print("ok")
