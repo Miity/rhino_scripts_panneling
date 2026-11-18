@@ -56,9 +56,16 @@ if "ghenv" in globals():
         lambda i: list(rdoc.Objects.FindId(i).Attributes.GetGroupList() or []),
         lambda g: [o.Id for o in rdoc.Groups.GroupMembers(g)])
 
+    def outline(curve):
+        """The curve for the nest: a polyline within the document tolerance. OpenNest's Geometry builds its outline
+        from a NURBS curve's control points — up to 100 mm off a small arc part, wasting the cloth around it."""
+        if isinstance(curve, Rhino.Geometry.PolylineCurve):
+            return curve.DuplicateCurve()
+        return curve.ToPolyline(0, 0, 0, 0, 0, rdoc.ModelAbsoluteTolerance, 0, 0, True) or curve.DuplicateCurve()
+
     Cut, Ids = DataTree[object](), DataTree[object]()
     for n, part in enumerate(parts):
-        Cut.Add(rdoc.Objects.FindId(part[0]).Geometry.Duplicate(), GH_Path(n))
+        Cut.Add(outline(rdoc.Objects.FindId(part[0]).Geometry), GH_Path(n))
         for i in part:
             Ids.Add(str(i), GH_Path(n))
     if not parts:
