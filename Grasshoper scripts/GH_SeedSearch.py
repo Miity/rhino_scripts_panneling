@@ -26,6 +26,7 @@ Outputs:
 
 
 SETTLE = 6          # s after a new seed: a finished layout is taken as its own even if "busy" was never seen (OpenNest2 restarts between two looks); ponytail: a restart later than this takes the old layout
+QUIET = 20          # s: v4 — how long the second nest may stay idle after it got its seed before its result is taken as final
 NESTS = ("component_nest1", "component2_nest")      # OpenNest (v2), OpenNest2 (v3)
 
 
@@ -107,45 +108,63 @@ if "ghenv" in globals():
 
         def measure():
             """(length, area, missing panels) of the finished layout in cm / m², None while OpenNest is busy."""
-            if not all(finished(n.Message) for n in nests):
-                st["t_fin"] = None
-                return None
-            if merge:       # the second nest restarts only after the first one is done: not at the same moment
-                st["t_fin"] = st.get("t_fin") or time.time()
-                if time.time() - st["t_fin"] < 3:
+            if merge and len(nests) == 2:
+                # v4: the second nest nests on the layout of the first one. Phase 1: the first nest gets the seed and
+                # finishes; phase 2: only then the second gets its seed (it starts on the new layout, once) and finishes.
+                # Its "finished" message before that is the old seed's.
+                if not finished(nest.Message):
+                    st["busy1"], st["b2"], st["t2"] = True, False, None
                     return None
+                if not (st.get("busy1") or time.time() - st.get("t_set", 0) > SETTLE):
+                    return None
+                if st.get("pending2") is not None:
+                    v, st["pending2"], st["t2"] = st["pending2"], None, time.time()
+                    gd.ScheduleSolution(5, Grasshopper.Kernel.GH_Document.GH_ScheduleDelegate(lambda doc: put_seed(nest2, v, True)))
+                    return None
+                if not finished(nest2.Message):
+                    st["b2"] = True
+                    return None
+                if st.get("t2") is not None and not st["b2"] and time.time() - st["t2"] < QUIET:
+                    return None      # nothing changed for the second nest (same layout, same seed): it does not restart
+            elif not all(finished(n.Message) for n in nests):
+                return None
             # parts as placed (v2 Geo, v3 All Geo — Borders are grown by the spacing) and their sheet numbers
-            geo, sheet_of = nest.Params.Output[2 if v3 else 1].VolatileData, nest.Params.Output[4].VolatileData
-            if merge:       # placed outlines in panel order, an empty branch = didn't fit
-                geo = merge.Params.Output[2].VolatileData
-                sheet_of = geo
             sheets = list(sheet_in.VolatileData.AllData(True))
             box = Rhino.Geometry.BoundingBox.Empty
-            placed = 0
-            for i in range(min(geo.PathCount, sheet_of.PathCount)):
-                if geo.Branches[i].Count and (merge or (sheet_of.Branches[i].Count and 0 <= sheet_of.Branches[i][0].Value < len(sheets))):
-                    placed += 1
-                    for g in geo.Branches[i]:
-                        box.Union(g.Boundingbox)
-            total = geo.PathCount if v3 else inp["Geo"].VolatileDataCount
+            placed = total = 0
+            # v4: both nests' own outputs (MergeNests is behind them: it is not updated while a nest restarts by itself)
+            for n in (nests if merge else [nest]):
+                geo, sheet_of = n.Params.Output[2 if v3 else 1].VolatileData, n.Params.Output[4].VolatileData
+                total += geo.PathCount if v3 else inp["Geo"].VolatileDataCount
+                for i in range(min(geo.PathCount, sheet_of.PathCount)):
+                    if geo.Branches[i].Count and sheet_of.Branches[i].Count and 0 <= sheet_of.Branches[i][0].Value < len(sheets):
+                        placed += 1
+                        for g in geo.Branches[i]:
+                            box.Union(g.Boundingbox)
             if not box.IsValid:
                 return float("inf"), float("inf"), total      # nothing placed — the worst layout, not "busy"
             x0 = min(g.Boundingbox.Min.X for g in sheets)
             length = (box.Max.X - x0) * cm
-            # one curve per part (the Cut list grafted)
             return length, length * (box.Max.Y - box.Min.Y) * cm / 1e4, total - placed
+
+        def put_seed(n, value, restart):
+            """Seed option of nest n (value None = as it is) — the call the option field makes when typed into; the option
+            alone doesn't restart a nest ("live — watching"), restart = expire it too."""
+            flags = System.Reflection.BindingFlags
+            o = next(o for o in n.Options if o.Key == "seed")
+            if value is not None:
+                o.Value = float(value)
+            n.GetType().BaseType.GetMethod("OnOptionChanged", flags.NonPublic | flags.Public | flags.Instance).Invoke(n, System.Array[object]([o]))
+            if restart:
+                n.ExpireSolution(True)      # False restarts it, but what is behind it keeps the old layout
 
         def set_seed(value):
             """Seed on the slider at the next solution; the result on screen is not its own until OpenNest restarts."""
-            st["fresh"], st["seen"], st["t_set"], st["t_fin"] = False, False, time.time(), None
+            st["fresh"], st["seen"], st["t_set"], st["busy1"], st["b2"], st["t2"] = False, False, time.time(), False, False, None
+            st["pending2"] = value if merge and len(nests) == 2 else None      # the second nest gets it after the first is done
             def cb(doc):
-                if opt:         # same call the option field makes when typed into
-                    flags = System.Reflection.BindingFlags
-                    for n in nests:
-                        o = next(o for o in n.Options if o.Key == "seed")
-                        o.Value = float(value)
-                        n.GetType().BaseType.GetMethod("OnOptionChanged", flags.NonPublic | flags.Public | flags.Instance).Invoke(n, [o])
-                        n.ExpireSolution(False)     # the option alone doesn't restart it ("live — watching")
+                if opt:
+                    put_seed(nest, value, True)
                     return
                 v = System.Decimal(value)
                 slider.Slider.Maximum = max(slider.Slider.Maximum, v)
@@ -156,13 +175,17 @@ if "ghenv" in globals():
 
         def stop():
             st["run"] = False
-            if st["results"] and pick(st["results"], Tol)[0] != seed_now():      # no restart if the best is on screen
-                set_seed(pick(st["results"], Tol)[0])
+            if st["results"]:
+                best = pick(st["results"], Tol)[0]
+                if merge and len(nests) == 2:       # the second nest on the best seed too (it restarts on the first one's layout)
+                    gd.ScheduleSolution(5, Grasshopper.Kernel.GH_Document.GH_ScheduleDelegate(lambda doc: put_seed(nest2, best, True)))
+                if best != seed_now():              # no restart if the best is on screen
+                    set_seed(best)
 
         if Run and not st["on"]:
             st.update(run=True, seeds=list(range(From, From + Count)), results=[], t0=time.time())
             if seed_now() == From:
-                st["fresh"] = True
+                st["fresh"] = True; st["pending2"] = None      # the layout on screen is already this seed's
             else:
                 set_seed(From)
         elif not Run and st["on"] and st["run"]:
