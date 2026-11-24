@@ -25,7 +25,8 @@ DEFORMATIONS = ("Free", "StretchMostly", "StretchOnly", "CompressMostly", "Compr
 CONSTANTS = ("BndStretch", "BndCompress", "IntStretch", "IntCompress")  # Custom: bigger — less of that deformation
 # options; default — a stiff edge (Custom 100 100 1 1: the edge keeps its length), Split Seams off as usually set
 DEFAULTS = {"SplitSeams": False, "PreserveBoundary": False, "Deformation": "Custom", "BndStretch": 100.0,
-            "BndCompress": 100.0, "IntStretch": 1.0, "IntCompress": 1.0, "Rigid": False, "Down": False, "Diff": False}
+            "BndCompress": 100.0, "IntStretch": 1.0, "IntCompress": 1.0, "Rigid": False, "Down": False, "Diff": False,
+            "X": 0.0, "Y": 0.0}  # X, Y (mm): where Enter puts the centre of the layout — point 0 moved by them
 SAMPLES = 40  # points along a side
 APART_MM = 300.0  # gap before a group of pieces joined to no other
 DOT_IN_MM = 60.0  # Diff dot: this far inside the piece from the middle of its side (a quarter of the way to the centre at most)
@@ -288,8 +289,12 @@ def get_options():
     o.update(sc.sticky.get(STICKY, {}))
     while True:
         gp = Rhino.Input.Custom.GetPoint()
-        gp.SetCommandPrompt(u"Centre of the layout")
+        gp.SetCommandPrompt(u"Centre of the layout (Enter — point 0 moved by X, Y)")
+        gp.AcceptNothing(True)
         toggles, nums = {}, {}
+        for key in ("X", "Y"):
+            nums[key] = Rhino.Input.Custom.OptionDouble(o[key], -1e9, 1e9)
+            gp.AddOptionDouble(key, nums[key])
         for key in ("SplitSeams", "PreserveBoundary"):
             toggles[key] = Rhino.Input.Custom.OptionToggle(o[key], "No", "Yes")
             gp.AddOptionToggle(key, toggles[key])
@@ -312,12 +317,16 @@ def get_options():
                 o[key] = n.CurrentValue
             sc.sticky[STICKY] = dict(o)
             continue
+        if r == Rhino.Input.GetResult.Nothing:
+            k = mm(sc.doc)
+            return Point3d(o["X"] * k, o["Y"] * k, 0), o
         if r != Rhino.Input.GetResult.Point:
             return None
         return gp.Point(), o
 
 
-HELP = (u"Squish Joined (options as in the Squish dialog) — SplitSeams: Yes — the surface may come apart along its seam "
+HELP = (u"Squish Joined — X, Y: Enter instead of a click puts the centre of the layout at point 0 moved by X, Y (mm, "
+        u"remembered; Grasshopper sets them in sc.sticky['SquishJoined']); options as in the Squish dialog — SplitSeams: Yes — the surface may come apart along its seam "
         u"(a closed one needs it); PreserveBoundary: keep the side lengths; Deformation: Free / StretchMostly / "
         u"StretchOnly / CompressMostly / CompressOnly / Custom — BndStretch, BndCompress, IntStretch, IntCompress "
         u"(bigger — less of that deformation; 100 100 1 1 — stiff edge, the default); Material: Floppy / Rigid; "
