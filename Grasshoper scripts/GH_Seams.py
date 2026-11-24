@@ -6,11 +6,11 @@ find them (`Seams.edges` — corner to corner, the turn larger than Angle), the 
 and cleaned for the plotter knife (`JoinCorner.clean`) — the same code, without the document. Virtual: nothing is
 added to the Rhino document. Corners are Extend (the button's default).
 
-Every edge gets Width. Other widths — by sliders: press the Build button — one Number Slider per edge is made next to
-the component (a column per panel, named S1.1, S1.2… = seam of panel, edge; the tooltip has the edge length; the old ones are
-replaced, their values kept by name) and grouped (group `Seams widths`) and wired to Widths in that order. The Labels print `S2.3  1 cm` near the middle of
-edge 3 of panel P2; 0 — no seam on that edge; edges without a value keep Width. Press Build again after the panels
-change (another model, Angle). Or by text — the Overrides list: "P2.3=3" — panel P2, edge 3, 3 cm; "P2=3" — every edge
+Every edge gets Width. Other widths — by sliders: press the Build button — one Number Slider per edge is made below the
+component (a column per panel, named S1.1, S1.2… = seam of panel 1, edge 1…; the tooltip has the edge length), all set to
+1 cm, put in one group `Seams widths` and wired to Widths in that order; an old set and its groups are replaced. The
+Labels print `S2.3  1 cm` near the middle of edge 3 of panel P2; 0 — no seam on that edge; edges without a value keep
+Width. Press Build again after the panels change (another model, Angle). Or by text — the Overrides list: "P2.3=3" — panel P2, edge 3, 3 cm; "P2=3" — every edge
 of P2; several items or entries separated by comma / semicolon / new line; the text wins over the slider. Edge numbers
 follow the loop of the panel (counter-clockwise, from where its curve starts), so they change when the pieces are laid
 out in another way.
@@ -161,17 +161,16 @@ if "ghenv" in globals():
             TAG = u"SeamsEdge"
 
             def make(d):
-                kept, gone = {}, set()
+                gone = set()
                 for o in list(d.Objects):
                     if isinstance(o, GH_NumberSlider) and (o.Description or u"").startswith(TAG):
-                        kept[u"S" + o.NickName[1:]] = o.CurrentValue  # P1.1 of an older build is S1.1 now
                         gone.add(o.InstanceGuid)
                         d.RemoveObject(o, False)
                 for o in list(d.Objects):  # the groups of the old sliders (also the ones made by hand) go with them
                     if isinstance(o, GH_Group) and (o.Description == TAG or gone.intersection(o.ObjectIDs)):
                         d.RemoveObject(o, False)
                 wparam.RemoveAllSources()
-                x0, y0 = comp.Attributes.Pivot.X + 330, comp.Attributes.Pivot.Y - 120
+                x0, y0 = comp.Attributes.Pivot.X - 350, comp.Attributes.Pivot.Y + 180  # below the component, a column per panel
                 group = GH_Group()
                 group.NickName = u"Seams widths"
                 group.Description = TAG
@@ -183,7 +182,7 @@ if "ghenv" in globals():
                     sl.Slider.Minimum = System.Decimal(0)
                     sl.Slider.Maximum = System.Decimal(10)
                     sl.Slider.DecimalPlaces = 1
-                    sl.SetSliderValue(kept.get(name, System.Decimal(width_cm)))
+                    sl.SetSliderValue(System.Decimal(1))  # every Build starts from 1 cm
                     sl.NickName = name
                     sl.Description = u"%s edge %s, length %.0f mm; cm, 0 — no seam" % (TAG, name, length)
                     d.AddObject(sl, False)
