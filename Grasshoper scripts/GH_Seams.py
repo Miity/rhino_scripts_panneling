@@ -6,15 +6,18 @@ find them (`Seams.edges` — corner to corner, the turn larger than Angle), the 
 and cleaned for the plotter knife (`JoinCorner.clean`) — the same code, without the document. Virtual: nothing is
 added to the Rhino document. Corners are Extend (the button's default).
 
-Every edge gets Width; other widths — the Overrides list: "P2.3=3" — panel P2, edge 3, 3 cm; "P2=3" — every edge of
-P2; several items or several entries in one item, separated by comma / semicolon / new line. Edge numbers are those
-printed on the Labels (`3  1 cm` near the middle of edge 3 of the panel); they follow the loop of the panel
-(counter-clockwise, from where its curve starts), so they change when the pieces are laid out in another way.
+Every edge gets Width. Other widths — by sliders: wire one Number Slider per edge to Widths, in the order P1.1, P1.2…
+P1.n, P2.1… (the Labels print `P2.3  1 cm` near the middle of edge 3 of panel P2; 0 — no seam on that edge; edges
+without a slider keep Width). Or by text — the Overrides list: "P2.3=3" — panel P2, edge 3, 3 cm; "P2=3" — every edge
+of P2; several items or entries separated by comma / semicolon / new line; the text wins over the slider. Edge numbers
+follow the loop of the panel (counter-clockwise, from where its curve starts), so they change when the pieces are laid
+out in another way.
 
 Inputs:
     Panels    : the `Panels` output of stage 2 (tree, branch {i} = panel P<i+1>: outer curve first), Tree access
     Angle     : degrees, a turn sharper than this is a corner (default 20, the usual setting of SplitCrvByAngle)
     Width     : cm, the seam of every edge (default 1)
+    Widths    : cm, one value per edge in the order P1.1, P1.2… P2.1… (sliders), List access
     Overrides : text, widths of single edges / panels, cm (see above)
 Outputs:
     Seams  : tree, branch {i} = the closed cut line of panel P<i+1>
@@ -83,6 +86,7 @@ if "ghenv" in globals():
 
     angle = float(first("Angle", 20.0))
     width_cm = float(first("Width", 1.0))
+    slid = [float(g.ScriptVariable()) for g in (data("Widths").AllData(True) if data("Widths") else [])]
     overrides = [g.ScriptVariable() for g in (data("Overrides").AllData(True) if data("Overrides") else [])]
     per_edge, per_panel, bad = parse([unicode(t) if sys.version_info[0] < 3 else str(t) for t in overrides])
     if bad:
@@ -96,6 +100,7 @@ if "ghenv" in globals():
     Seams, Edges, Labels, Report = DataTree[object](), DataTree[object](), [], []
     panels = data("Panels")
     used = set()
+    taken = 0  # sliders used so far, in the order of the edges
     if panels is None or panels.PathCount == 0:
         warn(u"No panels: connect the Panels output of stage 2")
     else:
@@ -113,7 +118,8 @@ if "ghenv" in globals():
             es = S.edges(lp, angle, tol)
             widths = []
             for k in range(len(es)):
-                w = per_edge.get((n, k + 1), per_panel.get(n, width_cm))
+                w = per_edge.get((n, k + 1), per_panel.get(n, slid[taken] if taken < len(slid) else width_cm))
+                taken += 1
                 used.add((n, k + 1))
                 widths.append(w * cm)
             path_n = GH_Path(b)
@@ -122,7 +128,7 @@ if "ghenv" in globals():
                 t = e.Domain.Mid
                 side = Vector3d.CrossProduct(e.TangentAt(t), normal)  # outside is on the right; the label goes inside
                 te = TextEntity()
-                te.PlainText = u"%d  %g cm" % (k + 1, widths[k] / cm)
+                te.PlainText = u"P%d.%d  %g cm" % (n, k + 1, widths[k] / cm)
                 te.Plane = Plane(S.mid(e) - side * (60.0 * mm), Vector3d.ZAxis)
                 te.DimensionStyleId = style.Id
                 te.TextHorizontalAlignment = TextHorizontalAlignment.Center
@@ -138,6 +144,8 @@ if "ghenv" in globals():
                 continue
             Seams.Add(S.clean(cut, S.micro(rdoc)), path_n)
             Report.append(u"P%d: %d edges, widths cm %s" % (n, len(es), u" ".join(u"%g" % (w / cm) for w in widths)))
+        if slid and len(slid) != taken:
+            warn(u"%d sliders wired to Widths, the panels have %d edges" % (len(slid), taken))
         stray = [u"P%d.%d" % k for k in per_edge if k not in used] + [
             u"P%d" % k for k in per_panel if k > panels.PathCount]
         if stray:
