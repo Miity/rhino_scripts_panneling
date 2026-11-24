@@ -7,8 +7,8 @@ and cleaned for the plotter knife (`JoinCorner.clean`) — the same code, withou
 added to the Rhino document. Corners are Extend (the button's default).
 
 Every edge gets Width. Other widths — by sliders: press the Build button — one Number Slider per edge is made next to
-the component (a column per panel, named P1.1, P1.2… = panel, edge; the tooltip has the edge length; the old ones are
-replaced, their values kept by name) and wired to Widths in that order. The Labels print `P2.3  1 cm` near the middle of
+the component (a column per panel, named S1.1, S1.2… = seam of panel, edge; the tooltip has the edge length; the old ones are
+replaced, their values kept by name) and wired to Widths in that order. The Labels print `S2.3  1 cm` near the middle of
 edge 3 of panel P2; 0 — no seam on that edge; edges without a value keep Width. Press Build again after the panels
 change (another model, Angle). Or by text — the Overrides list: "P2.3=3" — panel P2, edge 3, 3 cm; "P2=3" — every edge
 of P2; several items or entries separated by comma / semicolon / new line; the text wins over the slider. Edge numbers
@@ -20,7 +20,7 @@ Inputs:
     Angle     : degrees, a turn sharper than this is a corner (default 20, the usual setting of SplitCrvByAngle)
     Width     : cm, the seam of every edge (default 1)
     Build     : button, makes the sliders (see above)
-    Widths    : cm, one value per edge in the order P1.1, P1.2… P2.1… (the sliders), List access
+    Widths    : cm, one value per edge in the order S1.1, S1.2… S2.1… (the sliders), List access
     Overrides : text, widths of single edges / panels, cm (see above)
 Outputs:
     Seams  : tree, branch {i} = the closed cut line of panel P<i+1>
@@ -33,7 +33,7 @@ import re
 import sys
 
 ROOT = u"/Users/dmytro/Documents/Projects/Rhino"  # used when the .gh is not saved next to the project
-ENTRY = re.compile(r"^\s*P?(\d+)(?:\s*\.\s*(\d+))?\s*=\s*(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*$", re.I)
+ENTRY = re.compile(r"^\s*[PS]?(\d+)(?:\s*\.\s*(\d+))?\s*=\s*(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*$", re.I)
 
 
 def parse(texts):
@@ -130,11 +130,11 @@ if "ghenv" in globals():
             path_n = GH_Path(b)
             for k, e in enumerate(es):
                 Edges.Add(e, path_n)
-                found.append((u"P%d.%d" % (n, k + 1), e.GetLength() / mm, n, k))
+                found.append((u"S%d.%d" % (n, k + 1), e.GetLength() / mm, n, k))
                 t = e.Domain.Mid
                 side = Vector3d.CrossProduct(e.TangentAt(t), normal)  # outside is on the right; the label goes inside
                 te = TextEntity()
-                te.PlainText = u"P%d.%d  %g cm" % (n, k + 1, widths[k] / cm)
+                te.PlainText = u"S%d.%d  %g cm" % (n, k + 1, widths[k] / cm)
                 te.Plane = Plane(S.mid(e) - side * (60.0 * mm), Vector3d.ZAxis)
                 te.DimensionStyleId = style.Id
                 te.TextHorizontalAlignment = TextHorizontalAlignment.Center
@@ -163,7 +163,7 @@ if "ghenv" in globals():
                 kept = {}
                 for o in list(d.Objects):
                     if isinstance(o, GH_NumberSlider) and (o.Description or u"").startswith(TAG):
-                        kept[o.NickName] = o.CurrentValue
+                        kept[u"S" + o.NickName[1:]] = o.CurrentValue  # P1.1 of an older build is S1.1 now
                         d.RemoveObject(o, False)
                 wparam.RemoveAllSources()
                 x0, y0 = comp.Attributes.Pivot.X + 330, comp.Attributes.Pivot.Y - 120
