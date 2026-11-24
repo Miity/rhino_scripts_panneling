@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """Panels — GhPython component, stage 2 of the workflow: flat pieces -> numbered panels P1, P2, P3…
 
-A thin wrapper (scripts/parts/Panels.py stays as it is): the numbering order and the text placement are those of the
-button (`Panels.classify` — rows top to bottom, left to right; `DotToPanelText.place_text` — the text inside the panel
-in the top right corner, style PAT 14 mm unless another one was picked with the button's Style option).
-The result is virtual — nothing stays in the Rhino document (the text is added by place_text, its geometry
-is taken and the object removed again).
+A thin wrapper (scripts/parts/Panels.py stays as it is): the numbering order is the button's (`Panels.classify` —
+rows top to bottom, left to right), the text style too (PAT 14 mm unless another one was picked with the button's Style
+option). The text stands in the middle of the panel (centre of its area), moved by LabelDX to the left — the middle
+itself stays free for drawing. The result is virtual — nothing is added to the Rhino document.
 
 Inputs:
-    Pieces : the flat pieces (Breps) from stage 1 (its `Out`; other geometry is ignored), List access, No Type Hint
+    Pieces  : the flat pieces (Breps) from stage 1 (its `Out`; other geometry is ignored), List access, No Type Hint
+    LabelDX : float, mm — the text is moved this far along X from the panel centre (default -100 = 10 cm to the left)
 Outputs:
     Panels : tree, branch {i} = panel P<i+1>: its outer curve, then its holes (inner loops)
     Labels : the text P<n> of each panel (text geometry), in the same order
@@ -26,7 +26,8 @@ if "ghenv" in globals():
     import Grasshopper
     from Grasshopper import DataTree
     from Grasshopper.Kernel.Data import GH_Path
-    from Rhino.Geometry import Brep, Plane, BrepLoopType
+    from Rhino.Geometry import AreaMassProperties, Brep, BrepLoopType, Plane, PointContainment, TextEntity, Vector3d
+    from Rhino.DocObjects import TextHorizontalAlignment, TextVerticalAlignment
 
     comp = ghenv.Component
     rdoc = Rhino.RhinoDoc.ActiveDoc
@@ -48,6 +49,12 @@ if "ghenv" in globals():
                 if isinstance(g, Brep) and g.Faces.Count == 1:
                     pieces.append(g)
 
+    dx = -100.0
+    for prm in comp.Params.Input:
+        if prm.NickName == "LabelDX":
+            for d in prm.VolatileData.AllData(True):
+                dx = float(d.ScriptVariable())
+    k = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, rdoc.ModelUnitSystem)
     Panels, Labels, Names, Report = DataTree[object](), [], [], []
     if pieces:
         tol = rdoc.ModelAbsoluteTolerance
@@ -57,7 +64,6 @@ if "ghenv" in globals():
             outer.append([l.To3dCurve() for l in loops if l.LoopType == BrepLoopType.Outer][0])
             inner.append([l.To3dCurve() for l in loops if l.LoopType == BrepLoopType.Inner])
         style = P.D.pts.label_style(rdoc, P.STYLE)
-        attrs = rdoc.CreateDefaultAttributes()
         made = 0
         for n, (i, _) in enumerate(P.classify(outer, Plane.WorldXY, tol)):
             name = u"%s%d" % (P.PREFIX, n + 1)
@@ -65,13 +71,16 @@ if "ghenv" in globals():
             Panels.Add(outer[i], panel)
             for h in inner[i]:
                 Panels.Add(h, panel)
-            tid = P.D.place_text(rdoc, name, outer[i], outer[i].GetBoundingBox(True).Max, style, attrs, tol)
-            if tid:
-                Labels.append(rdoc.Objects.FindId(tid).Geometry.Duplicate())
-                rdoc.Objects.Delete(tid, True)
-            else:
-                Labels.append(None)
-                warn(u"%s: text does not fit in the panel" % name)
+            c = AreaMassProperties.Compute(pieces[i]).Centroid + Vector3d(dx * k, 0, 0)
+            if outer[i].Contains(c, Plane.WorldXY, tol) != PointContainment.Inside:
+                warn(u"%s: the label spot is outside the panel (LabelDX too big, or a curved panel)" % name)
+            te = TextEntity()
+            te.PlainText = name
+            te.Plane = Plane(c, Vector3d.ZAxis)
+            te.DimensionStyleId = style.Id
+            te.TextHorizontalAlignment = TextHorizontalAlignment.Center
+            te.TextVerticalAlignment = TextVerticalAlignment.Middle
+            Labels.append(te)
             Names.append(name)
             made += 1
         Report.append(u"Panels: %d (%s)" % (made, u", ".join(u"%s holes %d" % (nm, len(inner[i])) for nm, (i, _) in zip(
