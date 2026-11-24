@@ -2,24 +2,24 @@
 """SquishJoined — GhPython component, stage 1 of the workflow: 3D surfaces -> flat pieces laid out joined.
 
 A thin wrapper: scripts/pattern/SquishJoined.py is imported and its run() is called, nothing is copied
-(the button script stays exactly as it is). The pieces are added to the Rhino document like the button does.
+(the button script stays exactly as it is). The result is virtual: run() adds the pieces to the document,
+the wrapper takes their geometry and deletes them again, so nothing is baked.
 
 Inputs (all but Surfaces and Centre are optional — the defaults are those of the button):
     Surfaces        : surfaces / polysurfaces referenced from Rhino (Set Multiple), List access, No Type Hint
     Centre          : Point3d, centre of the layout (default 0,0,0)
-    Run             : bool, True — squish (the pieces made by the previous run are deleted first)
+    Run             : bool, True — squish
     SplitSeams, PreserveBoundary, Rigid, Down, Diff : bool
     Deformation     : Free / StretchMostly / StretchOnly / CompressMostly / CompressOnly / Custom
     BndStretch, BndCompress, IntStretch, IntCompress : float (Custom)
 Outputs:
-    Out    : ids of the pieces (and Diff dots) in the Rhino document
+    Out    : the pieces (and Diff dots) as geometry — nothing stays in the Rhino document (not baked)
     Report : the lines the button prints
 """
 import os
 import sys
 
 ROOT = u"/Users/dmytro/Documents/Projects/Rhino"  # used when the .gh is not saved next to the project
-KEY = "GH_SquishJoined_last"  # sc.sticky: ids of the previous result
 
 
 def option_names():
@@ -30,7 +30,6 @@ def option_names():
 if "ghenv" in globals():
     import Rhino
     import Grasshopper
-    import scriptcontext as sc
     from Rhino.Geometry import Point3d
 
     comp = ghenv.Component
@@ -68,19 +67,21 @@ if "ghenv" in globals():
 
     Out, Report = [], []
     if value("Run"):
-        for i in sc.sticky.get(KEY, []):  # the previous result goes
-            rdoc.Objects.Delete(i, True)
-        sc.sticky[KEY] = []
         if not ids:
             warn(u"No surfaces: set Surfaces from Rhino")
         else:
             r = SJ.run(rdoc, ids, centre, opts=opts)
             if isinstance(r, tuple):
-                Out, Report = r[0], r[1]
-                sc.sticky[KEY] = list(Out)
+                Report = r[1]
+                groups = set()
+                for i in r[0]:  # virtual: the geometry is taken from the pieces run() added, then they are removed
+                    o = rdoc.Objects.FindId(i)
+                    Out.append(o.Geometry.Duplicate())
+                    groups.update(o.Attributes.GetGroupList())
+                    rdoc.Objects.Delete(i, True)
+                for gi in groups:
+                    rdoc.Groups.Delete(gi)
             else:
                 warn(r)
                 Report = [r]
             rdoc.Views.Redraw()
-    else:
-        Out = sc.sticky.get(KEY, [])
