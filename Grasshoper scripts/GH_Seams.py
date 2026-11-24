@@ -6,9 +6,10 @@ find them (`Seams.edges` — corner to corner, the turn larger than Angle), the 
 and cleaned for the plotter knife (`JoinCorner.clean`) — the same code, without the document. Virtual: nothing is
 added to the Rhino document. Corners are Extend (the button's default).
 
-Every edge gets Width. Other widths — by sliders: wire one Number Slider per edge to Widths, in the order P1.1, P1.2…
-P1.n, P2.1… (the Labels print `P2.3  1 cm` near the middle of edge 3 of panel P2; 0 — no seam on that edge; edges
-without a slider keep Width). Or by text — the Overrides list: "P2.3=3" — panel P2, edge 3, 3 cm; "P2=3" — every edge
+Every edge gets Width. Other widths — by sliders: wire a Gene Pool (Params > Util; min 0, max 10, decimals 1; its Count =
+the number of edges — the component says when it differs, the pool's editor is a column of sliders) or one Number Slider
+per edge to Widths, in the order P1.1, P1.2… P1.n, P2.1… (the Labels print `P2.3  1 cm` near the middle of edge 3 of
+panel P2; 0 — no seam on that edge; edges without a value keep Width). Or by text — the Overrides list: "P2.3=3" — panel P2, edge 3, 3 cm; "P2=3" — every edge
 of P2; several items or entries separated by comma / semicolon / new line; the text wins over the slider. Edge numbers
 follow the loop of the panel (counter-clockwise, from where its curve starts), so they change when the pieces are laid
 out in another way.
@@ -17,7 +18,7 @@ Inputs:
     Panels    : the `Panels` output of stage 2 (tree, branch {i} = panel P<i+1>: outer curve first), Tree access
     Angle     : degrees, a turn sharper than this is a corner (default 20, the usual setting of SplitCrvByAngle)
     Width     : cm, the seam of every edge (default 1)
-    Widths    : cm, one value per edge in the order P1.1, P1.2… P2.1… (sliders), List access
+    Widths    : cm, one value per edge in the order P1.1, P1.2… P2.1… (Gene Pool / sliders), List access
     Overrides : text, widths of single edges / panels, cm (see above)
 Outputs:
     Seams  : tree, branch {i} = the closed cut line of panel P<i+1>
@@ -145,7 +146,7 @@ if "ghenv" in globals():
             Seams.Add(S.clean(cut, S.micro(rdoc)), path_n)
             Report.append(u"P%d: %d edges, widths cm %s" % (n, len(es), u" ".join(u"%g" % (w / cm) for w in widths)))
         if slid and len(slid) != taken:
-            warn(u"%d sliders wired to Widths, the panels have %d edges" % (len(slid), taken))
+            warn(u"Widths has %d values, the panels have %d edges (Count of the Gene Pool)" % (len(slid), taken))
         stray = [u"P%d.%d" % k for k in per_edge if k not in used] + [
             u"P%d" % k for k in per_panel if k > panels.PathCount]
         if stray:
