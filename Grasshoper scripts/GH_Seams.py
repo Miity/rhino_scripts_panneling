@@ -8,7 +8,7 @@ added to the Rhino document. Corners are Extend (the button's default).
 
 Every edge gets Width. Other widths — by sliders: press the Build button — one Number Slider per edge is made next to
 the component (a column per panel, named S1.1, S1.2… = seam of panel, edge; the tooltip has the edge length; the old ones are
-replaced, their values kept by name) and wired to Widths in that order. The Labels print `S2.3  1 cm` near the middle of
+replaced, their values kept by name) and grouped (group `Seams widths`) and wired to Widths in that order. The Labels print `S2.3  1 cm` near the middle of
 edge 3 of panel P2; 0 — no seam on that edge; edges without a value keep Width. Press Build again after the panels
 change (another model, Angle). Or by text — the Overrides list: "P2.3=3" — panel P2, edge 3, 3 cm; "P2=3" — every edge
 of P2; several items or entries separated by comma / semicolon / new line; the text wins over the slider. Edge numbers
@@ -154,19 +154,28 @@ if "ghenv" in globals():
         if first("Build", False) is True:
             from System.Drawing import PointF
             from Grasshopper.Kernel import GH_Document
-            from Grasshopper.Kernel.Special import GH_NumberSlider
+            from Grasshopper.Kernel.Special import GH_NumberSlider, GH_Group
+            from System.Drawing import Color
             doc = comp.OnPingDocument()
             wparam = [q for q in comp.Params.Input if q.NickName == "Widths"][0]
             TAG = u"SeamsEdge"
 
             def make(d):
-                kept = {}
+                kept, gone = {}, set()
                 for o in list(d.Objects):
                     if isinstance(o, GH_NumberSlider) and (o.Description or u"").startswith(TAG):
                         kept[u"S" + o.NickName[1:]] = o.CurrentValue  # P1.1 of an older build is S1.1 now
+                        gone.add(o.InstanceGuid)
+                        d.RemoveObject(o, False)
+                for o in list(d.Objects):  # the groups of the old sliders (also the ones made by hand) go with them
+                    if isinstance(o, GH_Group) and (o.Description == TAG or gone.intersection(o.ObjectIDs)):
                         d.RemoveObject(o, False)
                 wparam.RemoveAllSources()
                 x0, y0 = comp.Attributes.Pivot.X + 330, comp.Attributes.Pivot.Y - 120
+                group = GH_Group()
+                group.NickName = u"Seams widths"
+                group.Description = TAG
+                group.Colour = Color.FromArgb(120, 240, 190, 90)
                 for name, length, n, k in found:
                     sl = GH_NumberSlider()
                     sl.CreateAttributes()
@@ -179,6 +188,9 @@ if "ghenv" in globals():
                     sl.Description = u"%s edge %s, length %.0f mm; cm, 0 — no seam" % (TAG, name, length)
                     d.AddObject(sl, False)
                     wparam.AddSource(sl)
+                    group.AddObject(sl.InstanceGuid)
+                d.AddObject(group, False)
+                group.ExpireCaches()
                 comp.ExpireSolution(False)
 
             doc.ScheduleSolution(5, GH_Document.GH_ScheduleDelegate(make))
