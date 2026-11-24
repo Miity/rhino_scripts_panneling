@@ -6,10 +6,11 @@ find them (`Seams.edges` — corner to corner, the turn larger than Angle), the 
 and cleaned for the plotter knife (`JoinCorner.clean`) — the same code, without the document. Virtual: nothing is
 added to the Rhino document. Corners are Extend (the button's default).
 
-Every edge gets Width. Other widths — by sliders: wire a Gene Pool (Params > Util; min 0, max 10, decimals 1; its Count =
-the number of edges — the component says when it differs, the pool's editor is a column of sliders) or one Number Slider
-per edge to Widths, in the order P1.1, P1.2… P1.n, P2.1… (the Labels print `P2.3  1 cm` near the middle of edge 3 of
-panel P2; 0 — no seam on that edge; edges without a value keep Width). Or by text — the Overrides list: "P2.3=3" — panel P2, edge 3, 3 cm; "P2=3" — every edge
+Every edge gets Width. Other widths — by sliders: press the Build button — one Number Slider per edge is made next to
+the component (a column per panel, named P1.1, P1.2… = panel, edge; the tooltip has the edge length; the old ones are
+replaced, their values kept by name) and wired to Widths in that order. The Labels print `P2.3  1 cm` near the middle of
+edge 3 of panel P2; 0 — no seam on that edge; edges without a value keep Width. Press Build again after the panels
+change (another model, Angle). Or by text — the Overrides list: "P2.3=3" — panel P2, edge 3, 3 cm; "P2=3" — every edge
 of P2; several items or entries separated by comma / semicolon / new line; the text wins over the slider. Edge numbers
 follow the loop of the panel (counter-clockwise, from where its curve starts), so they change when the pieces are laid
 out in another way.
@@ -18,7 +19,8 @@ Inputs:
     Panels    : the `Panels` output of stage 2 (tree, branch {i} = panel P<i+1>: outer curve first), Tree access
     Angle     : degrees, a turn sharper than this is a corner (default 20, the usual setting of SplitCrvByAngle)
     Width     : cm, the seam of every edge (default 1)
-    Widths    : cm, one value per edge in the order P1.1, P1.2… P2.1… (Gene Pool / sliders), List access
+    Build     : button, makes the sliders (see above)
+    Widths    : cm, one value per edge in the order P1.1, P1.2… P2.1… (the sliders), List access
     Overrides : text, widths of single edges / panels, cm (see above)
 Outputs:
     Seams  : tree, branch {i} = the closed cut line of panel P<i+1>
@@ -52,6 +54,7 @@ def parse(texts):
 
 
 if "ghenv" in globals():
+    import System
     import Rhino
     import Grasshopper
     from Grasshopper import DataTree
@@ -102,6 +105,7 @@ if "ghenv" in globals():
     panels = data("Panels")
     used = set()
     taken = 0  # sliders used so far, in the order of the edges
+    found = []  # (name, edge length) of every edge — for the Build button
     if panels is None or panels.PathCount == 0:
         warn(u"No panels: connect the Panels output of stage 2")
     else:
@@ -126,6 +130,7 @@ if "ghenv" in globals():
             path_n = GH_Path(b)
             for k, e in enumerate(es):
                 Edges.Add(e, path_n)
+                found.append((u"P%d.%d" % (n, k + 1), e.GetLength() / mm, n, k))
                 t = e.Domain.Mid
                 side = Vector3d.CrossProduct(e.TangentAt(t), normal)  # outside is on the right; the label goes inside
                 te = TextEntity()
@@ -145,6 +150,38 @@ if "ghenv" in globals():
                 continue
             Seams.Add(S.clean(cut, S.micro(rdoc)), path_n)
             Report.append(u"P%d: %d edges, widths cm %s" % (n, len(es), u" ".join(u"%g" % (w / cm) for w in widths)))
+
+        if first("Build", False) is True:
+            from System.Drawing import PointF
+            from Grasshopper.Kernel import GH_Document
+            from Grasshopper.Kernel.Special import GH_NumberSlider
+            doc = comp.OnPingDocument()
+            wparam = [q for q in comp.Params.Input if q.NickName == "Widths"][0]
+            TAG = u"SeamsEdge"
+
+            def make(d):
+                kept = {}
+                for o in list(d.Objects):
+                    if isinstance(o, GH_NumberSlider) and (o.Description or u"").startswith(TAG):
+                        kept[o.NickName] = o.CurrentValue
+                        d.RemoveObject(o, False)
+                wparam.RemoveAllSources()
+                x0, y0 = comp.Attributes.Pivot.X + 330, comp.Attributes.Pivot.Y - 120
+                for name, length, n, k in found:
+                    sl = GH_NumberSlider()
+                    sl.CreateAttributes()
+                    sl.Attributes.Pivot = PointF(x0 + (n - 1) * 230, y0 + k * 26)
+                    sl.Slider.Minimum = System.Decimal(0)
+                    sl.Slider.Maximum = System.Decimal(10)
+                    sl.Slider.DecimalPlaces = 1
+                    sl.SetSliderValue(kept.get(name, System.Decimal(width_cm)))
+                    sl.NickName = name
+                    sl.Description = u"%s edge %s, length %.0f mm; cm, 0 — no seam" % (TAG, name, length)
+                    d.AddObject(sl, False)
+                    wparam.AddSource(sl)
+                comp.ExpireSolution(False)
+
+            doc.ScheduleSolution(5, GH_Document.GH_ScheduleDelegate(make))
         if slid and len(slid) != taken:
             warn(u"Widths has %d values, the panels have %d edges (Count of the Gene Pool)" % (len(slid), taken))
         stray = [u"P%d.%d" % k for k in per_edge if k not in used] + [
