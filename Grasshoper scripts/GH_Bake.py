@@ -13,6 +13,10 @@ The parts of a sew line lying on the cut line (an edge without seam) are left ou
 knife cuts. No line is drawn twice: an INK curve lying all along (within DUP_MM) on a CUT or INK curve already taken
 in the same group is left out (a mark along a panel edge, the same mark twice). Every panel with all that is on it is one group; every pocket part is one group.
 
+Mirror = True (default): a straight axis along Y, AxisDist right of everything baked (layer MirrorAxis — keep it to
+mirror whatever you add later), and a copy of everything flipped over it — the layout for cutting on the turned over
+fabric. Same layers, own groups. The texts of the copy stay readable (their place is mirrored, not the letters).
+
 Only a press of Bake changes the document (one Undo). A new press first deletes what the previous one made — the
 objects are remembered by their ids in the document, so copies you made of them and everything else stay.
 
@@ -22,6 +26,8 @@ components that feed Panels, ZipMarks and PocketMarks.
 Inputs (trees as the stages give them):
     Panels, Seams, Notches, Ticks, ZipMarks, PocketMarks, PocketParts, PocketCuts, Marks2D
     Knife : bool, the same as ConvertNotches (True — the notches go to INT, False — to INK)
+    Mirror : bool, the axis and the flipped copy (default True)
+    AxisDist : cm, from the right end of the layout to the axis (default 100)
     Bake  : button
 Outputs:
     Report : what was baked
@@ -42,7 +48,7 @@ if "ghenv" in globals():
     import Rhino
     import Grasshopper
     from Rhino.Geometry import (Curve, GeometryBase, Plane, Point, Point3d, PointContainment, TextDot, TextEntity,
-                                Vector3d)
+                                Vector3d, BoundingBox, LineCurve, Transform)
 
     comp = ghenv.Component
     rdoc = Rhino.RhinoDoc.ActiveDoc
@@ -197,6 +203,43 @@ if "ghenv" in globals():
             out.append((layer, g, group))
         return out
 
+    def flipped(todo, dist):
+        """(the mirror axis, todo mirrored over it): the axis runs along Y, dist right of everything in todo"""
+        box = BoundingBox.Empty
+        for _, g, _ in todo:
+            if not isinstance(g, TextEntity):
+                box.Union(g.GetBoundingBox(True))
+        x = box.Max.X + dist
+        axis = LineCurve(Point3d(x, box.Min.Y, 0), Point3d(x, box.Max.Y, 0))
+        xf = Transform.Mirror(Plane(Point3d(x, 0, 0), Vector3d.XAxis))
+        out = []
+        for layer, g, group in todo:
+            if isinstance(g, TextEntity):
+                c = mirrored_text(g, xf)
+            else:
+                c = g.Duplicate()
+                c.Transform(xf)
+            out.append((layer, c, None if group is None else ("flip",) + group))
+        return axis, out
+
+    def mirrored_text(te, xf):
+        """the text at the mirrored place, still readable: its direction is mirrored and turned back, so the side it
+        grows to changes (Left <-> Right)"""
+        pl = te.Plane
+        ax, ay = Vector3d(pl.XAxis), Vector3d(pl.YAxis)
+        ax.Transform(xf)
+        ay.Transform(xf)
+        origin = Point3d(pl.Origin)
+        origin.Transform(xf)
+        new = TextEntity()
+        new.Plane = Plane(origin, -ax, ay)
+        new.PlainText = te.PlainText
+        new.TextVerticalAlignment = te.TextVerticalAlignment
+        h = te.TextHorizontalAlignment
+        side = Rhino.DocObjects.TextHorizontalAlignment
+        new.TextHorizontalAlignment = side.Right if h == side.Left else side.Left if h == side.Right else h
+        return new
+
     def items_raw(name):
         d = data(name)
         return [x.ScriptVariable() for x in (d.AllData(True) if d else [])]
@@ -218,7 +261,7 @@ if "ghenv" in globals():
         i = rdoc.Layers.FindByFullPath(name, -1)
         if i < 0:
             colour = {"CUT": System.Drawing.Color.Red, "INT": System.Drawing.Color.Orange,
-                      "INK": System.Drawing.Color.Blue}[name]
+                      "INK": System.Drawing.Color.Blue, "MirrorAxis": System.Drawing.Color.Magenta}[name]
             i = rdoc.Layers.Add(name, colour)
         return i
 
@@ -250,6 +293,10 @@ if "ghenv" in globals():
         warn(u"No panels: switch Run on and connect the stages")
     else:
         todo = plan()  # worked out before anything is deleted
+        mirror_in, dist_in = items_raw("Mirror"), items_raw("AxisDist")
+        if not mirror_in or bool(mirror_in[0]):
+            axis, copy = flipped(todo, (float(dist_in[0]) if dist_in else 100.0) * 10.0 * mm)
+            todo = todo + [("MirrorAxis", axis, None)] + copy
         style = PTS.ensure_styles(rdoc)[LABEL_MM]
         undo = rdoc.BeginUndoRecord(u"GH Bake")
         try:
@@ -279,5 +326,6 @@ if "ghenv" in globals():
         Report.append(u"Baked %d objects: %s" % (len(made), u", ".join(u"%s %d" % (k, count[k]) for k in sorted(count))))
         if doubles:
             Report.append(u"Left out as doubles (lying on another line): %d" % len(doubles))
-        Report.append(u"Groups: %d panels, %d pocket parts; previous bake removed: %d" % (
-            len([g for g in groups if g[0] == "panel"]), len([g for g in groups if g[0] == "pocket"]), gone))
+        Report.append(u"Groups: %d panels, %d pocket parts%s; previous bake removed: %d" % (
+            len([g for g in groups if g[0] == "panel"]), len([g for g in groups if g[0] == "pocket"]),
+            u", %d flipped" % len([g for g in groups if g[0] == "flip"]) if count.get("MirrorAxis") else u"", gone))
