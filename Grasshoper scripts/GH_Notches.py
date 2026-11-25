@@ -11,19 +11,25 @@ than along Y). To change single edges press Build — one toggle per edge is mad
 panel, N1.1, N1.2… = notches of panel 1, edge 1…), set to the default, grouped (`Notch edges`) and wired to On in that
 order; an old set is replaced. Press Build again after the panels change.
 
+CenterTick = True: a tick at the middle (by length) of every edge — sides too, whatever the notch toggles say — from the
+sew line into the panel, square to the edge, TICK_CM long.
+
 Inputs:
     Edges : the `Edges` output of the Seams component (tree, branch {i} = panel P<i+1>), Tree access
     Every : cm, the step from the middle of the edge (default 30)
     Build : button, makes the toggles
     On    : bool, one per edge in the order N1.1, N1.2… N2.1… (the toggles), List access
+    CenterTick : bool, True — the centre ticks (default False)
 Outputs:
     Points : tree, branch {i} = the notch points of panel P<i+1>
+    Ticks  : tree, branch {i} = the centre ticks (lines) of panel P<i+1>
     Report : notches per edge, problems
 """
 import os
 import sys
 
 ROOT = u"/Users/dmytro/Documents/Projects/Rhino"  # used when the .gh is not saved next to the project
+TICK_CM = 5.0  # length of the centre tick
 
 
 if "ghenv" in globals():
@@ -31,7 +37,7 @@ if "ghenv" in globals():
     import Grasshopper
     from Grasshopper import DataTree
     from Grasshopper.Kernel.Data import GH_Path
-    from Rhino.Geometry import Point
+    from Rhino.Geometry import LineCurve, Point, Vector3d
 
     comp = ghenv.Component
     rdoc = Rhino.RhinoDoc.ActiveDoc
@@ -62,7 +68,8 @@ if "ghenv" in globals():
     opts = dict(N.DEFAULTS)
     opts["every"] = every_cm * 10.0 * mm
 
-    Points, Report = DataTree[object](), []
+    center_tick = bool((values("CenterTick") or [False])[0])
+    Points, Ticks, Report = DataTree[object](), DataTree[object](), []
     found = []  # (name, panel, edge index, default) of every edge — for the Build button
     taken = 0
     tree = data("Edges")
@@ -83,6 +90,13 @@ if "ghenv" in globals():
                 use = on[taken] if taken < len(on) else default
                 taken += 1
                 found.append((u"N%d.%d" % (n, j + 1), n, j, default))
+                if center_tick:
+                    ok, t = e.LengthParameter(e.GetLength() / 2.0)
+                    if ok:  # the edges run counter-clockwise: the panel is on the left of the direction
+                        inward = Vector3d.CrossProduct(Vector3d.ZAxis, e.TangentAt(t))
+                        inward.Unitize()
+                        start = e.PointAt(t)
+                        Ticks.Add(LineCurve(start, start + inward * (TICK_CM * 10.0 * mm)), GH_Path(index))
                 made = 0
                 if use and every_cm > 0:
                     length = e.GetLength()
