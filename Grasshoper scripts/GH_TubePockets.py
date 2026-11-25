@@ -5,7 +5,11 @@ A thin wrapper (scripts/parts/TubePockets.py stays as it is): the geometry is it
 width W centred on it, offset by H into the panel, the top shorter by Trim at each end, no seam allowance), the label
 stands as the button puts it. As with the button's Layout=Yes: on the panel only the ends and the pocket top (without
 the edge) and the label T<n>; the full part (contour + centre notch + label) Up above along Y. Virtual — nothing is
-added to the Rhino document. The seam allowance of the full part (the button's Seam step) is not done here.
+added to the Rhino document.
+
+Seam allowance of the full part (the button's Seam step): the bottom of the pocket gets the same seam as its panel edge
+has in the Seams component (read off the panel's cut line, `Seams.measured`); the ends and the top get none. The cut
+line is built as the Seams button builds it (`Seams.build`, corners Extend, cleaned for the knife).
 
 Edges and their numbers come from the Edges component. Press Build — one slider per edge is made below the component
 (a column per panel, T2.1 = pocket on edge 2.1), grouped (`Pocket widths`) and wired to Widths in that order. Its value
@@ -14,6 +18,7 @@ to 0; an old set is replaced. Pockets are numbered T1, T2… by panel and edge.
 
 Inputs:
     Edges  : the `Edges` output of the Edges component (tree, branch {i} = panel P<i+1>), Tree access
+    Seams  : the `Seams` output of the Seams component (cut lines of the panels), Tree access
     H      : cm, pocket height (default 13)
     Trim   : cm, the top shorter by this at each end (default 5)
     Notch  : bool, centre mark of the pocket (default True)
@@ -24,6 +29,7 @@ Inputs:
 Outputs:
     Marks  : tree, branch {k} = the markup of pocket T<k+1> on its panel
     Parts  : tree, branch {k} = the full part of pocket T<k+1>: contour, centre mark
+    Cuts   : tree, branch {k} = the cut line of the full part (none if its panel edge has no seam)
     Labels : T<n> on the panel and on the full part (text geometry)
     Report : pockets and their sizes, problems
 """
@@ -49,11 +55,12 @@ if "ghenv" in globals():
     path = comp.OnPingDocument().FilePath
     root = os.path.dirname(os.path.dirname(path)) if path and os.path.isdir(
         os.path.join(os.path.dirname(os.path.dirname(path)), "scripts")) else ROOT
-    for p in (os.path.join(root, "scripts", "parts"), os.path.join(root, "scripts", "markup"),
+    for p in (os.path.join(root, "scripts", "pattern"), os.path.join(root, "scripts", "parts"), os.path.join(root, "scripts", "markup"),
               os.path.join(root, "scripts")):
         if p not in sys.path:
             sys.path.insert(0, p)
     import TubePockets as T
+    import Seams as S
 
     def data(name):
         for prm in comp.Params.Input:
@@ -79,7 +86,13 @@ if "ghenv" in globals():
     up = Vector3d(0, float(first("Up", T.UP)) * mm, 0)
     widths = [float(v) for v in values("Widths")]
 
-    Marks, Parts, Labels, Report = DataTree[object](), DataTree[object](), [], []
+    Marks, Parts, Cuts, Labels, Report = DataTree[object](), DataTree[object](), DataTree[object](), [], []
+    panel_cuts = {}  # panel index -> its cut line (Seams component)
+    seams_in = data("Seams")
+    if seams_in is not None:
+        for b in range(seams_in.PathCount):
+            for g in seams_in.Branches[b]:
+                panel_cuts[seams_in.Paths[b].Indices[seams_in.Paths[b].Length - 1]] = g.ScriptVariable()
     found = []  # (name, panel, edge index, edge length cm) of every edge — for the Build button
     taken = number = 0
     tree = data("Edges")
@@ -123,12 +136,30 @@ if "ghenv" in globals():
                     g = geo.Duplicate()
                     g.Transform(Transform.Translation(up))
                     Parts.Add(g, branch)
+                panel_cut = panel_cuts.get(index)
+                seam = S.measured(edge, panel_cut, normal, tol) if panel_cut is not None else 0.0
+                if seam > tol:
+                    lp = S.loop(contour, normal)
+                    es = S.edges(lp, 20.0, tol) if lp is not None else []
+                    # the pocket bottom = the pieces of the contour lying on the segment of the panel edge
+                    own = [seam if max(seg.PointAt(seg.ClosestPoint(q)[1]).DistanceTo(q) for q in
+                                       (e.PointAtStart, S.mid(e), e.PointAtEnd)) <= 100 * tol else 0.0 for e in es]
+                    cut = S.build(es, own, ["Extend"] * len(es), normal, tol) if max(own or [0]) > 0 else None
+                    if cut is None:
+                        warn(u"%s: the cut line of the full part did not close" % name)
+                    else:
+                        cut = S.clean(cut, S.micro(rdoc))
+                        cut.Transform(Transform.Translation(up))
+                        Cuts.Add(cut, branch)
                 above = te.Duplicate()
                 above.Transform(Transform.Translation(up))
                 Labels.append(above)
                 number += 1
-                Report.append(u"%s: E%s, W %s, H %g, Trim %g cm" % (
-                    name, where, u"whole edge %.1f" % length if whole else u"%.1f" % w, h / cm, trim / cm))
+                Report.append(u"%s: E%s, W %s, H %g, Trim %g cm, bottom seam %g cm" % (
+                    name, where, u"whole edge %.1f" % length if whole else u"%.1f" % w, h / cm, trim / cm,
+                    round(seam / cm, 2)))
+        if number and not panel_cuts:
+            warn(u"Connect Seams (Seams component): the full parts have no seam allowance")
         if not number:
             Report.append(u"No pockets: give an edge a width (Build makes the sliders)")
 
