@@ -82,7 +82,7 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
 - Results are virtual (preview geometry): nothing stays in the Rhino document until a baking stage is made.
 - Edge numbers come only from the Edges component (`GH_Edges.py`: 1 top, then clockwise); a stage takes `Edges`, no other geometry it can derive from them.
 - Per-edge settings: a `Build` button makes labelled sliders / toggles below the component (a column per panel, `<letter><panel>.<edge>`), in one group — no text lists, no Gene Pool.
-- **Every stage is grouped on the canvas** (a new one too): one GH group around the component, its sliders / toggles / button and the built group, as the user does.
+- **Every stage is grouped on the canvas** (a new one too): one GH group around the component, its sliders / toggles / button and the built group, as the user does. The group is named after the script of the stage (`SquishJoined`, `Panels`, `Seams`, `ZipStops`…; no toolbar script — the component's name).
 - The user works in the same live canvas: do not reset their values (`Build` resets them), check a change against the results before it, save the .gh after changing it.
 
 ## Toolbar (`Scripts.rui`)
