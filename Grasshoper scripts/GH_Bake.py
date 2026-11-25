@@ -10,7 +10,8 @@ layers of the cutting file.
                             before cutting)
 
 The parts of a sew line lying on the cut line (an edge without seam) are left out, so the pen does not draw where the
-knife cuts. Every panel with all that is on it is one group; every pocket part is one group.
+knife cuts. No line is drawn twice: an INK curve lying all along (within DUP_MM) on a CUT or INK curve already taken
+in the same group is left out (a mark along a panel edge, the same mark twice). Every panel with all that is on it is one group; every pocket part is one group.
 
 Only a press of Bake changes the document (one Undo). A new press first deletes what the previous one made — the
 objects are remembered by their ids in the document, so copies you made of them and everything else stay.
@@ -31,6 +32,7 @@ import sys
 ROOT = u"/Users/dmytro/Documents/Projects/Rhino"  # used when the .gh is not saved next to the project
 KEY = u"GHBake_squish"  # document string: ids of the objects of the last bake
 LABEL_MM = 28.0  # height of the baked labels: the PAT style of the document
+DUP_MM = 1.0  # an INK curve this close all along to a line already taken is its duplicate
 ON_MM = 0.5  # a piece of a sew line this close to the cut line all along lies under it
 
 
@@ -176,6 +178,23 @@ if "ghenv" in globals():
                             ("PocketMarks", "INK"), ("Marks2D", "INK")):
             out.extend((layer, g, owner(g)) for g in items(name))
         out.extend(("INK", g, owner(g)) for g in labels())
+        return no_doubles(out)
+
+    def no_doubles(todo):
+        """todo without the INK curves lying all along on a CUT / INK curve before them in the same group (the lines of
+        the panels come first, so a mark gives way to them)"""
+        out, taken = [], {}
+        del doubles[:]
+        for layer, g, group in todo:
+            if isinstance(g, Curve) and layer in ("CUT", "INK"):
+                lines = taken.setdefault(group, [])
+                if layer == "INK":
+                    pts = [g.PointAt(t) for t in g.DivideByCount(max(40, int(g.GetLength() / (10.0 * mm))), True)]
+                    if any(all(distance(c, p) <= DUP_MM * mm for p in pts) for c in lines):
+                        doubles.append(g)
+                        continue
+                lines.append(g)
+            out.append((layer, g, group))
         return out
 
     def items_raw(name):
@@ -221,7 +240,7 @@ if "ghenv" in globals():
                 rdoc.Groups.Delete(g)
         return gone, stuck
 
-    Report = []
+    Report, doubles = [], []
     press = any(bool(v) for v in items_raw("Bake"))
     if not press:
         n = len([t for t in (rdoc.Strings.GetValue(KEY) or u"").split(u",") if t and
@@ -258,5 +277,7 @@ if "ghenv" in globals():
         if stuck:
             warn(u"%d objects of the previous bake could not be deleted (locked or hidden layer?)" % stuck)
         Report.append(u"Baked %d objects: %s" % (len(made), u", ".join(u"%s %d" % (k, count[k]) for k in sorted(count))))
+        if doubles:
+            Report.append(u"Left out as doubles (lying on another line): %d" % len(doubles))
         Report.append(u"Groups: %d panels, %d pocket parts; previous bake removed: %d" % (
             len([g for g in groups if g[0] == "panel"]), len([g for g in groups if g[0] == "pocket"]), gone))

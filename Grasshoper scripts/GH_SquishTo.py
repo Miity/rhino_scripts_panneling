@@ -8,7 +8,8 @@ finished piece was moved (joined layout, Gap, centre): the move is read off the 
 
 Which face: a mark lying wholly within Reach of a face goes to that face — to both if it lies on both (a seam);
 a curve that runs from face to face is cut where the nearest face changes. Curves come as polylines (a point every
-10 mm or less), like Squish's own.
+10 mm or less), like Squish's own. A curve that lies all along on the outline of its flat piece (within EDGE_MM — a
+curve along a surface edge) is left out: it would double the sew line.
 
 Inputs:
     Surfaces : the same surfaces as the SquishJoined component (referenced from Rhino), List access
@@ -30,6 +31,7 @@ import sys
 ROOT = u"/Users/dmytro/Documents/Projects/Rhino"  # used when the .gh is not saved next to the project
 STEP_MM = 10.0  # a point of a flat curve at least this often
 SEAM_MM = 1.0  # a mark this close to a second face too lies on the seam: it goes to both
+EDGE_MM = 1.0  # a flat curve this close all along to the outline of its piece only doubles it
 
 
 if "ghenv" in globals():
@@ -160,11 +162,17 @@ if "ghenv" in globals():
                     out = TextDot(geo.Text, flat_pts[0])
                 else:
                     out = PolylineCurve(flat_pts)
+                    loops = [l.To3dCurve() for l in pieces[n].Faces[0].Loops]
+                    dense = [out.PointAt(t) for t in out.DivideByCount(max(40, int(out.GetLength() / (10.0 * mm))), True)]
+                    if all(min(c.PointAt(c.ClosestPoint(q)[1]).DistanceTo(q) for c in loops) <= EDGE_MM * mm
+                           for q in dense):
+                        along_edge.append(panel_of.get(n, n))
+                        return
                 Marks2D.Add(out, GH_Path(panel_of.get(n, n)))
                 placed.append(panel_of.get(n, n))
 
             marks, wired = wanted()
-            placed, skipped = [], 0
+            placed, skipped, along_edge = [], 0, []
             for geo in marks:
                 pts = samples(geo)
                 far = [max(distance(n, p) for p in pts) for n in range(len(faces))]
@@ -187,5 +195,8 @@ if "ghenv" in globals():
             Report.append(u"Marks: %d %s -> %d on the panels%s" % (
                 len(marks), u"wired" if wired else u"found on the surfaces", len(placed),
                 u"; %d skipped (farther than %g mm from the surfaces)" % (skipped, reach / mm) if skipped else u""))
+            if along_edge:
+                Report.append(u"Left out %d curves lying along the panel edges (they would double the sew lines)" %
+                              len(along_edge))
             for k in sorted(set(placed)):
                 Report.append(u"P%d: %d" % (k + 1, placed.count(k)))
