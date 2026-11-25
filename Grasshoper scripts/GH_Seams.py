@@ -23,6 +23,7 @@ Inputs:
     Panels    : the `Panels` output of stage 2 (tree, branch {i} = panel P<i+1>: outer curve first), Tree access
     Angle     : degrees, a turn sharper than this is a corner (default 20, the usual setting of SplitCrvByAngle)
     Build     : button, makes the sliders (see above)
+    ShowText  : bool, False — no edge labels (the Labels output is empty); default True
     Widths    : cm, one value per edge in the order S1.1, S1.2… S2.1… (the sliders), List access
     Overrides : text, widths of single edges / panels, cm (see above)
 Outputs:
@@ -116,6 +117,7 @@ if "ghenv" in globals():
         return default
 
     angle = float(first("Angle", 20.0))
+    show_text = bool(first("ShowText", True))
     slid = [float(g.ScriptVariable()) for g in (data("Widths").AllData(True) if data("Widths") else [])]
     overrides = [g.ScriptVariable() for g in (data("Overrides").AllData(True) if data("Overrides") else [])]
     per_edge, per_panel, bad = parse([unicode(t) if sys.version_info[0] < 3 else str(t) for t in overrides])
@@ -169,7 +171,8 @@ if "ghenv" in globals():
                 te.DimensionStyleId = style.Id
                 te.TextHorizontalAlignment = TextHorizontalAlignment.Center
                 te.TextVerticalAlignment = TextVerticalAlignment.Middle
-                Labels.append(te)
+                if show_text:
+                    Labels.append(te)
             if max(widths) <= tol:
                 Report.append(u"P%d: %d edges, no seam" % (n, len(es)))
                 continue
