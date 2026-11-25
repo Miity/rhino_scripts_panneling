@@ -29,7 +29,7 @@ import os
 import sys
 
 ROOT = u"/Users/dmytro/Documents/Projects/Rhino"  # used when the .gh is not saved next to the project
-TICK_CM = 5.0  # length of the centre tick
+TICK_CM = 3.0  # length of the centre tick
 
 
 if "ghenv" in globals():
