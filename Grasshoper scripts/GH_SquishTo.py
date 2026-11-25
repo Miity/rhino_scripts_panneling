@@ -16,6 +16,8 @@ Inputs:
     Marks    : points / curves / TextDots referenced from Rhino (optional; empty — every visible, unlocked point,
                curve and TextDot of the document lying on the surfaces, as the button takes them), List access
     Reach    : mm, how far a mark may be from a surface (default 5)
+    Reset    : button — while pressed the result is cleared; on release everything is worked out afresh. Press it after
+               adding, moving or deleting marks in Rhino (Grasshopper does not see changes of marks that are not wired)
     SplitSeams, PreserveBoundary, Deformation, BndStretch, BndCompress, IntStretch, IntCompress, Rigid :
                wire the same controls as the SquishJoined component
 Outputs:
@@ -120,7 +122,10 @@ if "ghenv" in globals():
                 found.append(g)
         return found, False
 
-    if not faces or len(pieces) != len(faces):
+    reset = any(bool(g.ScriptVariable()) for g in goos("Reset"))
+    if reset:
+        Report.append(u"Reset: the result is cleared — release the button to work it out again")
+    elif not faces or len(pieces) != len(faces):
         warn(u"Connect Surfaces (as the SquishJoined component) and Pieces (its Out, with Run on)")
     else:
         flats = []  # (to2d, move from the fresh squish to the finished piece)
