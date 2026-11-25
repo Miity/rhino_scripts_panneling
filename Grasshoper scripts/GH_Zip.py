@@ -15,7 +15,7 @@ the top. ponytail: only a panel and the next one down — panels side by side in
 
 Inputs:
     Panels : the `Panels` output of the Panels component (tree, branch {i} = panel P<i+1>: outer curve first), Tree access
-    Edges  : the `Edges` output of the Seams component, Tree access
+    Edges  : the `Edges` output of the Edges component, Tree access
     Trim   : cm, the stops this far in from the ends of the shorter edge (default 4)
     Size   : cm, length of the stop legs (optional, default 1)
     Build  : button, makes the toggles
@@ -50,6 +50,10 @@ if "ghenv" in globals():
         if p not in sys.path:
             sys.path.insert(0, p)
     import ZipStops as Z
+    for m in ("GH_Edges",):  # the shared numbering rules; fresh after an edit
+        sys.modules.pop(m, None)
+    sys.path.insert(0, os.path.join(root, u"Grasshoper scripts"))
+    import GH_Edges as E
 
     def data(name):
         for prm in comp.Params.Input:
@@ -69,15 +73,6 @@ if "ghenv" in globals():
                 out[d.Paths[b].Indices[d.Paths[b].Length - 1]] = [g.ScriptVariable() for g in d.Branches[b]]
         return out
 
-    def bottom(edges):
-        """index of the bottom edge: number 3 of a four-sided panel, else the edge facing -Y most (edges run ccw)"""
-        if len(edges) == 4:
-            return 2
-        def down(i):
-            d = edges[i].PointAtEnd - edges[i].PointAtStart
-            return d.X / d.Length if d.Length else -2.0
-        return max(range(len(edges)), key=down)
-
     mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, rdoc.ModelUnitSystem)
     cm = 10.0 * mm
     tol = rdoc.ModelAbsoluteTolerance
@@ -88,7 +83,7 @@ if "ghenv" in globals():
 
     Marks, Labels, Report = DataTree[object](), [], []
     if not panels or not edges:
-        warn(u"Connect Panels (Panels component) and Edges (Seams component)")
+        warn(u"Connect Panels (Panels component) and Edges (Edges component)")
     else:
         order = sorted(edges)
         pairs = [(a, b) for a, b in zip(order, order[1:]) if b == a + 1]
@@ -102,7 +97,7 @@ if "ghenv" in globals():
                 continue
             number += 1
             name = u"Z%d" % number
-            k = bottom(edges[a])
+            k = E.bottom(edges[a])
             sides = [(a, k, edges[a][k]), (b, 0, edges[b][0])]  # (panel, edge, curve)
             shorter = min(e.GetLength() for _, _, e in sides)
             span = shorter - 2 * trim

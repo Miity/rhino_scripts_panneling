@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 """Seams — GhPython component, stage 3 of the workflow: panels -> seam allowance (cut line) around each panel.
 
-A thin wrapper (scripts/pattern/Seams.py stays as it is): the edges are found the way the button and SplitCrvByAngle
-find them (`Seams.edges` — corner to corner, the turn larger than Angle), the cut line is built by `Seams.build`
-and cleaned for the plotter knife (`JoinCorner.clean`) — the same code, without the document. Virtual: nothing is
-added to the Rhino document. Corners are Extend (the button's default).
+A thin wrapper (scripts/pattern/Seams.py stays as it is): the cut line is built by `Seams.build` and cleaned for the
+plotter knife (`JoinCorner.clean`) — the same code, without the document. Virtual: nothing is added to the Rhino
+document. Corners are Extend (the button's default).
 
-The edges of every panel are numbered the same way: 1 — top (the edge facing +Y most), then clockwise: 2 right,
-3 bottom, 4 left. Defaults: the left and right edges 3 cm, the top and bottom ones 1 cm (SIDE_CM, TOP_CM). A panel with
-another number of edges is numbered the same way (from the top, clockwise); its sides are the edges facing more along X
-than along Y.
+The edges and their numbers come from the Edges component (1 top, 2 right, 3 bottom, 4 left). Defaults: the left and
+right edges 3 cm, the top and bottom ones 1 cm (SIDE_CM, TOP_CM; which edges are sides — GH_Edges.is_side).
 
 Other widths — by sliders: press the Build button — one Number Slider per edge is made below the component (a column per
 panel, named S1.1, S1.2… = seam of panel 1, edge 1…; the tooltip has the side and the edge length), set to the defaults,
@@ -20,15 +17,13 @@ panel P2, edge 3, 3 cm; "P2=3" — every edge of P2; several items or entries se
 the text wins over the slider.
 
 Inputs:
-    Panels    : the `Panels` output of stage 2 (tree, branch {i} = panel P<i+1>: outer curve first), Tree access
-    Angle     : degrees, a turn sharper than this is a corner (default 20, the usual setting of SplitCrvByAngle)
+    Edges     : the `Edges` output of the Edges component (tree, branch {i} = panel P<i+1>, numbered), Tree access
     Build     : button, makes the sliders (see above)
     ShowText  : bool, False — no edge labels (the Labels output is empty); default True
     Widths    : cm, one value per edge in the order S1.1, S1.2… S2.1… (the sliders), List access
     Overrides : text, widths of single edges / panels, cm (see above)
 Outputs:
     Seams  : tree, branch {i} = the closed cut line of panel P<i+1>
-    Edges  : tree, branch {i} = the edges of panel P<i+1> in the order of their numbers (top, right, bottom, left)
     Labels : the edge number and its width near the middle of each edge (text geometry)
     Report : edges per panel, widths, problems
 """
@@ -43,25 +38,6 @@ ENTRY = re.compile(r"^\s*[PS]?(\d+)(?:\s*\.\s*(\d+))?\s*=\s*(\d+(?:[.,]\d+)?)\s*
 TOP_CM = 1.0  # default seam of the top and bottom edges
 SIDE_CM = 3.0  # default seam of the left and right edges
 NAMES = (u"top", u"right", u"bottom", u"left")  # edges 1-4 of a four-sided panel
-
-
-def number_edges(chords):
-    """chords — (dx, dy) from start to end of every edge, in counter-clockwise loop order. Returns
-    [(loop index, is a side)] in the order of the numbers: the top edge first, then clockwise (top, right, bottom, left)."""
-    n = len(chords)
-
-    def up(k):  # Y of the outward direction of edge k: outside is on the right of a counter-clockwise loop
-        dx, dy = chords[k]
-        length = (dx * dx + dy * dy) ** 0.5
-        return -dx / length if length else -2.0
-
-    top = max(range(n), key=up)
-    out = []
-    for j in range(n):
-        k = (top - j) % n  # clockwise = against the loop
-        side = j in (1, 3) if n == 4 else abs(chords[k][1]) > abs(chords[k][0])
-        out.append((k, side))
-    return out
 
 
 def parse(texts):
@@ -103,6 +79,10 @@ if "ghenv" in globals():
             sys.path.insert(0, p)
     import Seams as S
     import PatternTextStyles as PTS
+    for m in ("GH_Edges",):  # the shared numbering rules; fresh after an edit
+        sys.modules.pop(m, None)
+    sys.path.insert(0, os.path.join(root, u"Grasshoper scripts"))
+    import GH_Edges as E
 
     def data(name):
         for prm in comp.Params.Input:
@@ -116,7 +96,6 @@ if "ghenv" in globals():
             return g.ScriptVariable()
         return default
 
-    angle = float(first("Angle", 20.0))
     show_text = bool(first("ShowText", True))
     slid = [float(g.ScriptVariable()) for g in (data("Widths").AllData(True) if data("Widths") else [])]
     overrides = [g.ScriptVariable() for g in (data("Overrides").AllData(True) if data("Overrides") else [])]
@@ -129,38 +108,28 @@ if "ghenv" in globals():
     tol = rdoc.ModelAbsoluteTolerance
     style = PTS.ensure_styles(rdoc)[28.0]
 
-    Seams, Edges, Labels, Report = DataTree[object](), DataTree[object](), [], []
-    panels = data("Panels")
+    Seams, Labels, Report = DataTree[object](), [], []
+    tree = data("Edges")
     used = set()
     taken = 0  # sliders used so far, in the order of the edges
     found = []  # (name, edge length) of every edge — for the Build button
-    if panels is None or panels.PathCount == 0:
-        warn(u"No panels: connect the Panels output of stage 2")
+    if tree is None or tree.PathCount == 0:
+        warn(u"No edges: connect the Edges output of the Edges component")
     else:
-        for b in range(panels.PathCount):
-            n = b + 1  # P<n>, as numbered by stage 2
-            outer = panels.Branches[b][0].ScriptVariable()
-            plane_ok, plane = outer.TryGetPlane(tol)
-            normal = plane.ZAxis if plane_ok else Vector3d.ZAxis
-            if normal * Vector3d.ZAxis < 0:
-                normal = -normal
-            lp = S.loop(outer, normal)
-            if lp is None:
-                warn(u"P%d: the outline is not closed" % n)
-                continue
-            es = S.edges(lp, angle, tol)
-            chords = [(e.PointAtEnd.X - e.PointAtStart.X, e.PointAtEnd.Y - e.PointAtStart.Y) for e in es]
-            numbered = number_edges(chords)
-            widths = [0.0] * len(es)  # in loop order — what Seams.build takes
-            path_n = GH_Path(b)
-            for j, (k, is_side) in enumerate(numbered):
-                e = es[k]
+        for b in range(tree.PathCount):
+            index = tree.Paths[b].Indices[tree.Paths[b].Length - 1]
+            n = index + 1  # P<n>
+            es = [g.ScriptVariable() for g in tree.Branches[b]]  # in number order
+            normal = Vector3d.ZAxis
+            widths = []  # in number order
+            path_n = GH_Path(index)
+            for j, e in enumerate(es):
+                is_side = E.is_side(j, es)
                 default = SIDE_CM if is_side else TOP_CM
                 w = per_edge.get((n, j + 1), per_panel.get(n, slid[taken] if taken < len(slid) else default))
                 taken += 1
                 used.add((n, j + 1))
-                widths[k] = w * cm
-                Edges.Add(e, path_n)
+                widths.append(w * cm)
                 where = NAMES[j] if len(es) == 4 else (u"side" if is_side else u"top / bottom")
                 found.append((u"S%d.%d" % (n, j + 1), e.GetLength() / mm, n, j, default, where))
                 t = e.Domain.Mid
@@ -176,13 +145,14 @@ if "ghenv" in globals():
             if max(widths) <= tol:
                 Report.append(u"P%d: %d edges, no seam" % (n, len(es)))
                 continue
-            cut = S.build(es, widths, ["Extend"] * len(es), normal, tol)
+            # numbers run clockwise; build takes the edges counter-clockwise (corner k = start of edge k): reversed
+            cut = S.build(es[::-1], widths[::-1], ["Extend"] * len(es), normal, tol)
             if cut is None:
                 warn(u"P%d: the cut line did not close (an edge too short for its seam?)" % n)
                 Report.append(u"P%d: %d edges — cut line failed" % (n, len(es)))
                 continue
             Seams.Add(S.clean(cut, S.micro(rdoc)), path_n)
-            Report.append(u"P%d: %d edges, widths cm %s" % (n, len(es), u" ".join(u"%g" % (widths[k] / cm) for k, _ in numbered)))
+            Report.append(u"P%d: %d edges, widths cm %s" % (n, len(es), u" ".join(u"%g" % (w / cm) for w in widths)))
 
         if first("Build", False) is True:
             from System.Drawing import PointF
@@ -229,6 +199,6 @@ if "ghenv" in globals():
         if slid and len(slid) != taken:
             warn(u"Widths has %d values, the panels have %d edges (press Build)" % (len(slid), taken))
         stray = [u"P%d.%d" % k for k in per_edge if k not in used] + [
-            u"P%d" % k for k in per_panel if k > panels.PathCount]
+            u"P%d" % k for k in per_panel if k > tree.PathCount]
         if stray:
             warn(u"Overrides for edges / panels that do not exist: %s" % u", ".join(stray))

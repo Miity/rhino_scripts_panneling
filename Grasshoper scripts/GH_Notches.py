@@ -5,7 +5,7 @@ A thin wrapper (scripts/pattern/Notches.py stays as it is): the places are count
 one notch at the middle of the edge, then every Every both ways to the corners. Virtual: the notches are points in the
 preview, nothing is added to the Rhino document (Convert Notches into pen / knife notches is a later stage).
 
-The edges come from the Seams component, already numbered (1 top, 2 right, 3 bottom, 4 left). Default: notches on the
+The edges come from the Edges component, already numbered (1 top, 2 right, 3 bottom, 4 left). Default: notches on the
 top and bottom edges, none on the sides (a panel with another number of edges: none on the edges facing more along X
 than along Y). To change single edges press Build — one toggle per edge is made below the component (a column per
 panel, N1.1, N1.2… = notches of panel 1, edge 1…), set to the default, grouped (`Notch edges`) and wired to On in that
@@ -15,7 +15,7 @@ CenterTick = True: a tick at the middle (by length) of every edge — sides too,
 sew line into the panel, square to the edge, TICK_CM long.
 
 Inputs:
-    Edges : the `Edges` output of the Seams component (tree, branch {i} = panel P<i+1>), Tree access
+    Edges : the `Edges` output of the Edges component (tree, branch {i} = panel P<i+1>), Tree access
     Every : cm, the step from the middle of the edge (default 30)
     Build : button, makes the toggles
     On    : bool, one per edge in the order N1.1, N1.2… N2.1… (the toggles), List access
@@ -51,6 +51,10 @@ if "ghenv" in globals():
         if p not in sys.path:
             sys.path.insert(0, p)
     import Notches as N
+    for m in ("GH_Edges",):  # the shared numbering rules; fresh after an edit
+        sys.modules.pop(m, None)
+    sys.path.insert(0, os.path.join(root, u"Grasshoper scripts"))
+    import GH_Edges as E
 
     def data(name):
         for prm in comp.Params.Input:
@@ -74,7 +78,7 @@ if "ghenv" in globals():
     taken = 0
     tree = data("Edges")
     if tree is None or tree.PathCount == 0:
-        warn(u"No edges: connect the Edges output of the Seams component")
+        warn(u"No edges: connect the Edges output of the Edges component")
     else:
         if every_cm <= 0:
             warn(u"Every must be above 0")
@@ -84,9 +88,7 @@ if "ghenv" in globals():
             edges = [g.ScriptVariable() for g in tree.Branches[b]]
             counts = []
             for j, e in enumerate(edges):
-                dx, dy = e.PointAtEnd.X - e.PointAtStart.X, e.PointAtEnd.Y - e.PointAtStart.Y
-                is_side = j in (1, 3) if len(edges) == 4 else abs(dy) > abs(dx)  # as in the Seams component
-                default = not is_side
+                default = not E.is_side(j, edges)
                 use = on[taken] if taken < len(on) else default
                 taken += 1
                 found.append((u"N%d.%d" % (n, j + 1), n, j, default))

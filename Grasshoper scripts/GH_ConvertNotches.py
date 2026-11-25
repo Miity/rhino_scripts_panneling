@@ -11,7 +11,7 @@ with the button's defaults (Slit, In, Depth 5 mm). The other inputs are optional
 
 Inputs:
     Points    : the `Points` output of the Notches component (tree, branch {i} = panel P<i+1>), Tree access
-    Edges     : the `Edges` output of the Seams component, Tree access
+    Edges     : the `Edges` output of the Edges component, Tree access
     Seams     : the `Seams` output of the Seams component (cut lines), Tree access
     Knife     : bool, True — knife V, False — pen mark (default True)
     Depth     : mm (default: knife 2, pen 5)
@@ -95,7 +95,7 @@ if "ghenv" in globals():
     Notches, Report = DataTree[object](), []
     points, edges, cuts = branches("Points"), branches("Edges"), branches("Seams")
     if not points or not edges:
-        warn(u"Connect Points (Notches component) and Edges, Seams (Seams component)")
+        warn(u"Connect Points (Notches), Edges (Edges component) and Seams (Seams component)")
     else:
         made, narrow, bare = 0, [], []
         for index in sorted(points):
