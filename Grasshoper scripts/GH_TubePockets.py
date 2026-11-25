@@ -8,8 +8,8 @@ the edge) and the label T<n>; the full part (contour + centre notch + label) Up 
 added to the Rhino document.
 
 Seam allowance of the full part (the button's Seam step): the bottom of the pocket gets the same seam as its panel edge
-has in the Seams component (read off the panel's cut line, `Seams.measured`); the top and the two ends get SeamSides
-(5 cm). The cut
+has in the Seams component (read off the panel's cut line, `Seams.measured`); the two ends get SeamSides (5 cm); the
+top — the side opposite the panel edge — gets none. The cut
 line is built as the Seams button builds it (`Seams.build`, corners Extend, cleaned for the knife).
 
 Edges and their numbers come from the Edges component. Press Build — one slider per edge is made below the component
@@ -20,7 +20,7 @@ to 0; an old set is replaced. Pockets are numbered T1, T2… by panel and edge.
 Inputs:
     Edges  : the `Edges` output of the Edges component (tree, branch {i} = panel P<i+1>), Tree access
     Seams  : the `Seams` output of the Seams component (cut lines of the panels), Tree access
-    SeamSides : cm, the seam of the top and the ends of the full part (default 5)
+    SeamSides : cm, the seam of the two ends of the full part (default 5)
     H      : cm, pocket height (default 13)
     Trim   : cm, the top shorter by this at each end (default 5)
     Notch  : bool, centre mark of the pocket (default True)
@@ -85,7 +85,7 @@ if "ghenv" in globals():
     trim = float(first("Trim", 5.0)) * cm
     notch = bool(first("Notch", True))
     rigid = bool(first("Rigid", False))
-    around = float(first("SeamSides", 5.0)) * cm  # top and ends of the full part
+    ends_seam = float(first("SeamSides", 5.0)) * cm  # the two ends of the full part; the top has none
     up = Vector3d(0, float(first("Up", T.UP)) * mm, 0)
     widths = [float(v) for v in values("Widths")]
 
@@ -141,12 +141,19 @@ if "ghenv" in globals():
                     Parts.Add(g, branch)
                 panel_cut = panel_cuts.get(index)
                 seam = S.measured(edge, panel_cut, normal, tol) if panel_cut is not None else 0.0
-                if max(seam, around) > tol:
+                if max(seam, ends_seam) > tol:
                     lp = S.loop(contour, normal)
                     es = S.edges(lp, 20.0, tol) if lp is not None else []
-                    # the pocket bottom = the pieces of the contour lying on the segment of the panel edge
-                    own = [seam if max(seg.PointAt(seg.ClosestPoint(q)[1]).DistanceTo(q) for q in
-                                       (e.PointAtStart, S.mid(e), e.PointAtEnd)) <= 100 * tol else around for e in es]
+                    corners = (seg.PointAtStart, seg.PointAtEnd)
+
+                    def width(e):  # bottom (on the segment of the panel edge) / an end (starts at its corner) / the top
+                        if max(seg.PointAt(seg.ClosestPoint(q)[1]).DistanceTo(q) for q in
+                               (e.PointAtStart, S.mid(e), e.PointAtEnd)) <= 100 * tol:
+                            return seam
+                        touches = min(q.DistanceTo(c) for q in (e.PointAtStart, e.PointAtEnd) for c in corners)
+                        return ends_seam if touches <= 100 * tol else 0.0
+
+                    own = [width(e) for e in es]
                     cut = S.build(es, own, ["Extend"] * len(es), normal, tol) if max(own or [0]) > 0 else None
                     if cut is None:
                         warn(u"%s: the cut line of the full part did not close" % name)
@@ -158,9 +165,9 @@ if "ghenv" in globals():
                 above.Transform(Transform.Translation(up))
                 Labels.append(above)
                 number += 1
-                Report.append(u"%s: E%s, W %s, H %g, Trim %g cm, seam bottom %g / top and ends %g cm" % (
+                Report.append(u"%s: E%s, W %s, H %g, Trim %g cm, seam bottom %g / ends %g / top 0 cm" % (
                     name, where, u"whole edge %.1f" % length if whole else u"%.1f" % w, h / cm, trim / cm,
-                    round(seam / cm, 2), around / cm))
+                    round(seam / cm, 2), ends_seam / cm))
         if number and not panel_cuts:
             warn(u"Connect Seams (Seams component): the full parts have no seam allowance")
         if not number:
