@@ -14,7 +14,6 @@ group `Zip pairs`) and wired to On in that order; an old set is replaced. Switch
 the top. ponytail: only a panel and the next one down — panels side by side in one row are not paired.
 
 Inputs:
-    Panels : the `Panels` output of the Panels component (tree, branch {i} = panel P<i+1>: outer curve first), Tree access
     Edges  : the `Edges` output of the Edges component, Tree access
     Trim   : cm, the stops this far in from the ends of the shorter edge (default 4)
     Size   : cm, length of the stop legs (optional, default 1)
@@ -36,7 +35,7 @@ if "ghenv" in globals():
     import Grasshopper
     from Grasshopper import DataTree
     from Grasshopper.Kernel.Data import GH_Path
-    from Rhino.Geometry import Polyline, PolylineCurve, Vector3d
+    from Rhino.Geometry import Curve, Polyline, PolylineCurve, Vector3d
 
     comp = ghenv.Component
     rdoc = Rhino.RhinoDoc.ActiveDoc
@@ -79,11 +78,18 @@ if "ghenv" in globals():
     trim = float((values("Trim") or [4.0])[0]) * cm
     size = float((values("Size") or [1.0])[0]) * cm
     on = [bool(v) for v in values("On")]
-    panels, edges = branches("Panels"), branches("Edges")
+    edges = branches("Edges")
+    outlines = {}  # the panel is its edges joined back — what the number must stay inside
+    for index, es in edges.items():
+        joined = Curve.JoinCurves(es, 10 * tol)
+        if len(joined) == 1 and joined[0].IsClosed:
+            outlines[index] = joined[0]
+        else:
+            warn(u"P%d: the edges do not close into one outline" % (index + 1))
 
     Marks, Labels, Report = DataTree[object](), [], []
-    if not panels or not edges:
-        warn(u"Connect Panels (Panels component) and Edges (Edges component)")
+    if not edges:
+        warn(u"Connect Edges (Edges component)")
     else:
         order = sorted(edges)
         pairs = [(a, b) for a, b in zip(order, order[1:]) if b == a + 1]
@@ -93,7 +99,7 @@ if "ghenv" in globals():
         obstacles = []  # numbers and stops placed so far
         number = 0
         for index, (a, b) in enumerate(pairs):
-            if not (index < len(on) and on[index]):
+            if not (index < len(on) and on[index]) or a not in outlines or b not in outlines:
                 continue
             number += 1
             name = u"Z%d" % number
@@ -107,7 +113,7 @@ if "ghenv" in globals():
             for panel, _, e in sides:
                 end = (e.GetLength() - span) / 2.0  # centred on the edge
                 s_c = e.GetLength() / 2.0
-                te, corners, free, side = Z.place_text(name, e, panels[panel][0], s_c, style, gap, up, tol, obstacles)
+                te, corners, free, side = Z.place_text(name, e, outlines[panel], s_c, style, gap, up, tol, obstacles)
                 if not free:
                     warn(u"%s on P%d: no free spot for the number" % (name, panel + 1))
                 Labels.append(te)
