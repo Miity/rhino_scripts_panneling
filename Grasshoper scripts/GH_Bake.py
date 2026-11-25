@@ -30,6 +30,7 @@ import sys
 
 ROOT = u"/Users/dmytro/Documents/Projects/Rhino"  # used when the .gh is not saved next to the project
 KEY = u"GHBake_squish"  # document string: ids of the objects of the last bake
+LABEL_MM = 28.0  # height of the baked labels: the PAT style of the document
 ON_MM = 0.5  # a piece of a sew line this close to the cut line all along lies under it
 
 
@@ -53,6 +54,7 @@ if "ghenv" in globals():
         if p not in sys.path:
             sys.path.insert(0, p)
     import Seams as S
+    import PatternTextStyles as PTS
 
     mm = Rhino.RhinoMath.UnitScale(Rhino.UnitSystem.Millimeters, rdoc.ModelUnitSystem)
     tol = rdoc.ModelAbsoluteTolerance
@@ -180,6 +182,19 @@ if "ghenv" in globals():
         d = data(name)
         return [x.ScriptVariable() for x in (d.AllData(True) if d else [])]
 
+    def add(geo, attrs, style):
+        """into the document; a text is made anew with the document style — one passed through Grasshopper keeps its
+        height only as a local override and would be baked 1 mm high"""
+        if not isinstance(geo, TextEntity):
+            return rdoc.Objects.Add(geo, attrs)
+        te = TextEntity()
+        te.Plane = geo.Plane
+        te.DimensionStyleId = style.Id
+        te.PlainText = geo.PlainText
+        te.TextHorizontalAlignment = geo.TextHorizontalAlignment
+        te.TextVerticalAlignment = geo.TextVerticalAlignment
+        return rdoc.Objects.AddText(te, attrs)
+
     def layer_index(name):
         i = rdoc.Layers.FindByFullPath(name, -1)
         if i < 0:
@@ -216,6 +231,7 @@ if "ghenv" in globals():
         warn(u"No panels: switch Run on and connect the stages")
     else:
         todo = plan()  # worked out before anything is deleted
+        style = PTS.ensure_styles(rdoc)[LABEL_MM]
         undo = rdoc.BeginUndoRecord(u"GH Bake")
         try:
             gone, stuck = remove_previous()
@@ -227,7 +243,7 @@ if "ghenv" in globals():
                     if group not in groups:
                         groups[group] = rdoc.Groups.Add()
                     attrs.AddToGroup(groups[group])
-                oid = rdoc.Objects.Add(geo, attrs)
+                oid = add(geo, attrs, style)
                 if oid == System.Guid.Empty:
                     failed += 1
                     continue
