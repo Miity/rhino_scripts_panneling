@@ -75,6 +75,16 @@ Code compatibility: IronPython 2.7 and CPython 3 (Rhino 8).
 - Small tools the user keeps although Rhino can do the same — do not propose deleting them in cleanups: `sizes/draw_centered_rectangle.py` (Rect 1340), `curves/MidLine.py`, `markup/line_type.py` (Linetype 400,2), `curves/find_exact_connection.py`, the Analysis tab (SmallClosed, CutRisks, RecommendTabs, CutTabs), `MarkReinf` + `RList` + `ZipList` (to be reworked later). `PointsToCrosses` (buttons) and `ConvertNotches` (notches) are not duplicates.
 - A script the user edits themselves between sessions (e.g. `markup/PointsToCrosses.py`: input is points / point clouds / TextDots, not circles) — read the file again before describing or extending it.
 
+## Grasshopper workflow (`squish_stage1.gh`)
+
+- One GH file = the workflow of a project, built stage by stage: `GH_<Stage>.py` per component, in the Grasshopper scripts folder.
+- **Never change the toolbar scripts for the workflow** — they are used daily. A wrapper imports their functions; if that is not enough, make a copy and change the copy.
+- Results are virtual (preview geometry): nothing stays in the Rhino document until a baking stage is made.
+- Edge numbers come only from the Edges component (`GH_Edges.py`: 1 top, then clockwise); a stage takes `Edges`, no other geometry it can derive from them.
+- Per-edge settings: a `Build` button makes labelled sliders / toggles below the component (a column per panel, `<letter><panel>.<edge>`), in one group — no text lists, no Gene Pool.
+- **Every stage is grouped on the canvas** (a new one too): one GH group around the component, its sliders / toggles / button and the built group, as the user does.
+- The user works in the same live canvas: do not reset their values (`Build` resets them), check a change against the results before it, save the .gh after changing it.
+
 ## Toolbar (`Scripts.rui`)
 
 - Button order = the order of work (a new button goes where it is used). No icons — names only; the tooltip reads `Name: explanation`.
